@@ -7,6 +7,26 @@ if [[ ! -f "$env_file" ]]; then
   exit 1
 fi
 
+original_database_url_set=0
+if [[ -v DATABASE_URL ]]; then
+  original_database_url="$DATABASE_URL"
+  original_database_url_set=1
+fi
+
+cleanup() {
+  if [[ $original_database_url_set -eq 1 ]]; then
+    export DATABASE_URL="$original_database_url"
+  else
+    unset DATABASE_URL || true
+  fi
+}
+
+trap cleanup EXIT
+
+set -a
+source "$env_file"
+set +a
+
 if ! command -v npx >/dev/null 2>&1; then
   echo "Error: npx is required but was not found in PATH." >&2
   exit 1
@@ -17,7 +37,7 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-status_json=$(npx prisma migrate status --schema prisma/schema.prisma --env-file "$env_file" --json)
+status_json=$(npx prisma migrate status --schema prisma/schema.prisma --json)
 
 unapplied_count=$(python3 -c '
 import json
@@ -43,6 +63,6 @@ if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
   exit 1
 fi
 
-npx prisma migrate deploy --schema prisma/schema.prisma --env-file "$env_file"
+npx prisma migrate deploy --schema prisma/schema.prisma
 
 echo "Migrations applied successfully."

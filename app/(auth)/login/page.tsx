@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -27,6 +27,7 @@ type LoginValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -52,7 +53,12 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard/client");
+    const callbackUrl = searchParams.get("callbackUrl");
+    const redirectUrl =
+      response?.url || (callbackUrl ? decodeURIComponent(callbackUrl) : "/dashboard");
+
+    router.push(redirectUrl);
+    router.refresh();
   });
 
   return (

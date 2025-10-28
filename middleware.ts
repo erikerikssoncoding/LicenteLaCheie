@@ -22,15 +22,22 @@ export async function middleware(request: NextRequest) {
 
   let token;
 
+  const forwardedProtoHeader = request.headers.get("x-forwarded-proto");
+  const forwardedProto = forwardedProtoHeader?.split(",")[0]?.trim().toLowerCase();
+  const secureCookie =
+    request.nextUrl.protocol === "https:" || forwardedProto === "https";
+
   try {
     token = await getToken({
       req: request,
+      secureCookie,
       ...(authSecret ? { secret: authSecret } : {}),
       ...(authSalt ? { salt: authSalt } : {}),
     });
 
     authDebugLog("middleware.getToken.success", {
       token: summarizeToken(token),
+      secureCookie,
     });
   } catch (error) {
     authDebugLog("middleware.getToken.error", {

@@ -1,0 +1,90 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+      <div>
+        <h1 class="h3 mb-1">Administrare tichete</h1>
+        <p class="text-muted mb-0">Monitorizeaza rapid solicitarile clientilor si actualizeaza statusurile.</p>
+      </div>
+      <form class="d-flex flex-wrap gap-2" action="/cont/tichete" method="get">
+        <select class="form-select" name="status">
+          <option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>Toate statusurile</option>
+          <option value="deschis" <%= filters.status === 'deschis' ? 'selected' : '' %>>Deschis</option>
+          <option value="in-analiza" <%= filters.status === 'in-analiza' ? 'selected' : '' %>>In analiza</option>
+          <option value="rezolvat" <%= filters.status === 'rezolvat' ? 'selected' : '' %>>Rezolvat</option>
+        </select>
+        <select class="form-select" name="kind">
+          <option value="all" <%= filters.kind === 'all' ? 'selected' : '' %>>Toate tipurile</option>
+          <option value="support" <%= filters.kind === 'support' ? 'selected' : '' %>>Suport</option>
+          <option value="offer" <%= filters.kind === 'offer' ? 'selected' : '' %>>Oferta</option>
+        </select>
+        <button class="btn btn-outline-primary" type="submit">Filtreaza</button>
+      </form>
+    </div>
+
+    <% const kindLabels = { support: 'Suport', offer: 'Oferta' }; %>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Lista tichete</h2>
+          <span class="text-muted small">Total: <%= tickets.length %></span>
+        </div>
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Subiect</th>
+                <th>Tip</th>
+                <th>Status</th>
+                <th>Creat la</th>
+                <th class="text-end">Actiuni</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (tickets.length === 0) { %>
+              <tr>
+                <td colspan="6" class="text-center text-muted">Nu exista tichete pentru filtrele selectate.</td>
+              </tr>
+              <% } else { %>
+              <% tickets.forEach((ticket) => { %>
+              <tr>
+                <td>#<%= ticket.id %></td>
+                <td>
+                  <div class="fw-semibold"><%= ticket.subject %></div>
+                  <div class="small text-muted">
+                    <%= ticket.author_name ? `Autor: ${ticket.author_name}` : 'Autor necunoscut' %>
+                    <% if (ticket.project_title) { %>
+                    • Proiect: <%= ticket.project_title %>
+                    <% } %>
+                  </div>
+                </td>
+                <td><span class="badge bg-light text-dark"><%= kindLabels[ticket.kind] || ticket.kind %></span></td>
+                <td>
+                  <form action="/cont/tichete/<%= ticket.id %>/status" method="post" class="d-flex align-items-center gap-2">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <select class="form-select form-select-sm" name="status">
+                      <option value="deschis" <%= ticket.status === 'deschis' ? 'selected' : '' %>>Deschis</option>
+                      <option value="in-analiza" <%= ticket.status === 'in-analiza' ? 'selected' : '' %>>In analiza</option>
+                      <option value="rezolvat" <%= ticket.status === 'rezolvat' ? 'selected' : '' %>>Rezolvat</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">Actualizeaza</button>
+                  </form>
+                </td>
+                <td><%= ticket.created_at.toISOString ? ticket.created_at.toISOString().slice(0,10) : ticket.created_at %></td>
+                <td class="text-end">
+                  <a class="btn btn-sm btn-outline-primary" href="/cont/tichete/<%= ticket.id %>">Vezi detalii</a>
+                </td>
+              </tr>
+              <% }) %>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<%- include('../partials/footer') %>

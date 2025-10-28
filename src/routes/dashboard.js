@@ -8,7 +8,7 @@ import {
   assignProject,
   createProject,
   getClientProjectHighlights,
-  getEditorProjectHighlights,
+  getRedactorProjectHighlights,
   getAdminProjectHighlights
 } from '../services/projectService.js';
 import {
@@ -18,19 +18,20 @@ import {
   addReply,
   updateTicketStatus,
   listPendingSupportTicketsForAdmin,
-  listPendingSupportTicketsForEditor,
+  listPendingSupportTicketsForRedactor,
   listRecentTicketRepliesForUser
 } from '../services/ticketService.js';
 import {
-  listEditorsAndAdmins,
+  listTeamMembers,
   listClients,
   getUserById,
   updateUserProfile,
   changeUserPassword,
   listUsers,
-  createStaffUser,
+  createManagedUser,
   updateUserRole,
-  setUserActiveStatus
+  setUserActiveStatus,
+  PROTECTED_USER_ID
 } from '../services/userService.js';
 import {
   getOfferByTicketId,
@@ -84,6 +85,7 @@ router
         phone: data.phone && data.phone.length ? data.phone : null
       });
       req.session.user.fullName = data.fullName;
+      req.session.user.phone = data.phone && data.phone.length ? data.phone : null;
       res.redirect('/cont/setari?success=profile');
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -133,8 +135,8 @@ router.get('/cont', async (req, res, next) => {
       projects,
       tickets,
       offers: [],
-      clientHighlights: { nextDeadline: null, admins: [], editors: [] },
-      editorHighlights: { statusCounts: [], upcomingDeadlines: [] },
+      clientHighlights: { nextDeadline: null, admins: [], redactors: [] },
+      redactorHighlights: { statusCounts: [], upcomingDeadlines: [] },
       adminHighlights: { statusCounts: [], recentProjects: [] },
       pendingSupportTickets: [],
       pendingOffers: [],
@@ -152,12 +154,12 @@ router.get('/cont', async (req, res, next) => {
       viewModel.recentReplies = recentReplies;
     }
 
-    if (user.role === 'editor') {
-      const [editorHighlights, pendingSupport] = await Promise.all([
-        getEditorProjectHighlights(user.id),
-        listPendingSupportTicketsForEditor(user.id)
+    if (user.role === 'redactor') {
+      const [redactorHighlights, pendingSupport] = await Promise.all([
+        getRedactorProjectHighlights(user.id),
+        listPendingSupportTicketsForRedactor(user.id)
       ]);
-      viewModel.editorHighlights = editorHighlights;
+      viewModel.redactorHighlights = redactorHighlights;
       viewModel.pendingSupportTickets = pendingSupport;
     }
 
@@ -188,7 +190,8 @@ router.get('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, r
     const users = await listUsers({
       role: filters.role !== 'all' ? filters.role : undefined,
       status: filters.status !== 'all' ? filters.status : undefined,
-      search: filters.q ? filters.q : undefined
+      search: filters.q ? filters.q : undefined,
+      viewer: req.session.user
     });
     const flash = req.session.flash || {};
     delete req.session.flash;
@@ -206,16 +209,43 @@ router.get('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, r
   }
 });
 
+router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const filters = {
+      status: req.query.status || 'all',
+      kind: req.query.kind || 'all'
+    };
+    const tickets = await listTicketsForUser(req.session.user);
+    const filteredTickets = tickets.filter((ticket) => {
+      const statusMatch = filters.status === 'all' || ticket.status === filters.status;
+      const kindMatch = filters.kind === 'all' || ticket.kind === filters.kind;
+      return statusMatch && kindMatch;
+    });
+    res.render('pages/ticket-management', {
+      title: 'Administrare tichete',
+      description: 'Vizualizeaza rapid solicitarile clientilor si actualizeaza statusurile direct din panoul de control.',
+      tickets: filteredTickets,
+      filters
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, res, next) => {
   try {
     const schema = z.object({
       fullName: z.string().min(3),
       email: z.string().email(),
       phone: z.string().trim().optional(),
-      role: z.enum(['editor', 'admin'])
+      role: z.enum(['client', 'redactor', 'admin', 'superadmin'])
     });
     const data = schema.parse(req.body);
-    const { generatedPassword } = await createStaffUser({
+    if (data.role === 'superadmin' && req.session.user.role !== 'superadmin') {
+      req.session.flash = { error: 'Numai superadminii pot crea alti superadmini.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    const { generatedPassword } = await createManagedUser({
       fullName: data.fullName,
       email: data.email,
       phone: data.phone && data.phone.length ? data.phone : null,
@@ -250,11 +280,15 @@ router.post('/cont/utilizatori/:id/rol', ensureRole('admin', 'superadmin'), asyn
       req.session.flash = { error: 'Utilizator invalid.' };
       return res.redirect('/cont/utilizatori');
     }
+    if (targetId === PROTECTED_USER_ID) {
+      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi modificat.' };
+      return res.redirect('/cont/utilizatori');
+    }
     if (targetId === req.session.user.id) {
       req.session.flash = { error: 'Nu iti poti modifica propriul rol.' };
       return res.redirect('/cont/utilizatori');
     }
-    const schema = z.object({ role: z.enum(['client', 'editor', 'admin', 'superadmin']) });
+    const schema = z.object({ role: z.enum(['client', 'redactor', 'admin', 'superadmin']) });
     const { role } = schema.parse(req.body);
     if (role === 'superadmin' && req.session.user.role !== 'superadmin') {
       req.session.flash = { error: 'Numai superadminii pot atribui rolul de superadmin.' };
@@ -268,6 +302,10 @@ router.post('/cont/utilizatori/:id/rol', ensureRole('admin', 'superadmin'), asyn
       req.session.flash = { error: 'Rol selectat invalid.' };
       return res.redirect('/cont/utilizatori');
     }
+    if (error.message === 'PROTECTED_USER') {
+      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi modificat.' };
+      return res.redirect('/cont/utilizatori');
+    }
     next(error);
   }
 });
@@ -277,6 +315,10 @@ router.post('/cont/utilizatori/:id/status', ensureRole('admin', 'superadmin'), a
     const targetId = Number(req.params.id);
     if (Number.isNaN(targetId)) {
       req.session.flash = { error: 'Utilizator invalid.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (targetId === PROTECTED_USER_ID) {
+      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi dezactivat.' };
       return res.redirect('/cont/utilizatori');
     }
     if (targetId === req.session.user.id) {
@@ -291,6 +333,10 @@ router.post('/cont/utilizatori/:id/status', ensureRole('admin', 'superadmin'), a
   } catch (error) {
     if (error instanceof z.ZodError) {
       req.session.flash = { error: 'Solicitarea nu este valida.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'PROTECTED_USER') {
+      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi dezactivat.' };
       return res.redirect('/cont/utilizatori');
     }
     next(error);
@@ -348,7 +394,7 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
         description: 'Nu aveti acces la acest ticket.'
       });
     }
-    if (user.role === 'editor' && ticket.project_id && ticket.assigned_editor_id && ticket.assigned_editor_id !== user.id) {
+    if (user.role === 'redactor' && ticket.project_id && ticket.assigned_editor_id && ticket.assigned_editor_id !== user.id) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
         description: 'Ticketul nu este asociat proiectelor tale.'
@@ -397,7 +443,7 @@ router.post('/cont/tichete/:id/raspuns', async (req, res, next) => {
         description: 'Nu aveti acces la acest ticket.'
       });
     }
-    if (user.role === 'editor' && ticket.project_id && ticket.assigned_editor_id && ticket.assigned_editor_id !== user.id) {
+    if (user.role === 'redactor' && ticket.project_id && ticket.assigned_editor_id && ticket.assigned_editor_id !== user.id) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
         description: 'Ticketul nu este asociat proiectelor tale.'
@@ -637,7 +683,7 @@ router.post('/cont/tichete/:id/status', ensureRole('admin', 'superadmin'), async
 
 router
   .route('/cont/proiecte/:id/status')
-  .post(ensureRole('admin', 'superadmin', 'editor'), async (req, res, next) => {
+  .post(ensureRole('admin', 'superadmin', 'redactor'), async (req, res, next) => {
     try {
       const schema = z.object({
         status: z.enum(['initiated', 'in-progress', 'needs-review', 'completed', 'delivered']),
@@ -652,7 +698,7 @@ router
         });
       }
       const user = req.session.user;
-      if (user.role === 'editor' && project.assigned_editor_id !== user.id) {
+      if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
           description: 'Nu sunteti asignat pe acest proiect.'
@@ -674,7 +720,7 @@ router
 router.get('/cont/proiecte/:id', async (req, res, next) => {
   try {
     const projectId = Number(req.params.id);
-    const [project, team] = await Promise.all([getProjectById(projectId), listEditorsAndAdmins()]);
+    const [project, team] = await Promise.all([getProjectById(projectId), listTeamMembers()]);
     if (!project) {
       return res.status(404).render('pages/404', {
         title: 'Proiect inexistent',
@@ -688,7 +734,7 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
         description: 'Nu aveti acces la acest proiect.'
       });
     }
-    if (user.role === 'editor' && project.assigned_editor_id !== user.id) {
+    if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
         description: 'Nu sunteti asignat pe acest proiect.'
@@ -715,7 +761,7 @@ router
   .route('/cont/proiecte/creeaza')
   .get(ensureRole('admin', 'superadmin'), async (req, res, next) => {
     try {
-      const [clients, team] = await Promise.all([listClients(), listEditorsAndAdmins()]);
+      const [clients, team] = await Promise.all([listClients(), listTeamMembers()]);
       res.render('pages/project-create', {
         title: 'Creaza proiect nou',
         description: 'Inregistreaza o lucrare de licenta si aloca echipa.',
@@ -735,7 +781,7 @@ router
         deadline: z.string().min(4),
         clientId: z.string(),
         assignedAdminId: z.string().optional(),
-        assignedEditorId: z.string().optional()
+        assignedRedactorId: z.string().optional()
       });
       const data = schema.parse(req.body);
       const user = req.session.user;
@@ -751,7 +797,7 @@ router
         deadline: data.deadline,
         clientId: Number(data.clientId),
         assignedAdminId,
-        assignedEditorId: data.assignedEditorId ? Number(data.assignedEditorId) : null
+        assignedRedactorId: data.assignedRedactorId ? Number(data.assignedRedactorId) : null
       });
       res.redirect('/cont');
     } catch (error) {
@@ -765,7 +811,7 @@ router
     try {
       const schema = z.object({
         adminId: z.string().optional(),
-        editorId: z.string().optional()
+        redactorId: z.string().optional()
       });
       const data = schema.parse(req.body);
       const project = await getProjectById(Number(req.params.id));
@@ -784,7 +830,7 @@ router
       }
       await assignProject(Number(req.params.id), {
         adminId: data.adminId ? Number(data.adminId) : null,
-        editorId: data.editorId ? Number(data.editorId) : null
+        redactorId: data.redactorId ? Number(data.redactorId) : null
       });
       res.redirect('/cont');
     } catch (error) {

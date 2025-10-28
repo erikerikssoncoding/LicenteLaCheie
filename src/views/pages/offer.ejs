@@ -24,15 +24,38 @@
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <div class="col-12">
                 <label class="form-label" for="clientName">Nume complet</label>
-                <input class="form-control" type="text" id="clientName" name="clientName" value="<%= request.body?.clientName || '' %>" required />
+                <input
+                  class="form-control"
+                  type="text"
+                  id="clientName"
+                  name="clientName"
+                  value="<%= request.body?.clientName || currentUser?.fullName || '' %>"
+                  <%= currentUser ? 'readonly' : '' %>
+                  required
+                />
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="email">Email</label>
-                <input class="form-control" type="email" id="email" name="email" value="<%= request.body?.email || '' %>" required />
+                <input
+                  class="form-control"
+                  type="email"
+                  id="email"
+                  name="email"
+                  value="<%= request.body?.email || currentUser?.email || '' %>"
+                  <%= currentUser ? 'readonly' : '' %>
+                  required
+                />
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="phone">Telefon</label>
-                <input class="form-control" type="tel" id="phone" name="phone" value="<%= request.body?.phone || '' %>" required />
+                <input
+                  class="form-control"
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value="<%= request.body?.phone || currentUser?.phone || '' %>"
+                  required
+                />
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="program">Program de studiu</label>
@@ -50,14 +73,24 @@
                 <label class="form-label" for="notes">Detalii suplimentare</label>
                 <textarea class="form-control" id="notes" name="notes" rows="3"><%= request.body?.notes || '' %></textarea>
               </div>
+              <% if (!currentUser) { %>
               <div class="col-12">
                 <div class="form-check">
-                  <input class="form-check-input" type="checkbox" value="on" id="acceptAccount" name="acceptAccount" <%= request.body?.acceptAccount ? 'checked' : '' %> required />
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    value="on"
+                    id="acceptAccount"
+                    name="acceptAccount"
+                    <%= request.body?.acceptAccount ? 'checked' : '' %>
+                    required
+                  />
                   <label class="form-check-label" for="acceptAccount">
                     Sunt de acord sa fie creat un cont Licente la Cheie pentru gestionarea ofertei si a contractului.
                   </label>
                 </div>
               </div>
+              <% } %>
               <div class="col-12 text-end">
                 <button class="btn btn-primary" type="submit">Trimite solicitarea</button>
               </div>

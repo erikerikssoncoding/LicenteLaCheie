@@ -39,7 +39,8 @@ router.post('/autentificare', async (req, res, next) => {
       id: user.id,
       email: user.email,
       fullName: user.full_name,
-      role: user.role
+      role: user.role,
+      phone: user.phone
     };
     return res.redirect('/cont');
   } catch (error) {

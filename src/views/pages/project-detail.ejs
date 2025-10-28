@@ -20,8 +20,8 @@
           <% if (project.admin_name) { %>
           <li>Admin responsabil: <%= project.admin_name %></li>
           <% } %>
-          <% if (project.editor_name) { %>
-          <li>Redactor asignat: <%= project.editor_name %></li>
+          <% if (project.redactor_name) { %>
+          <li>Redactor asignat: <%= project.redactor_name %></li>
           <% } %>
         </ul>
       </div>
@@ -45,10 +45,10 @@
             </select>
           </div>
           <div class="col-md-6">
-            <label class="form-label" for="editorId">Redactor asignat</label>
-            <select class="form-select" id="editorId" name="editorId">
+            <label class="form-label" for="redactorId">Redactor asignat</label>
+            <select class="form-select" id="redactorId" name="redactorId">
               <option value="">-- selecteaza --</option>
-              <% team.filter(member => member.role === 'editor').forEach((member) => { %>
+              <% team.filter(member => member.role === 'redactor').forEach((member) => { %>
               <option value="<%= member.id %>" <%= project.assigned_editor_id === member.id ? 'selected' : '' %>>
                 <%= member.full_name %> (<%= member.email %>)
               </option>
@@ -63,7 +63,7 @@
     </div>
     <% } %>
 
-    <% if (['admin', 'superadmin', 'editor'].includes(currentUser.role)) { %>
+    <% if (['admin', 'superadmin', 'redactor'].includes(currentUser.role)) { %>
     <div class="card shadow-sm mt-4">
       <div class="card-body">
         <h2 class="h5">Actualizeaza statusul</h2>

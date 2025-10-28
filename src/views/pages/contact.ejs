@@ -35,17 +35,45 @@
               <div class="alert alert-danger mb-0"><%= error %></div>
             </div>
             <% } %>
+            <% if (currentUser) { %>
+            <div class="col-12">
+              <div class="alert alert-info mb-0">Mesajul tau va fi inregistrat automat ca ticket in contul Licente la Cheie.</div>
+            </div>
+            <% } %>
             <div class="col-md-6">
               <label class="form-label" for="fullName">Nume complet</label>
-              <input class="form-control" type="text" id="fullName" name="fullName" value="<%= request.body?.fullName || '' %>" required />
+              <input
+                class="form-control"
+                type="text"
+                id="fullName"
+                name="fullName"
+                value="<%= request.body?.fullName || currentUser?.fullName || '' %>"
+                <%= currentUser ? 'readonly' : '' %>
+                required
+              />
             </div>
             <div class="col-md-6">
               <label class="form-label" for="email">Email</label>
-              <input class="form-control" type="email" id="email" name="email" value="<%= request.body?.email || '' %>" required />
+              <input
+                class="form-control"
+                type="email"
+                id="email"
+                name="email"
+                value="<%= request.body?.email || currentUser?.email || '' %>"
+                <%= currentUser ? 'readonly' : '' %>
+                required
+              />
             </div>
             <div class="col-12">
               <label class="form-label" for="phone">Telefon</label>
-              <input class="form-control" type="tel" id="phone" name="phone" value="<%= request.body?.phone || '' %>" required />
+              <input
+                class="form-control"
+                type="tel"
+                id="phone"
+                name="phone"
+                value="<%= request.body?.phone || currentUser?.phone || '' %>"
+                required
+              />
             </div>
             <div class="col-12">
               <label class="form-label" for="message">Mesaj</label>

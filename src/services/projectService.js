@@ -7,13 +7,13 @@ export async function createProject({
   deadline,
   clientId,
   assignedAdminId,
-  assignedEditorId
+  assignedRedactorId
 }) {
   const [result] = await pool.query(
     `INSERT INTO projects
       (title, description, degree_level, deadline, status, client_id, assigned_admin_id, assigned_editor_id)
      VALUES (?, ?, ?, ?, 'initiated', ?, ?, ?)`,
-    [title, description, degreeLevel, deadline, clientId, assignedAdminId || null, assignedEditorId || null]
+    [title, description, degreeLevel, deadline, clientId, assignedAdminId || null, assignedRedactorId || null]
   );
   return result.insertId;
 }
@@ -21,7 +21,7 @@ export async function createProject({
 export async function listProjectsForUser(user) {
   if (user.role === 'client') {
     const [rows] = await pool.query(
-      `SELECT p.*, ua.full_name AS assigned_admin_name, ue.full_name AS assigned_editor_name
+      `SELECT p.*, ua.full_name AS assigned_admin_name, ue.full_name AS assigned_redactor_name
        FROM projects p
        LEFT JOIN users ua ON ua.id = p.assigned_admin_id
        LEFT JOIN users ue ON ue.id = p.assigned_editor_id
@@ -32,7 +32,7 @@ export async function listProjectsForUser(user) {
     return rows;
   }
 
-  if (user.role === 'editor') {
+  if (user.role === 'redactor') {
     const [rows] = await pool.query(
       `SELECT p.*, uc.full_name AS client_name
        FROM projects p
@@ -46,7 +46,7 @@ export async function listProjectsForUser(user) {
 
   if (user.role === 'admin') {
     const [rows] = await pool.query(
-      `SELECT p.*, uc.full_name AS client_name, ue.full_name AS assigned_editor_name
+      `SELECT p.*, uc.full_name AS client_name, ue.full_name AS assigned_redactor_name
        FROM projects p
        LEFT JOIN users uc ON uc.id = p.client_id
        LEFT JOIN users ue ON ue.id = p.assigned_editor_id
@@ -58,7 +58,7 @@ export async function listProjectsForUser(user) {
   }
 
   const [rows] = await pool.query(
-    `SELECT p.*, uc.full_name AS client_name, ua.full_name AS assigned_admin_name, ue.full_name AS assigned_editor_name
+    `SELECT p.*, uc.full_name AS client_name, ua.full_name AS assigned_admin_name, ue.full_name AS assigned_redactor_name
      FROM projects p
      LEFT JOIN users uc ON uc.id = p.client_id
      LEFT JOIN users ua ON ua.id = p.assigned_admin_id
@@ -78,7 +78,7 @@ export async function updateProjectStatus(projectId, status, notes) {
 export async function getProjectById(projectId) {
   const [rows] = await pool.query(
     `SELECT p.*, uc.full_name AS client_name, uc.email AS client_email,
-            ua.full_name AS admin_name, ue.full_name AS editor_name
+            ua.full_name AS admin_name, ue.full_name AS redactor_name
      FROM projects p
      LEFT JOIN users uc ON uc.id = p.client_id
      LEFT JOIN users ua ON ua.id = p.assigned_admin_id
@@ -89,19 +89,19 @@ export async function getProjectById(projectId) {
   return rows[0] || null;
 }
 
-export async function assignProject(projectId, { adminId, editorId }) {
+export async function assignProject(projectId, { adminId, redactorId }) {
   await pool.query(
     `UPDATE projects
      SET assigned_admin_id = ?, assigned_editor_id = ?, updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
-    [adminId || null, editorId || null, projectId]
+    [adminId || null, redactorId || null, projectId]
   );
 }
 
 export async function getClientProjectHighlights(clientId) {
-  const [[deadlineRows], [adminRows], [editorRows]] = await Promise.all([
+  const [[deadlineRows], [adminRows], [redactorRows]] = await Promise.all([
     pool.query(
-      `SELECT p.id, p.title, p.deadline, ua.full_name AS admin_name, ue.full_name AS editor_name
+      `SELECT p.id, p.title, p.deadline, ua.full_name AS admin_name, ue.full_name AS redactor_name
        FROM projects p
        LEFT JOIN users ua ON ua.id = p.assigned_admin_id
        LEFT JOIN users ue ON ue.id = p.assigned_editor_id
@@ -129,18 +129,18 @@ export async function getClientProjectHighlights(clientId) {
   return {
     nextDeadline: deadlineRows[0] || null,
     admins: adminRows,
-    editors: editorRows
+    redactors: redactorRows
   };
 }
 
-export async function getEditorProjectHighlights(editorId) {
+export async function getRedactorProjectHighlights(redactorId) {
   const [[statusRows], [deadlineRows]] = await Promise.all([
     pool.query(
       `SELECT status, COUNT(*) AS total
        FROM projects
        WHERE assigned_editor_id = ?
        GROUP BY status`,
-      [editorId]
+      [redactorId]
     ),
     pool.query(
       `SELECT id, title, deadline
@@ -148,7 +148,7 @@ export async function getEditorProjectHighlights(editorId) {
        WHERE assigned_editor_id = ? AND deadline IS NOT NULL
        ORDER BY deadline ASC
        LIMIT 3`,
-      [editorId]
+      [redactorId]
     )
   ]);
 

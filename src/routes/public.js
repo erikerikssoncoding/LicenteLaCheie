@@ -6,7 +6,7 @@ import {
   getOfferByCode,
   DEFAULT_OFFER_EXPIRATION_HOURS
 } from '../services/offerService.js';
-import { ensureClientAccount } from '../services/userService.js';
+import { ensureClientAccount, updateUserProfile } from '../services/userService.js';
 import { createTicket } from '../services/ticketService.js';
 
 const router = Router();
@@ -53,8 +53,27 @@ router
         message: z.string().min(10)
       });
       const data = schema.parse(req.body);
+      if (req.session?.user) {
+        const user = req.session.user;
+        if (user.fullName !== data.fullName || user.phone !== data.phone) {
+          await updateUserProfile(user.id, { fullName: data.fullName, phone: data.phone });
+          req.session.user.fullName = data.fullName;
+          req.session.user.phone = data.phone;
+        }
+        await createTicket({
+          projectId: null,
+          userId: user.id,
+          subject: `Solicitare contact - ${data.fullName}`,
+          message: `Telefon: ${data.phone}\nEmail: ${user.email}\n\n${data.message}`,
+          kind: 'support'
+        });
+        return res.render('pages/contact-success', {
+          title: 'Ticket deschis cu succes',
+          description: 'Am inregistrat solicitarea ta direct in cont. Echipa noastra iti va raspunde in cel mai scurt timp.'
+        });
+      }
       await createContactRequest(data);
-      res.render('pages/contact-success', {
+      return res.render('pages/contact-success', {
         title: 'Mesaj trimis cu succes',
         description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.'
       });
@@ -82,6 +101,7 @@ router
   })
   .post(async (req, res, next) => {
     try {
+      const isAuthenticated = Boolean(req.session?.user);
       const schema = z.object({
         clientName: z.string().min(3),
         email: z.string().email(),
@@ -90,14 +110,30 @@ router
         topic: z.string().min(5),
         deliveryDate: z.string().min(4),
         notes: z.string().optional(),
-        acceptAccount: z.literal('on')
+        acceptAccount: isAuthenticated ? z.any().optional() : z.literal('on')
       });
       const payload = schema.parse(req.body);
-      const { userId, generatedPassword } = await ensureClientAccount({
-        fullName: payload.clientName,
-        email: payload.email,
-        phone: payload.phone
-      });
+      let generatedPassword = null;
+      let userId;
+      let submissionEmail = payload.email.toLowerCase();
+      if (isAuthenticated) {
+        const user = req.session.user;
+        userId = user.id;
+        submissionEmail = user.email.toLowerCase();
+        if (user.fullName !== payload.clientName || user.phone !== payload.phone) {
+          await updateUserProfile(user.id, { fullName: payload.clientName, phone: payload.phone });
+          req.session.user.fullName = payload.clientName;
+          req.session.user.phone = payload.phone;
+        }
+      } else {
+        const ensured = await ensureClientAccount({
+          fullName: payload.clientName,
+          email: payload.email,
+          phone: payload.phone
+        });
+        userId = ensured.userId;
+        generatedPassword = ensured.generatedPassword;
+      }
       const ticketId = await createTicket({
         projectId: null,
         userId,
@@ -110,7 +146,7 @@ router
       const { offerCode } = await createOfferRequest({
         clientName: payload.clientName,
         userId,
-        email: payload.email.toLowerCase(),
+        email: submissionEmail,
         phone: payload.phone,
         program: payload.program,
         topic: payload.topic,
@@ -125,7 +161,8 @@ router
         offerCode,
         ticketId,
         generatedPassword,
-        defaultExpiration: DEFAULT_OFFER_EXPIRATION_HOURS
+        defaultExpiration: DEFAULT_OFFER_EXPIRATION_HOURS,
+        submissionEmail
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -133,7 +170,7 @@ router
           title: 'Solicita o oferta personalizata pentru lucrarea de licenta',
           description:
             'Completeaza formularul pentru a primi o oferta si un contract personalizat pentru redactarea lucrarii tale de licenta.',
-          error: 'Verifica datele introduse si confirma ca ai acceptat crearea contului.'
+          error: 'Verifica datele introduse si completeaza toate campurile obligatorii.'
         });
       }
       next(error);

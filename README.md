@@ -5,7 +5,7 @@ Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari 
 ## Functionalitati principale
 
 - **Website optimizat SEO** pentru cuvantul cheie „lucrari de licenta”, cu pagini dedicate (Acasa, Servicii, Despre noi, Oferta, Contact).
-- **Panou de control securizat** cu autentificare pe roluri (client, editor, admin, superadmin).
+- **Panou de control securizat** cu autentificare pe roluri (client, redactor, admin, superadmin).
 - **Ticketing inteligent** in contul clientului, cu posibilitatea de a raspunde si de a actualiza statusul de catre echipa.
 - **Management de proiecte**: adminii/superadminii pot crea proiecte, aloca redactori si urmari statusul redactarii.
 - **Generare oferta & contract**: solicitarea de oferta creeaza automat un ticket dedicat, un cont de client si gestioneaza negocierile (oferta, acceptare, contraoferta) cu termene de expirare configurabile.
@@ -116,7 +116,7 @@ Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari 
 | Rol         | Capabilitati principale |
 |-------------|-------------------------|
 | Client      | Vizualizare proiecte, status, deschidere/raspuns tichete, generare contract |
-| Editor      | Vizualizare proiecte alocate, actualizare status si note, raspuns la tichete |
+| Redactor    | Vizualizare proiecte alocate, actualizare status si note, raspuns la tichete |
 | Admin       | Creare proiecte, alocare echipa, gestionare tichete, vizualizare clienti |
 | Superadmin  | Toate drepturile (inclusiv management utilizatori viitor) |
 
@@ -130,10 +130,10 @@ Sesiunile sunt stocate in MySQL, parolele sunt hash-uite cu bcryptjs (cost 12), 
 4. Clientul poate accepta, refuza sau trimite contraoferta (cu fereastra de 30 de minute), iar discutiile raman in ticket.
 5. Dupa acceptare, contractul personalizat este disponibil online si poate fi urmat de alocarea proiectului.
 
-## Cum adaug un redactor sau admin?
+## Cum adaug un redactor, client sau admin?
 
 - Autentifica-te ca admin/superadmin si acceseaza modulul **Administrare utilizatori** din panoul de control.
-- Completeaza formularul de creare staff: nume, email, telefon si rol (`editor` sau `admin`). Parola temporara se genereaza automat si este afisata dupa salvare.
+- Completeaza formularul de creare cont: nume, email, telefon si rol (`client`, `redactor`, `admin` sau `superadmin` — ultimul doar pentru superadmini). Parola temporara se genereaza automat si este afisata dupa salvare.
 - Pentru clientii existenti poti filtra dupa rol/status, iar conturile pot fi activate/dezactivate sau li se poate schimba rolul.
 
 ## Testare si mentenanta

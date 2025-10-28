@@ -27,11 +27,13 @@ export async function validatePassword(user, password) {
   return bcrypt.compare(password, user.password_hash);
 }
 
-export async function listEditorsAndAdmins() {
+export const PROTECTED_USER_ID = 1;
+
+export async function listTeamMembers() {
   const [rows] = await pool.query(
     `SELECT id, full_name, email, role
      FROM users
-     WHERE role IN ('editor', 'admin', 'superadmin') AND is_active = 1
+     WHERE role IN ('redactor', 'admin', 'superadmin') AND is_active = 1
      ORDER BY role, full_name`
   );
   return rows;
@@ -93,9 +95,13 @@ export async function changeUserPassword(userId, currentPassword, newPassword) {
   );
 }
 
-export async function listUsers({ role, status, search } = {}) {
+export async function listUsers({ role, status, search, viewer } = {}) {
   const conditions = [];
   const params = [];
+  if (!viewer || viewer.role !== 'superadmin') {
+    conditions.push('id <> ?');
+    params.push(PROTECTED_USER_ID);
+  }
   if (role && role !== 'all') {
     conditions.push('role = ?');
     params.push(role);
@@ -118,11 +124,11 @@ export async function listUsers({ role, status, search } = {}) {
      ORDER BY created_at DESC`,
     params
   );
-  return rows;
+  return rows.map((row) => ({ ...row, is_protected: row.id === PROTECTED_USER_ID }));
 }
 
-export async function createStaffUser({ fullName, email, phone, role }) {
-  const allowedRoles = ['editor', 'admin'];
+export async function createManagedUser({ fullName, email, phone, role }) {
+  const allowedRoles = ['client', 'redactor', 'admin', 'superadmin'];
   if (!allowedRoles.includes(role)) {
     throw new Error('INVALID_ROLE');
   }
@@ -142,7 +148,10 @@ export async function createStaffUser({ fullName, email, phone, role }) {
 }
 
 export async function updateUserRole(userId, role) {
-  const allowedRoles = ['client', 'editor', 'admin', 'superadmin'];
+  if (userId === PROTECTED_USER_ID) {
+    throw new Error('PROTECTED_USER');
+  }
+  const allowedRoles = ['client', 'redactor', 'admin', 'superadmin'];
   if (!allowedRoles.includes(role)) {
     throw new Error('INVALID_ROLE');
   }
@@ -150,5 +159,8 @@ export async function updateUserRole(userId, role) {
 }
 
 export async function setUserActiveStatus(userId, isActive) {
+  if (userId === PROTECTED_USER_ID) {
+    throw new Error('PROTECTED_USER');
+  }
   await pool.query(`UPDATE users SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [isActive ? 1 : 0, userId]);
 }

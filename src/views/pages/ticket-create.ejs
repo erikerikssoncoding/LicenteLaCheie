@@ -1,0 +1,37 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container" style="max-width: 700px;">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h1 class="h4">Deschide un ticket</h1>
+        <form action="/cont/tichete/creeaza" method="post" class="row g-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <% if (projects.length > 0) { %>
+          <div class="col-12">
+            <label class="form-label" for="projectId">Proiect asociat</label>
+            <select class="form-select" id="projectId" name="projectId">
+              <option value="">General</option>
+              <% projects.forEach((project) => { %>
+              <option value="<%= project.id %>"><%= project.title %></option>
+              <% }) %>
+            </select>
+          </div>
+          <% } %>
+          <div class="col-12">
+            <label class="form-label" for="subject">Subiect</label>
+            <input class="form-control" type="text" id="subject" name="subject" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="message">Mesaj</label>
+            <textarea class="form-control" id="message" name="message" rows="5" required></textarea>
+          </div>
+          <div class="col-12 text-end">
+            <button class="btn btn-primary" type="submit">Trimite ticketul</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+<%- include('../partials/footer') %>

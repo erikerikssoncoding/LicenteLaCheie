@@ -1,0 +1,69 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container" style="max-width: 800px;">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h1 class="h4">Creaza proiect nou</h1>
+        <% if (clients.length === 0) { %>
+        <div class="alert alert-warning">
+          Nu exista clienti inregistrati. Invitati clientul sa isi creeze cont sau adaugati unul manual pentru a continua.
+        </div>
+        <% } %>
+        <form action="/cont/proiecte/creeaza" method="post" class="row g-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <div class="col-12">
+            <label class="form-label" for="title">Titlu proiect</label>
+            <input class="form-control" type="text" id="title" name="title" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="description">Descriere</label>
+            <textarea class="form-control" id="description" name="description" rows="4" required></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="degreeLevel">Nivel de studiu</label>
+            <input class="form-control" type="text" id="degreeLevel" name="degreeLevel" required />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="deadline">Deadline</label>
+            <input class="form-control" type="date" id="deadline" name="deadline" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="clientId">Client</label>
+            <select class="form-select" id="clientId" name="clientId" <%= clients.length === 0 ? 'disabled' : '' %> required>
+              <% if (clients.length === 0) { %>
+              <option value="">Adauga mai intai un client</option>
+              <% } else { %>
+              <% clients.forEach((client) => { %>
+              <option value="<%= client.id %>"><%= client.full_name %> (<%= client.email %>)</option>
+              <% }) %>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="assignedAdminId">Admin responsabil</label>
+            <select class="form-select" id="assignedAdminId" name="assignedAdminId">
+              <option value="">-- selecteaza --</option>
+              <% team.filter(member => member.role === 'admin' || member.role === 'superadmin').forEach((member) => { %>
+              <option value="<%= member.id %>"><%= member.full_name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="assignedEditorId">Redactor asignat</label>
+            <select class="form-select" id="assignedEditorId" name="assignedEditorId">
+              <option value="">-- selecteaza --</option>
+              <% team.filter(member => member.role === 'editor').forEach((member) => { %>
+              <option value="<%= member.id %>"><%= member.full_name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="col-12 text-end">
+            <button class="btn btn-primary" type="submit" <%= clients.length === 0 ? 'disabled' : '' %>>Creaza proiectul</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+<%- include('../partials/footer') %>

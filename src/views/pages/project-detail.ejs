@@ -1,0 +1,95 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container" style="max-width: 900px;">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h1 class="h4 mb-3"><%= project.title %></h1>
+        <p class="text-muted mb-1">Nivel studii: <%= project.degree_level %></p>
+        <p class="text-muted mb-1">Status actual: <span class="badge bg-info text-dark"><%= project.status %></span></p>
+        <p class="text-muted">Deadline: <%= project.deadline ? project.deadline.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline : 'N/A' %></p>
+        <% if (project.progress_notes) { %>
+        <div class="alert alert-info">Note progres: <%= project.progress_notes %></div>
+        <% } %>
+        <h2 class="h5 mt-4">Descriere</h2>
+        <p><%= project.description %></p>
+        <h3 class="h6 mt-4">Client</h3>
+        <ul class="list-unstyled">
+          <li>Nume: <%= project.client_name %></li>
+          <li>Email: <%= project.client_email %></li>
+          <% if (project.admin_name) { %>
+          <li>Admin responsabil: <%= project.admin_name %></li>
+          <% } %>
+          <% if (project.editor_name) { %>
+          <li>Redactor asignat: <%= project.editor_name %></li>
+          <% } %>
+        </ul>
+      </div>
+    </div>
+
+    <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <h2 class="h5">Aloca echipa</h2>
+        <form action="/cont/proiecte/<%= project.id %>/alocare" method="post" class="row g-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <div class="col-md-6">
+            <label class="form-label" for="adminId">Admin responsabil</label>
+            <select class="form-select" id="adminId" name="adminId">
+              <option value="">-- selecteaza --</option>
+              <% team.filter(member => member.role === 'admin' || member.role === 'superadmin').forEach((member) => { %>
+              <option value="<%= member.id %>" <%= project.assigned_admin_id === member.id ? 'selected' : '' %>>
+                <%= member.full_name %> (<%= member.email %>)
+              </option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="editorId">Redactor asignat</label>
+            <select class="form-select" id="editorId" name="editorId">
+              <option value="">-- selecteaza --</option>
+              <% team.filter(member => member.role === 'editor').forEach((member) => { %>
+              <option value="<%= member.id %>" <%= project.assigned_editor_id === member.id ? 'selected' : '' %>>
+                <%= member.full_name %> (<%= member.email %>)
+              </option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="col-12 text-end">
+            <button class="btn btn-outline-primary" type="submit">Actualizeaza</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <% } %>
+
+    <% if (['admin', 'superadmin', 'editor'].includes(currentUser.role)) { %>
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <h2 class="h5">Actualizeaza statusul</h2>
+        <form action="/cont/proiecte/<%= project.id %>/status" method="post" class="row g-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <div class="col-md-6">
+            <label class="form-label" for="status">Status</label>
+            <select class="form-select" id="status" name="status">
+              <option value="initiated">Initiat</option>
+              <option value="in-progress">In lucru</option>
+              <option value="needs-review">Necesita revizie</option>
+              <option value="completed">Finalizat</option>
+              <option value="delivered">Predat</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="notes">Note progres</label>
+            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+          </div>
+          <div class="col-12 text-end">
+            <button class="btn btn-primary" type="submit">Salveaza</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <% } %>
+  </div>
+</section>
+<%- include('../partials/footer') %>

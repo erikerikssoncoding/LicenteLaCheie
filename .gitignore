@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+npm-debug.log*
+.DS_Store
+/dist
+/logs
+coverage/
+.tmp
+.idea/
+.vscode/
+.migrate_lock

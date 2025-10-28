@@ -1,0 +1,20 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container">
+    <h1 class="mb-4">Contract oferta <%= offer.offer_code %></h1>
+    <div class="mb-3">
+      <span class="badge bg-primary">Status: In asteptare semnatura</span>
+    </div>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <pre class="contract-text"><%= offer.contract_text %></pre>
+      </div>
+    </div>
+    <div class="alert alert-info mt-4">
+      Pentru a semna contractul, autentifica-te sau creeaza cont. Un consultant iti va trimite instructiunile de semnatura
+      electronica.
+    </div>
+  </div>
+</section>
+<%- include('../partials/footer') %>

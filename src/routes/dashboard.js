@@ -23,7 +23,7 @@ router.get('/cont', async (req, res, next) => {
     ]);
     res.render('pages/dashboard', {
       title: 'Panou de control',
-      description: 'Monitorizeaza proiectele, contractele si discutiile cu echipa Dtoro.',
+      description: 'Monitorizeaza proiectele, contractele si discutiile cu echipa Licente la Cheie.',
       projects,
       tickets
     });

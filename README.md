@@ -1,4 +1,4 @@
-# Dtoro.icu — Platforma pentru lucrari de licenta
+# Licente la Cheie — Platforma pentru lucrari de licenta
 
 Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari de licenta, dizertatii si proiecte academice. Aplicatia ruleaza pe Node.js, utilizeaza o baza de date MySQL/MariaDB si ofera un panou de control pentru clienti, redactori, admini si superadmini.
 
@@ -25,8 +25,8 @@ Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari 
 1. **Clonati repository-ul**:
 
    ```bash
-   git clone https://github.com/organizatie/dtoro-icu.git
-   cd dtoro-icu
+   git clone https://github.com/organizatie/licente-la-cheie.git
+   cd licente-la-cheie
    ```
 
 2. **Instalati dependintele Node.js** (este necesara conectivitate la registry-ul npm):
@@ -67,10 +67,10 @@ Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari 
    ```nginx
    server {
        listen 443 ssl;
-       server_name dtoro.icu;
+       server_name licentelacheie.ro;
 
-       ssl_certificate /etc/letsencrypt/live/dtoro.icu/fullchain.pem;
-       ssl_certificate_key /etc/letsencrypt/live/dtoro.icu/privkey.pem;
+       ssl_certificate /etc/letsencrypt/live/licentelacheie.ro/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/licentelacheie.ro/privkey.pem;
 
        location / {
            proxy_pass http://127.0.0.1:3000;
@@ -161,4 +161,4 @@ Sesiunile sunt stocate in MySQL, parolele sunt hash-uite cu bcryptjs (cost 12), 
 
 ---
 
-Platforma Dtoro.icu este construita pentru a oferi o experienta premium studentilor si partenerilor academici, cu accent pe calitate, securitate si automatizare a proceselor cheie.
+Platforma Licente la Cheie este construita pentru a oferi o experienta premium studentilor si partenerilor academici, cu accent pe calitate, securitate si automatizare a proceselor cheie.

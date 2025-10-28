@@ -78,5 +78,5 @@ app.use((err, req, res, next) => {
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
-  console.log(`Dtoro.icu pornit pe portul ${port}`);
+  console.log(`Licente la Cheie pornit pe portul ${port}`);
 });

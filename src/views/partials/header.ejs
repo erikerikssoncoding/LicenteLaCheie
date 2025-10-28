@@ -1,11 +1,11 @@
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+<nav class="navbar navbar-expand-lg navbar-light premium-navbar">
   <div class="container">
-    <a class="navbar-brand fw-bold" href="/">Dtoro.icu</a>
+    <a class="navbar-brand fw-semibold brand-gradient" href="/">Licente la Cheie</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Meniu">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto">
+      <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-3">
         <li class="nav-item"><a class="nav-link" href="/">Acasa</a></li>
         <li class="nav-item"><a class="nav-link" href="/servicii">Servicii</a></li>
         <li class="nav-item"><a class="nav-link" href="/despre-noi">Despre noi</a></li>
@@ -13,9 +13,9 @@
         <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
         <% if (!currentUser) { %>
         <li class="nav-item"><a class="nav-link" href="/autentificare">Autentificare</a></li>
-        <li class="nav-item"><a class="nav-link" href="/inregistrare">Inregistrare</a></li>
+        <li class="nav-item"><a class="btn btn-gradient" href="/inregistrare">Creeaza cont</a></li>
         <% } else { %>
-        <li class="nav-item"><a class="nav-link" href="/cont">Panou</a></li>
+        <li class="nav-item"><a class="btn btn-gradient" href="/cont">Panou</a></li>
         <li class="nav-item">
           <form action="/deconectare" method="post" class="d-inline">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />

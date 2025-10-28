@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -95,6 +96,16 @@ export default function LoginPage() {
             {isSubmitting ? "Se autentifică..." : "Autentificare"}
           </Button>
         </Form>
+
+        <p className="mt-6 text-center text-sm text-slate-600">
+          Nu aveți cont?{" "}
+          <Link
+            href="/register"
+            className="font-semibold text-indigo-600 transition hover:text-indigo-700"
+          >
+            Înregistrați-vă
+          </Link>
+        </p>
       </div>
     </div>
   );

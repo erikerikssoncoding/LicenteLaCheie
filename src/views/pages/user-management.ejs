@@ -12,7 +12,7 @@
         <select class="form-select" name="role">
           <option value="all" <%= filters.role === 'all' ? 'selected' : '' %>>Toate rolurile</option>
           <option value="client" <%= filters.role === 'client' ? 'selected' : '' %>>Clienti</option>
-          <option value="editor" <%= filters.role === 'editor' ? 'selected' : '' %>>Editor</option>
+          <option value="redactor" <%= filters.role === 'redactor' ? 'selected' : '' %>>Redactori</option>
           <option value="admin" <%= filters.role === 'admin' ? 'selected' : '' %>>Admin</option>
           <option value="superadmin" <%= filters.role === 'superadmin' ? 'selected' : '' %>>Superadmin</option>
         </select>
@@ -36,7 +36,7 @@
       <div class="col-lg-4">
         <div class="card shadow-sm h-100">
           <div class="card-body">
-            <h2 class="h5">Creeaza cont staff</h2>
+            <h2 class="h5">Creeaza cont</h2>
             <form action="/cont/utilizatori" method="post" class="vstack gap-3">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <div>
@@ -54,8 +54,12 @@
               <div>
                 <label class="form-label" for="staffRole">Rol</label>
                 <select class="form-select" id="staffRole" name="role" required>
-                  <option value="editor">Editor</option>
+                  <option value="client">Client</option>
+                  <option value="redactor">Redactor</option>
                   <option value="admin">Admin</option>
+                  <% if (currentUser.role === 'superadmin') { %>
+                  <option value="superadmin">Superadmin</option>
+                  <% } %>
                 </select>
               </div>
               <button class="btn btn-primary" type="submit">Creeaza</button>
@@ -103,23 +107,40 @@
                     <td>
                       <form action="/cont/utilizatori/<%= user.id %>/rol" method="post" class="d-flex align-items-center gap-2">
                         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                        <select class="form-select form-select-sm" name="role" <%= user.id === currentUser.id ? 'disabled' : '' %>>
+                        <select
+                          class="form-select form-select-sm"
+                          name="role"
+                          <%= user.id === currentUser.id || user.is_protected ? 'disabled' : '' %>
+                        >
                           <option value="client" <%= user.role === 'client' ? 'selected' : '' %>>Client</option>
-                          <option value="editor" <%= user.role === 'editor' ? 'selected' : '' %>>Editor</option>
+                          <option value="redactor" <%= user.role === 'redactor' ? 'selected' : '' %>>Redactor</option>
                           <option value="admin" <%= user.role === 'admin' ? 'selected' : '' %>>Admin</option>
                           <option value="superadmin" <%= user.role === 'superadmin' ? 'selected' : '' %>>Superadmin</option>
                         </select>
-                        <button class="btn btn-sm btn-outline-secondary" type="submit" <%= user.id === currentUser.id ? 'disabled' : '' %>>Salveaza</button>
+                        <button
+                          class="btn btn-sm btn-outline-secondary"
+                          type="submit"
+                          <%= user.id === currentUser.id || user.is_protected ? 'disabled' : '' %>
+                        >
+                          Salveaza
+                        </button>
                       </form>
                     </td>
                     <td>
                       <span class="badge <%= user.is_active ? 'bg-success' : 'bg-secondary' %>"><%= user.is_active ? 'Activ' : 'Inactiv' %></span>
+                      <% if (user.is_protected) { %>
+                      <span class="badge bg-warning text-dark ms-1">Protejat</span>
+                      <% } %>
                     </td>
                     <td class="text-end">
                       <form action="/cont/utilizatori/<%= user.id %>/status" method="post" class="d-inline">
                         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                         <input type="hidden" name="isActive" value="<%= user.is_active ? '0' : '1' %>" />
-                        <button class="btn btn-sm <%= user.is_active ? 'btn-outline-danger' : 'btn-outline-success' %>" type="submit" <%= user.id === currentUser.id ? 'disabled' : '' %>>
+                        <button
+                          class="btn btn-sm <%= user.is_active ? 'btn-outline-danger' : 'btn-outline-success' %>"
+                          type="submit"
+                          <%= user.id === currentUser.id || user.is_protected ? 'disabled' : '' %>
+                        >
                           <%= user.is_active ? 'Dezactiveaza' : 'Activeaza' %>
                         </button>
                       </form>

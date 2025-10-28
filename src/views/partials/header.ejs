@@ -18,7 +18,14 @@
         <li class="nav-item"><a class="nav-link" href="/cont">Panou</a></li>
         <li class="nav-item"><a class="nav-link" href="/cont/setari">Setari cont</a></li>
         <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
-        <li class="nav-item"><a class="nav-link" href="/cont/utilizatori">Administrare utilizatori</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Administrare</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="/cont/utilizatori">Utilizatori</a></li>
+            <li><a class="dropdown-item" href="/cont/tichete">Tichete</a></li>
+            <li><a class="dropdown-item" href="/cont/proiecte/creeaza">Creaza proiect</a></li>
+          </ul>
+        </li>
         <% } %>
         <li class="nav-item">
           <form action="/deconectare" method="post" class="d-inline">

@@ -50,10 +50,10 @@
             </select>
           </div>
           <div class="col-md-6">
-            <label class="form-label" for="assignedEditorId">Redactor asignat</label>
-            <select class="form-select" id="assignedEditorId" name="assignedEditorId">
+            <label class="form-label" for="assignedRedactorId">Redactor asignat</label>
+            <select class="form-select" id="assignedRedactorId" name="assignedRedactorId">
               <option value="">-- selecteaza --</option>
-              <% team.filter(member => member.role === 'editor').forEach((member) => { %>
+              <% team.filter(member => member.role === 'redactor').forEach((member) => { %>
               <option value="<%= member.id %>"><%= member.full_name %></option>
               <% }) %>
             </select>

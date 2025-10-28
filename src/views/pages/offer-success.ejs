@@ -20,7 +20,7 @@
         <% if (generatedPassword) { %>
         <div class="alert alert-success mt-3">
           <p class="mb-1">Am creat un cont pentru tine pe licentelacheie.ro.</p>
-          <p class="mb-0">Email: <strong><%= request.body.email %></strong> | Parola temporara: <strong><%= generatedPassword %></strong></p>
+          <p class="mb-0">Email: <strong><%= submissionEmail %></strong> | Parola temporara: <strong><%= generatedPassword %></strong></p>
           <small class="text-muted">Te rugam sa o schimbi din sectiunea „Setari cont” dupa prima autentificare.</small>
         </div>
         <% } else { %>

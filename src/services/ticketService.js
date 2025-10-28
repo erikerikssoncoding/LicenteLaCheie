@@ -22,7 +22,7 @@ export async function listTicketsForUser(user) {
     return rows;
   }
 
-  if (user.role === 'editor') {
+  if (user.role === 'redactor') {
     const [rows] = await pool.query(
       `SELECT t.*, u.full_name AS author_name, p.title AS project_title
        FROM tickets t
@@ -123,7 +123,7 @@ export async function listPendingSupportTicketsForAdmin(adminId) {
   return rows;
 }
 
-export async function listPendingSupportTicketsForEditor(editorId) {
+export async function listPendingSupportTicketsForRedactor(redactorId) {
   const [rows] = await pool.query(
     `SELECT t.*, u.full_name AS author_name, p.title AS project_title
      FROM tickets t
@@ -133,7 +133,7 @@ export async function listPendingSupportTicketsForEditor(editorId) {
        AND p.assigned_editor_id = ?
      ORDER BY t.updated_at DESC
      LIMIT 5`,
-    [editorId]
+    [redactorId]
   );
   return rows;
 }

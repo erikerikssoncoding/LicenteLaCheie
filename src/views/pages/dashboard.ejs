@@ -23,8 +23,8 @@
                 title: clientHighlights.nextDeadline.title,
                 subtitle: clientHighlights.nextDeadline.admin_name
                   ? `Administrator: ${clientHighlights.nextDeadline.admin_name}`
-                  : clientHighlights.nextDeadline.editor_name
-                  ? `Editor: ${clientHighlights.nextDeadline.editor_name}`
+                  : clientHighlights.nextDeadline.redactor_name
+                  ? `Redactor: ${clientHighlights.nextDeadline.redactor_name}`
                   : 'Deadline confirmat'
               }]
             : [],
@@ -34,15 +34,15 @@
       <div class="col-lg-4 col-md-6">
         <%- include('../partials/dashboard/cards/summary-card', {
           title: 'Echipa alocata',
-          badge: `${clientHighlights.admins.length + clientHighlights.editors.length} membri`,
+          badge: `${clientHighlights.admins.length + clientHighlights.redactors.length} membri`,
           items: [
             ...clientHighlights.admins.map((member) => ({
               title: member.full_name,
               subtitle: 'Administrator dedicat'
             })),
-            ...clientHighlights.editors.map((member) => ({
+            ...clientHighlights.redactors.map((member) => ({
               title: member.full_name,
-              subtitle: 'Editor asignat'
+              subtitle: 'Redactor asignat'
             }))
           ],
           emptyMessage: 'Inca nu a fost alocata o echipa.'
@@ -83,12 +83,12 @@
     </div>
     <% } %>
 
-    <% if (currentUser.role === 'editor') { %>
+    <% if (currentUser.role === 'redactor') { %>
     <div class="row g-4 mb-4">
       <div class="col-lg-6">
         <%- include('../partials/dashboard/cards/status-card', {
           title: 'Starea proiectelor',
-          statuses: editorHighlights.statusCounts.map((item) => ({
+          statuses: redactorHighlights.statusCounts.map((item) => ({
             label: item.status,
             total: item.total
           })),
@@ -98,8 +98,8 @@
       <div class="col-lg-6">
         <%- include('../partials/dashboard/cards/summary-card', {
           title: 'Livrari apropiate',
-          badge: editorHighlights.upcomingDeadlines.length ? `${editorHighlights.upcomingDeadlines.length} proiecte` : null,
-          items: editorHighlights.upcomingDeadlines.map((project) => ({
+          badge: redactorHighlights.upcomingDeadlines.length ? `${redactorHighlights.upcomingDeadlines.length} proiecte` : null,
+          items: redactorHighlights.upcomingDeadlines.map((project) => ({
             title: project.title,
             subtitle: project.deadline?.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline
           })),
@@ -131,6 +131,18 @@
           })),
           emptyMessage: 'Nu ai proiecte alocate recent.'
         }) %>
+      </div>
+    </div>
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Meniu administrare</h2>
+        <p class="text-muted">Acceseaza rapid instrumentele dedicate supervizarii echipei si a clientilor.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-outline-primary" href="/cont/utilizatori">Administrare utilizatori</a>
+          <a class="btn btn-outline-primary" href="/cont/tichete">Administrare tichete</a>
+          <a class="btn btn-outline-primary" href="/cont/proiecte/creeaza">Creaza proiect</a>
+          <a class="btn btn-outline-primary" href="/cont">Vizualizeaza proiectele active</a>
+        </div>
       </div>
     </div>
     <% } %>
@@ -170,12 +182,12 @@
                     <td class="small">
                       <% if (currentUser.role === 'client') { %>
                       <div>Admin: <%= project.assigned_admin_name || 'In alocare' %></div>
-                      <div>Editor: <%= project.assigned_editor_name || 'In alocare' %></div>
-                      <% } else if (currentUser.role === 'editor') { %>
+                      <div>Redactor: <%= project.assigned_redactor_name || 'In alocare' %></div>
+                      <% } else if (currentUser.role === 'redactor') { %>
                       <div>Client: <%= project.client_name %></div>
                       <% } else { %>
                       <div>Client: <%= project.client_name %></div>
-                      <div>Editor: <%= project.assigned_editor_name || 'Nealocat' %></div>
+                      <div>Redactor: <%= project.assigned_redactor_name || 'Nealocat' %></div>
                       <% } %>
                     </td>
                     <td><%= project.deadline ? project.deadline.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline : 'N/A' %></td>

@@ -24,8 +24,55 @@ export async function middleware(request: NextRequest) {
 
   const forwardedProtoHeader = request.headers.get("x-forwarded-proto");
   const forwardedProto = forwardedProtoHeader?.split(",")[0]?.trim().toLowerCase();
-  const secureCookie =
-    request.nextUrl.protocol === "https:" || forwardedProto === "https";
+
+  const httpsHints: string[] = [];
+
+  if (request.nextUrl.protocol === "https:") {
+    httpsHints.push("request.nextUrl.protocol=https:");
+  }
+
+  if (forwardedProto === "https") {
+    httpsHints.push("x-forwarded-proto=https");
+  }
+
+  const envUrlDefinitions = [
+    { name: "AUTH_URL", value: process.env.AUTH_URL },
+    { name: "NEXTAUTH_URL", value: process.env.NEXTAUTH_URL },
+  ];
+
+  const httpsParseErrors: { name: string; value: string }[] = [];
+
+  for (const { name, value } of envUrlDefinitions) {
+    if (!value) continue;
+
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol === "https:") {
+        httpsHints.push(`${name}=https:`);
+      }
+    } catch (error) {
+      authDebugLog("middleware.env-url.parse-error", {
+        name,
+        value,
+        error:
+          error instanceof Error
+            ? { message: error.message, stack: error.stack }
+            : error,
+      });
+      httpsParseErrors.push({ name, value });
+    }
+  }
+
+  const secureCookie = httpsHints.length > 0;
+  if (httpsHints.length > 0 || httpsParseErrors.length > 0) {
+    authDebugLog("middleware.secure-cookie.detection", {
+      secureCookie,
+      httpsHints,
+      httpsParseErrors,
+      forwardedProto,
+      requestProtocol: request.nextUrl.protocol,
+    });
+  }
 
   try {
     token = await getToken({
@@ -38,6 +85,8 @@ export async function middleware(request: NextRequest) {
     authDebugLog("middleware.getToken.success", {
       token: summarizeToken(token),
       secureCookie,
+      httpsHints,
+      httpsParseErrors,
     });
   } catch (error) {
     authDebugLog("middleware.getToken.error", {

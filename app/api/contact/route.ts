@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import SibApiV3Sdk from "@sendinblue/client";
+import * as SibApiV3Sdk from "@sendinblue/client";
 
 import { prisma } from "@/lib/prisma";
 

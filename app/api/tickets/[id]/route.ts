@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { TicketPriority, TicketStatus } from "@prisma/client";
 
 interface RouteParams {
   params: {
@@ -25,11 +26,19 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     priority?: string;
   };
 
+  const statusValue = status && (Object.values(TicketStatus) as string[]).includes(status)
+    ? (status as TicketStatus)
+    : undefined;
+  const priorityValue =
+    priority && (Object.values(TicketPriority) as string[]).includes(priority)
+      ? (priority as TicketPriority)
+      : undefined;
+
   const updatedTicket = await prisma.ticket.update({
     where: { id: params.id },
     data: {
-      status: status ?? undefined,
-      priority: priority ?? undefined
+      status: statusValue,
+      priority: priorityValue
     }
   });
 

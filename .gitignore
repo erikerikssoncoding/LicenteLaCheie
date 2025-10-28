@@ -1,6 +1,7 @@
 node_modules
 .next
 .env
+.env.production
 .env.local
 prisma/dev.db
 prisma/dev.db-journal

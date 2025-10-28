@@ -8,7 +8,7 @@ Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari 
 - **Panou de control securizat** cu autentificare pe roluri (client, editor, admin, superadmin).
 - **Ticketing inteligent** in contul clientului, cu posibilitatea de a raspunde si de a actualiza statusul de catre echipa.
 - **Management de proiecte**: adminii/superadminii pot crea proiecte, aloca redactori si urmari statusul redactarii.
-- **Generare oferta & contract**: clientul completeaza formularul si primeste instant draftul contractului (stocat in baza de date si accesibil online).
+- **Generare oferta & contract**: solicitarea de oferta creeaza automat un ticket dedicat, un cont de client si gestioneaza negocierile (oferta, acceptare, contraoferta) cu termene de expirare configurabile.
 - **Contact si lead management**: formular de contact salvat in baza de date pentru urmarire ulterioara.
 - **Securitate imbunatatita**: HTTPS enforcement, sesiuni stocate in baza de date, middleware CSRF, Helmet si validari cu Zod.
 - **Scripturi CLI** pentru instalare initiala si actualizari ale schemei bazei de date.
@@ -124,16 +124,17 @@ Sesiunile sunt stocate in MySQL, parolele sunt hash-uite cu bcryptjs (cost 12), 
 
 ## Fluxuri principale
 
-1. **Clientul viziteaza website-ul** si trimite formularul de oferta.
-2. Platforma genereaza automat un cod de oferta si draftul contractului.
-3. Administratorul creeaza proiectul, aloca redactori si seteaza deadline-ul.
-4. Clientul si echipa comunica prin sistemul de ticketing, iar statusul proiectului este actualizat in timp real.
-5. Contractul este disponibil online pentru semnatura electronica (integrari suplimentare pot fi adaugate ulterior).
+1. **Clientul viziteaza website-ul** si trimite formularul de oferta (acceptand crearea contului).
+2. Platforma creeaza automat contul clientului, ticketul de negociere si codul de oferta.
+3. Administratorul propune oferta cu valoare si termen de expirare (minim 12h) direct in ticket.
+4. Clientul poate accepta, refuza sau trimite contraoferta (cu fereastra de 30 de minute), iar discutiile raman in ticket.
+5. Dupa acceptare, contractul personalizat este disponibil online si poate fi urmat de alocarea proiectului.
 
 ## Cum adaug un redactor sau admin?
 
-- Rulati scriptul de instalare pentru a crea un superadmin sau introduceti manual utilizatori in tabela `users` cu rolurile corespunzatoare (`editor`, `admin`).
-- In panoul superadmin, dezvoltati ulterior interfete dedicate pentru management utilizatori (punct de extensie recomandat).
+- Autentifica-te ca admin/superadmin si acceseaza modulul **Administrare utilizatori** din panoul de control.
+- Completeaza formularul de creare staff: nume, email, telefon si rol (`editor` sau `admin`). Parola temporara se genereaza automat si este afisata dupa salvare.
+- Pentru clientii existenti poti filtra dupa rol/status, iar conturile pot fi activate/dezactivate sau li se poate schimba rolul.
 
 ## Testare si mentenanta
 
@@ -149,7 +150,6 @@ Sesiunile sunt stocate in MySQL, parolele sunt hash-uite cu bcryptjs (cost 12), 
 
 ## Probleme cunoscute / Limitari
 
-- Nu exista inca interfata grafica pentru managementul complet al utilizatorilor (se poate extinde rapid in `src/routes/dashboard.js`).
 - Pentru notificari e-mail/SMS este necesara integrare suplimentara (Sendinblue, Twilio etc.).
 
 ## Contributii

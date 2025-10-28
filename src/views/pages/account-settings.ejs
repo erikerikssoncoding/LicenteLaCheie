@@ -1,0 +1,56 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container" style="max-width: 760px;">
+    <h1 class="h3 mb-4">Setari cont</h1>
+    <% if (successMessage) { %>
+    <div class="alert alert-success"><%= successMessage %></div>
+    <% } %>
+    <% if (errorMessage) { %>
+    <div class="alert alert-danger"><%= errorMessage %></div>
+    <% } %>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Date personale</h2>
+        <form action="/cont/setari" method="post" class="vstack gap-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <div>
+            <label class="form-label" for="fullName">Nume complet</label>
+            <input class="form-control" type="text" id="fullName" name="fullName" value="<%= profile.full_name %>" required />
+          </div>
+          <div>
+            <label class="form-label" for="phone">Telefon</label>
+            <input class="form-control" type="tel" id="phone" name="phone" value="<%= profile.phone || '' %>" />
+          </div>
+          <button class="btn btn-primary align-self-end" type="submit">Salveaza datele</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Schimbare parola</h2>
+        <form action="/cont/setari/parola" method="post" class="vstack gap-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <div>
+            <label class="form-label" for="currentPassword">Parola curenta</label>
+            <input class="form-control" type="password" id="currentPassword" name="currentPassword" required />
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="newPassword">Parola noua</label>
+              <input class="form-control" type="password" id="newPassword" name="newPassword" minlength="8" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="confirmPassword">Confirma parola noua</label>
+              <input class="form-control" type="password" id="confirmPassword" name="confirmPassword" minlength="8" required />
+            </div>
+          </div>
+          <button class="btn btn-outline-primary align-self-end" type="submit">Actualizeaza parola</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+<%- include('../partials/footer') %>

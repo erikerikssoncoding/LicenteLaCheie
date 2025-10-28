@@ -4,16 +4,28 @@
   <div class="container">
     <h1 class="mb-4">Contract oferta <%= offer.offer_code %></h1>
     <div class="mb-3">
-      <span class="badge bg-primary">Status: In asteptare semnatura</span>
+      <% const statusMap = {
+      sent: 'Oferta transmisa',
+      pending: 'In pregatire',
+      accepted: 'Acceptata',
+      refused: 'Refuzata',
+      expired: 'Expirata',
+      counter_pending: 'Contraoferta in asteptare',
+      counter_submitted: 'Contraoferta trimisa'
+      }; %>
+      <span class="badge bg-primary">Status: <%= statusMap[offer.status] || offer.status %></span>
     </div>
+    <% if (offer.contract_text) { %>
     <div class="card shadow-sm">
       <div class="card-body">
         <pre class="contract-text"><%= offer.contract_text %></pre>
       </div>
     </div>
+    <% } else { %>
+    <div class="alert alert-warning">Contractul va fi generat automat dupa ce administratorul seteaza oferta finala.</div>
+    <% } %>
     <div class="alert alert-info mt-4">
-      Pentru a semna contractul, autentifica-te sau creeaza cont. Un consultant iti va trimite instructiunile de semnatura
-      electronica.
+      Pentru a semna contractul si a interactiona cu oferta, autentifica-te in platforma Licente la Cheie.
     </div>
   </div>
 </section>

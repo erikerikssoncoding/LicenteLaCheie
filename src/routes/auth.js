@@ -20,6 +20,13 @@ router.post('/autentificare', async (req, res, next) => {
     });
     const { email, password } = schema.parse(req.body);
     const user = await findUserByEmail(email.toLowerCase());
+    if (!user || !user.is_active) {
+      return res.status(401).render('pages/login', {
+        title: 'Autentificare cont client si echipa',
+        description: 'Contul este inactiv sau datele nu sunt valide.',
+        error: 'Contul tau este inactiv sau credentialele sunt invalide.'
+      });
+    }
     const isValid = await validatePassword(user, password);
     if (!isValid) {
       return res.status(401).render('pages/login', {

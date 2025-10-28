@@ -1,0 +1,24 @@
+<div class="card shadow-sm h-100">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h5 mb-0"><%= title %></h2>
+      <% if (badge) { %>
+      <span class="badge bg-secondary"><%= badge %></span>
+      <% } %>
+    </div>
+    <% if (!items || items.length === 0) { %>
+    <p class="text-muted mb-0"><%= emptyMessage %></p>
+    <% } else { %>
+    <ul class="list-group list-group-flush">
+      <% items.forEach((item) => { %>
+      <li class="list-group-item">
+        <div class="fw-semibold"><%= item.title %></div>
+        <% if (item.subtitle) { %>
+        <div class="small text-muted"><%= item.subtitle %></div>
+        <% } %>
+      </li>
+      <% }) %>
+    </ul>
+    <% } %>
+  </div>
+</div>

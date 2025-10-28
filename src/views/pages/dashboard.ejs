@@ -12,6 +12,129 @@
       <% } %>
     </div>
 
+    <% if (currentUser.role === 'client') { %>
+    <div class="row g-4 mb-4">
+      <div class="col-lg-4 col-md-6">
+        <%- include('../partials/dashboard/cards/summary-card', {
+          title: 'Urmatorul deadline',
+          badge: clientHighlights.nextDeadline ? clientHighlights.nextDeadline.deadline?.toISOString ? clientHighlights.nextDeadline.deadline.toISOString().slice(0,10) : clientHighlights.nextDeadline.deadline : null,
+          items: clientHighlights.nextDeadline
+            ? [{
+                title: clientHighlights.nextDeadline.title,
+                subtitle: clientHighlights.nextDeadline.admin_name
+                  ? `Administrator: ${clientHighlights.nextDeadline.admin_name}`
+                  : clientHighlights.nextDeadline.editor_name
+                  ? `Editor: ${clientHighlights.nextDeadline.editor_name}`
+                  : 'Deadline confirmat'
+              }]
+            : [],
+          emptyMessage: 'Nu exista un deadline stabilit.'
+        }) %>
+      </div>
+      <div class="col-lg-4 col-md-6">
+        <%- include('../partials/dashboard/cards/summary-card', {
+          title: 'Echipa alocata',
+          badge: `${clientHighlights.admins.length + clientHighlights.editors.length} membri`,
+          items: [
+            ...clientHighlights.admins.map((member) => ({
+              title: member.full_name,
+              subtitle: 'Administrator dedicat'
+            })),
+            ...clientHighlights.editors.map((member) => ({
+              title: member.full_name,
+              subtitle: 'Editor asignat'
+            }))
+          ],
+          emptyMessage: 'Inca nu a fost alocata o echipa.'
+        }) %>
+      </div>
+      <% const offerStatusLabels = {
+        pending: 'In pregatire',
+        sent: 'Trimisa',
+        accepted: 'Acceptata',
+        refused: 'Refuzata',
+        expired: 'Expirata',
+        counter_pending: 'Contraoferta in asteptare',
+        counter_submitted: 'Contraoferta trimisa'
+      }; %>
+      <div class="col-lg-4 col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h2 class="h5 mb-0">Ofertele tale</h2>
+              <a class="btn btn-sm btn-outline-primary" href="/cont/tichete/creeaza">Deschide ticket</a>
+            </div>
+            <% if (!offers || offers.length === 0) { %>
+            <p class="text-muted mb-0">Nu exista oferte active.</p>
+            <% } else { %>
+            <ul class="list-group list-group-flush">
+              <% offers.slice(0, 3).forEach((offer) => { %>
+              <li class="list-group-item">
+                <div class="fw-semibold">Oferta <%= offer.offer_code %></div>
+                <div class="small text-muted">Status: <%= offerStatusLabels[offer.status] || offer.status %></div>
+                <a class="btn btn-sm btn-link px-0" href="/cont/tichete/<%= offer.ticket_id %>">Deschide ticket</a>
+              </li>
+              <% }) %>
+            </ul>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+    <% } %>
+
+    <% if (currentUser.role === 'editor') { %>
+    <div class="row g-4 mb-4">
+      <div class="col-lg-6">
+        <%- include('../partials/dashboard/cards/status-card', {
+          title: 'Starea proiectelor',
+          statuses: editorHighlights.statusCounts.map((item) => ({
+            label: item.status,
+            total: item.total
+          })),
+          emptyMessage: 'Nu ai proiecte asignate momentan.'
+        }) %>
+      </div>
+      <div class="col-lg-6">
+        <%- include('../partials/dashboard/cards/summary-card', {
+          title: 'Livrari apropiate',
+          badge: editorHighlights.upcomingDeadlines.length ? `${editorHighlights.upcomingDeadlines.length} proiecte` : null,
+          items: editorHighlights.upcomingDeadlines.map((project) => ({
+            title: project.title,
+            subtitle: project.deadline?.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline
+          })),
+          emptyMessage: 'Nu sunt livrari in perioada urmatoare.'
+        }) %>
+      </div>
+    </div>
+    <% } %>
+
+    <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
+    <div class="row g-4 mb-4">
+      <div class="col-xl-6">
+        <%- include('../partials/dashboard/cards/status-card', {
+          title: 'Proiecte pe status',
+          statuses: adminHighlights.statusCounts.map((item) => ({
+            label: item.status,
+            total: item.total
+          })),
+          emptyMessage: 'Nu exista proiecte in portofoliul tau.'
+        }) %>
+      </div>
+      <div class="col-xl-6">
+        <%- include('../partials/dashboard/cards/summary-card', {
+          title: 'Ultimele proiecte asignate',
+          badge: adminHighlights.recentProjects.length ? `${adminHighlights.recentProjects.length} proiecte` : null,
+          items: adminHighlights.recentProjects.map((project) => ({
+            title: project.title,
+            subtitle: `${project.client_name || 'Client nealocat'} • ${project.deadline ? (project.deadline.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline) : 'Fara deadline'}`
+          })),
+          emptyMessage: 'Nu ai proiecte alocate recent.'
+        }) %>
+      </div>
+    </div>
+    <% } %>
+
     <div class="row g-4">
       <div class="col-lg-8">
         <div class="card shadow-sm h-100">
@@ -31,6 +154,7 @@
                   <tr>
                     <th>Titlu</th>
                     <th>Status</th>
+                    <th>Responsabil</th>
                     <th>Deadline</th>
                     <th></th>
                   </tr>
@@ -42,7 +166,18 @@
                       <div class="fw-semibold"><%= project.title %></div>
                       <div class="small text-muted"><%= project.degree_level %></div>
                     </td>
-                    <td><span class="badge bg-info text-dark"><%= project.status %></span></td>
+                    <td><span class="badge bg-info text-dark text-uppercase"><%= project.status %></span></td>
+                    <td class="small">
+                      <% if (currentUser.role === 'client') { %>
+                      <div>Admin: <%= project.assigned_admin_name || 'In alocare' %></div>
+                      <div>Editor: <%= project.assigned_editor_name || 'In alocare' %></div>
+                      <% } else if (currentUser.role === 'editor') { %>
+                      <div>Client: <%= project.client_name %></div>
+                      <% } else { %>
+                      <div>Client: <%= project.client_name %></div>
+                      <div>Editor: <%= project.assigned_editor_name || 'Nealocat' %></div>
+                      <% } %>
+                    </td>
                     <td><%= project.deadline ? project.deadline.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline : 'N/A' %></td>
                     <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="/cont/proiecte/<%= project.id %>">Detalii</a></td>
                   </tr>
@@ -65,14 +200,60 @@
               <% tickets.slice(0, 5).forEach((ticket) => { %>
               <li class="list-group-item">
                 <div class="fw-semibold"><%= ticket.subject %></div>
-                <div class="small text-muted">Status: <%= ticket.status %></div>
+                <div class="small text-muted">Tip: <%= ticket.kind %> • Status: <%= ticket.status %></div>
                 <a class="btn btn-sm btn-link px-0" href="/cont/tichete/<%= ticket.id %>">Vezi ticket</a>
               </li>
               <% }) %>
             </ul>
             <% } %>
+            <% if (recentReplies && recentReplies.length > 0) { %>
+            <div class="mt-4">
+              <h3 class="h6">Raspunsuri noi</h3>
+              <ul class="list-unstyled mb-0">
+                <% recentReplies.forEach((reply) => { %>
+                <li class="mb-2 small">
+                  <strong><%= reply.subject %></strong> – actualizat recent
+                </li>
+                <% }) %>
+              </ul>
+            </div>
+            <% } %>
           </div>
         </div>
+
+        <% if (pendingSupportTickets && pendingSupportTickets.length > 0) { %>
+        <div class="card shadow-sm mt-4">
+          <div class="card-body">
+            <h2 class="h6 mb-3">Tichete ce necesita atentie</h2>
+            <ul class="list-group list-group-flush">
+              <% pendingSupportTickets.forEach((ticket) => { %>
+              <li class="list-group-item">
+                <div class="fw-semibold"><%= ticket.subject %></div>
+                <div class="small text-muted">Status: <%= ticket.status %></div>
+                <a class="btn btn-sm btn-link px-0" href="/cont/tichete/<%= ticket.id %>">Gestioneaza</a>
+              </li>
+              <% }) %>
+            </ul>
+          </div>
+        </div>
+        <% } %>
+
+        <% if (pendingOffers && pendingOffers.length > 0) { %>
+        <div class="card shadow-sm mt-4">
+          <div class="card-body">
+            <h2 class="h6 mb-3">Oferte in asteptare</h2>
+            <ul class="list-group list-group-flush">
+              <% pendingOffers.forEach((offer) => { %>
+              <li class="list-group-item">
+                <div class="fw-semibold"><%= offer.client_name_full || offer.client_name %></div>
+                <div class="small text-muted">Solicitare <%= offer.offer_code %> – status <%= offer.status %></div>
+                <a class="btn btn-sm btn-link px-0" href="/cont/tichete/<%= offer.ticket_id %>">Deschide ticket</a>
+              </li>
+              <% }) %>
+            </ul>
+          </div>
+        </div>
+        <% } %>
       </div>
     </div>
   </div>

@@ -6,28 +6,293 @@ import {
   updateProjectStatus,
   getProjectById,
   assignProject,
-  createProject
+  createProject,
+  getClientProjectHighlights,
+  getEditorProjectHighlights,
+  getAdminProjectHighlights
 } from '../services/projectService.js';
-import { listTicketsForUser, createTicket, getTicketWithReplies, addReply, updateTicketStatus } from '../services/ticketService.js';
-import { listEditorsAndAdmins, listClients } from '../services/userService.js';
+import {
+  listTicketsForUser,
+  createTicket,
+  getTicketWithReplies,
+  addReply,
+  updateTicketStatus,
+  listPendingSupportTicketsForAdmin,
+  listPendingSupportTicketsForEditor,
+  listRecentTicketRepliesForUser
+} from '../services/ticketService.js';
+import {
+  listEditorsAndAdmins,
+  listClients,
+  getUserById,
+  updateUserProfile,
+  changeUserPassword,
+  listUsers,
+  createStaffUser,
+  updateUserRole,
+  setUserActiveStatus
+} from '../services/userService.js';
+import {
+  getOfferByTicketId,
+  attachOfferDetails,
+  acceptOffer,
+  refuseOffer,
+  requestCounterOffer,
+  submitCounterOffer,
+  listOffersForUser,
+  listPendingOffersForAdmin,
+  MIN_OFFER_EXPIRATION_HOURS
+} from '../services/offerService.js';
 
 const router = Router();
 
 router.use(ensureAuthenticated);
 
+router
+  .route('/cont/setari')
+  .get(async (req, res, next) => {
+    try {
+      const profile = await getUserById(req.session.user.id);
+      const successMessages = {
+        profile: 'Datele tale au fost actualizate.',
+        password: 'Parola a fost schimbata cu succes.'
+      };
+      const errorMessages = {
+        'invalid-password': 'Parola curenta nu este corecta.',
+        form: 'Completeaza corect toate campurile obligatorii.'
+      };
+      res.render('pages/account-settings', {
+        title: 'Setari cont',
+        description: 'Actualizeaza-ti datele de contact si parola pentru a proteja accesul la proiecte.',
+        profile,
+        successMessage: successMessages[req.query.success] || null,
+        errorMessage: errorMessages[req.query.error] || null
+      });
+    } catch (error) {
+      next(error);
+    }
+  })
+  .post(async (req, res, next) => {
+    try {
+      const schema = z.object({
+        fullName: z.string().min(3),
+        phone: z.string().trim().optional()
+      });
+      const data = schema.parse(req.body);
+      await updateUserProfile(req.session.user.id, {
+        fullName: data.fullName,
+        phone: data.phone && data.phone.length ? data.phone : null
+      });
+      req.session.user.fullName = data.fullName;
+      res.redirect('/cont/setari?success=profile');
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.redirect('/cont/setari?error=form');
+      }
+      next(error);
+    }
+  });
+
+router.post('/cont/setari/parola', async (req, res, next) => {
+  try {
+    const schema = z
+      .object({
+        currentPassword: z.string().min(6),
+        newPassword: z.string().min(8),
+        confirmPassword: z.string().min(8)
+      })
+      .refine((data) => data.newPassword === data.confirmPassword, {
+        message: 'Parolele nu coincid',
+        path: ['confirmPassword']
+      });
+    const data = schema.parse(req.body);
+    await changeUserPassword(req.session.user.id, data.currentPassword, data.newPassword);
+    res.redirect('/cont/setari?success=password');
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.redirect('/cont/setari?error=form');
+    }
+    if (error.message === 'INVALID_PASSWORD') {
+      return res.redirect('/cont/setari?error=invalid-password');
+    }
+    next(error);
+  }
+});
+
 router.get('/cont', async (req, res, next) => {
   try {
+    const user = req.session.user;
     const [projects, tickets] = await Promise.all([
-      listProjectsForUser(req.session.user),
-      listTicketsForUser(req.session.user)
+      listProjectsForUser(user),
+      listTicketsForUser(user)
     ]);
-    res.render('pages/dashboard', {
+
+    const viewModel = {
       title: 'Panou de control',
       description: 'Monitorizeaza proiectele, contractele si discutiile cu echipa Licente la Cheie.',
       projects,
-      tickets
+      tickets,
+      offers: [],
+      clientHighlights: { nextDeadline: null, admins: [], editors: [] },
+      editorHighlights: { statusCounts: [], upcomingDeadlines: [] },
+      adminHighlights: { statusCounts: [], recentProjects: [] },
+      pendingSupportTickets: [],
+      pendingOffers: [],
+      recentReplies: []
+    };
+
+    if (user.role === 'client') {
+      const [clientHighlights, offers, recentReplies] = await Promise.all([
+        getClientProjectHighlights(user.id),
+        listOffersForUser(user),
+        listRecentTicketRepliesForUser(user.id, 5)
+      ]);
+      viewModel.clientHighlights = clientHighlights;
+      viewModel.offers = offers;
+      viewModel.recentReplies = recentReplies;
+    }
+
+    if (user.role === 'editor') {
+      const [editorHighlights, pendingSupport] = await Promise.all([
+        getEditorProjectHighlights(user.id),
+        listPendingSupportTicketsForEditor(user.id)
+      ]);
+      viewModel.editorHighlights = editorHighlights;
+      viewModel.pendingSupportTickets = pendingSupport;
+    }
+
+    if (user.role === 'admin' || user.role === 'superadmin') {
+      const [adminHighlights, pendingSupport, pendingOffers] = await Promise.all([
+        getAdminProjectHighlights(user.id),
+        listPendingSupportTicketsForAdmin(user.id),
+        listPendingOffersForAdmin(user.role === 'superadmin' ? null : user.id)
+      ]);
+      viewModel.adminHighlights = adminHighlights;
+      viewModel.pendingSupportTickets = pendingSupport;
+      viewModel.pendingOffers = pendingOffers;
+    }
+
+    res.render('pages/dashboard', viewModel);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const filters = {
+      role: req.query.role || 'all',
+      status: req.query.status || 'all',
+      q: req.query.q || ''
+    };
+    const users = await listUsers({
+      role: filters.role !== 'all' ? filters.role : undefined,
+      status: filters.status !== 'all' ? filters.status : undefined,
+      search: filters.q ? filters.q : undefined
+    });
+    const flash = req.session.flash || {};
+    delete req.session.flash;
+    res.render('pages/user-management', {
+      title: 'Administrare utilizatori',
+      description: 'Creeaza conturi pentru echipa si gestioneaza accesul clientilor.',
+      users,
+      filters,
+      flashMessage: flash.success || null,
+      errorMessage: flash.error || null,
+      generatedCredentials: flash.credentials || null
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const schema = z.object({
+      fullName: z.string().min(3),
+      email: z.string().email(),
+      phone: z.string().trim().optional(),
+      role: z.enum(['editor', 'admin'])
+    });
+    const data = schema.parse(req.body);
+    const { generatedPassword } = await createStaffUser({
+      fullName: data.fullName,
+      email: data.email,
+      phone: data.phone && data.phone.length ? data.phone : null,
+      role: data.role
+    });
+    req.session.flash = {
+      success: 'Contul de staff a fost creat cu succes.',
+      credentials: { email: data.email.toLowerCase(), password: generatedPassword }
+    };
+    res.redirect('/cont/utilizatori');
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.flash = { error: 'Verifica datele introduse in formular.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'EMAIL_EXISTS') {
+      req.session.flash = { error: 'Exista deja un cont cu acest email.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'INVALID_ROLE') {
+      req.session.flash = { error: 'Rolul selectat nu este permis.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/utilizatori/:id/rol', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.id);
+    if (Number.isNaN(targetId)) {
+      req.session.flash = { error: 'Utilizator invalid.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (targetId === req.session.user.id) {
+      req.session.flash = { error: 'Nu iti poti modifica propriul rol.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    const schema = z.object({ role: z.enum(['client', 'editor', 'admin', 'superadmin']) });
+    const { role } = schema.parse(req.body);
+    if (role === 'superadmin' && req.session.user.role !== 'superadmin') {
+      req.session.flash = { error: 'Numai superadminii pot atribui rolul de superadmin.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    await updateUserRole(targetId, role);
+    req.session.flash = { success: 'Rolul utilizatorului a fost actualizat.' };
+    res.redirect('/cont/utilizatori');
+  } catch (error) {
+    if (error instanceof z.ZodError || error.message === 'INVALID_ROLE') {
+      req.session.flash = { error: 'Rol selectat invalid.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/utilizatori/:id/status', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.id);
+    if (Number.isNaN(targetId)) {
+      req.session.flash = { error: 'Utilizator invalid.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (targetId === req.session.user.id) {
+      req.session.flash = { error: 'Nu iti poti dezactiva propriul cont.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    const schema = z.object({ isActive: z.enum(['0', '1']) });
+    const { isActive } = schema.parse(req.body);
+    await setUserActiveStatus(targetId, isActive === '1');
+    req.session.flash = { success: 'Statusul contului a fost actualizat.' };
+    res.redirect('/cont/utilizatori');
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.flash = { error: 'Solicitarea nu este valida.' };
+      return res.redirect('/cont/utilizatori');
+    }
     next(error);
   }
 });
@@ -95,11 +360,17 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
         description: 'Ticketul nu este gestionat de tine.'
       });
     }
+    const offer = ticket.kind === 'offer' ? await getOfferByTicketId(ticket.id) : null;
+    const feedback = req.session.ticketFeedback || {};
+    delete req.session.ticketFeedback;
     res.render('pages/ticket-detail', {
       title: `Ticket ${ticket.subject}`,
       description: 'Comunicare rapida cu echipa de proiect.',
       ticket,
-      replies
+      replies,
+      offer,
+      offerMinHours: MIN_OFFER_EXPIRATION_HOURS,
+      feedback
     });
   } catch (error) {
     next(error);
@@ -145,6 +416,197 @@ router.post('/cont/tichete/:id/raspuns', async (req, res, next) => {
     });
     res.redirect(`/cont/tichete/${req.params.id}`);
   } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/:id/oferta/detalii', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const { ticket } = await getTicketWithReplies(ticketId);
+    if (!ticket || ticket.kind !== 'offer') {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    const user = req.session.user;
+    if (
+      user.role === 'admin' &&
+      ticket.project_id &&
+      ticket.assigned_admin_id &&
+      ticket.assigned_admin_id !== user.id
+    ) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti responsabil de acest ticket.'
+      });
+    }
+    const schema = z.object({
+      amount: z.string().min(1),
+      expiresInHours: z.string().optional(),
+      message: z.string().optional()
+    });
+    const data = schema.parse(req.body);
+    const amount = Number(data.amount.replace(',', '.'));
+    if (Number.isNaN(amount) || amount <= 0) {
+      req.session.ticketFeedback = { error: 'Valoarea ofertei trebuie sa fie pozitiva.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    let expiresInHours = data.expiresInHours ? Number(data.expiresInHours) : MIN_OFFER_EXPIRATION_HOURS;
+    if (Number.isNaN(expiresInHours) || expiresInHours < MIN_OFFER_EXPIRATION_HOURS) {
+      expiresInHours = MIN_OFFER_EXPIRATION_HOURS;
+    }
+    const offer = await getOfferByTicketId(ticketId);
+    if (!offer) {
+      return res.status(404).render('pages/404', {
+        title: 'Oferta indisponibila',
+        description: 'Nu exista o oferta asociata acestui ticket.'
+      });
+    }
+    await attachOfferDetails(offer.id, {
+      amount,
+      expiresInHours,
+      notes: data.message,
+      program: offer.program,
+      topic: offer.topic,
+      deliveryDate: offer.delivery_date,
+      clientName: offer.client_name
+    });
+    if (data.message && data.message.trim().length > 0) {
+      await addReply({
+        ticketId: ticketId,
+        userId: user.id,
+        message: `Oferta transmisa: ${amount.toFixed(2)} EUR. ${data.message}`
+      });
+    }
+    req.session.ticketFeedback = { success: 'Oferta a fost transmisa clientului.' };
+    res.redirect(`/cont/tichete/${ticketId}`);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.ticketFeedback = { error: 'Completeaza corect campurile ofertei.' };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/:id/oferta/accepta', async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const user = req.session.user;
+    const { ticket } = await getTicketWithReplies(ticketId);
+    if (!ticket || ticket.kind !== 'offer') {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    if (user.role !== 'client' || ticket.created_by !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu puteti accepta aceasta oferta.'
+      });
+    }
+    const offer = await getOfferByTicketId(ticketId);
+    if (!offer || offer.status !== 'sent') {
+      req.session.ticketFeedback = { error: 'Oferta nu mai poate fi acceptata.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    await acceptOffer(offer.id);
+    await addReply({
+      ticketId,
+      userId: user.id,
+      message: 'Oferta a fost acceptata. Astept instructiunile de contract.'
+    });
+    req.session.ticketFeedback = { success: 'Ai acceptat oferta. Un consultant te va contacta pentru contract.' };
+    res.redirect(`/cont/tichete/${ticketId}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/:id/oferta/refuza', async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const user = req.session.user;
+    const { ticket } = await getTicketWithReplies(ticketId);
+    if (!ticket || ticket.kind !== 'offer') {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    if (user.role !== 'client' || ticket.created_by !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu puteti refuza aceasta oferta.'
+      });
+    }
+    const offer = await getOfferByTicketId(ticketId);
+    if (!offer || offer.status !== 'sent') {
+      req.session.ticketFeedback = { error: 'Oferta nu mai poate fi refuzata.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    await requestCounterOffer(offer.id);
+    await addReply({
+      ticketId,
+      userId: user.id,
+      message: 'Oferta a fost refuzata. Voi trimite o contraoferta in cel mai scurt timp.'
+    });
+    req.session.ticketFeedback = {
+      success: 'Ai refuzat oferta. Ai 30 de minute pentru a trimite o contraoferta.'
+    };
+    res.redirect(`/cont/tichete/${ticketId}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/:id/oferta/contraoferta', async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const user = req.session.user;
+    const { ticket } = await getTicketWithReplies(ticketId);
+    if (!ticket || ticket.kind !== 'offer') {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    if (user.role !== 'client' || ticket.created_by !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu puteti trimite o contraoferta pentru acest ticket.'
+      });
+    }
+    const schema = z.object({
+      amount: z.string().min(1)
+    });
+    const data = schema.parse(req.body);
+    const amount = Number(data.amount.replace(',', '.'));
+    if (Number.isNaN(amount) || amount <= 0) {
+      req.session.ticketFeedback = { error: 'Contraoferta trebuie sa fie o valoare pozitiva.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    const offer = await getOfferByTicketId(ticketId);
+    if (!offer || offer.status !== 'counter_pending') {
+      req.session.ticketFeedback = { error: 'Nu exista o fereastra activa pentru contraoferta.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    await submitCounterOffer(offer.id, amount);
+    await addReply({
+      ticketId,
+      userId: user.id,
+      message: `Contraoferta propusa: ${amount.toFixed(2)} EUR.`
+    });
+    req.session.ticketFeedback = { success: 'Contraoferta a fost trimisa administratorului.' };
+    res.redirect(`/cont/tichete/${ticketId}`);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.ticketFeedback = { error: 'Completeaza valoarea contraofertei.' };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
     next(error);
   }
 });

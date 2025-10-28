@@ -97,3 +97,89 @@ export async function assignProject(projectId, { adminId, editorId }) {
     [adminId || null, editorId || null, projectId]
   );
 }
+
+export async function getClientProjectHighlights(clientId) {
+  const [[deadlineRows], [adminRows], [editorRows]] = await Promise.all([
+    pool.query(
+      `SELECT p.id, p.title, p.deadline, ua.full_name AS admin_name, ue.full_name AS editor_name
+       FROM projects p
+       LEFT JOIN users ua ON ua.id = p.assigned_admin_id
+       LEFT JOIN users ue ON ue.id = p.assigned_editor_id
+       WHERE p.client_id = ? AND p.deadline IS NOT NULL
+       ORDER BY p.deadline ASC
+       LIMIT 1`,
+      [clientId]
+    ),
+    pool.query(
+      `SELECT DISTINCT ua.id, ua.full_name
+       FROM projects p
+       INNER JOIN users ua ON ua.id = p.assigned_admin_id
+       WHERE p.client_id = ?`,
+      [clientId]
+    ),
+    pool.query(
+      `SELECT DISTINCT ue.id, ue.full_name
+       FROM projects p
+       INNER JOIN users ue ON ue.id = p.assigned_editor_id
+       WHERE p.client_id = ?`,
+      [clientId]
+    )
+  ]);
+
+  return {
+    nextDeadline: deadlineRows[0] || null,
+    admins: adminRows,
+    editors: editorRows
+  };
+}
+
+export async function getEditorProjectHighlights(editorId) {
+  const [[statusRows], [deadlineRows]] = await Promise.all([
+    pool.query(
+      `SELECT status, COUNT(*) AS total
+       FROM projects
+       WHERE assigned_editor_id = ?
+       GROUP BY status`,
+      [editorId]
+    ),
+    pool.query(
+      `SELECT id, title, deadline
+       FROM projects
+       WHERE assigned_editor_id = ? AND deadline IS NOT NULL
+       ORDER BY deadline ASC
+       LIMIT 3`,
+      [editorId]
+    )
+  ]);
+
+  return {
+    statusCounts: statusRows,
+    upcomingDeadlines: deadlineRows
+  };
+}
+
+export async function getAdminProjectHighlights(adminId) {
+  const [[statusRows], [recentClients]] = await Promise.all([
+    pool.query(
+      `SELECT status, COUNT(*) AS total
+       FROM projects
+       WHERE assigned_admin_id = ?
+       GROUP BY status`,
+      [adminId]
+    ),
+    pool.query(
+      `SELECT p.id, p.title, uc.full_name AS client_name, p.deadline
+       FROM projects p
+       LEFT JOIN users uc ON uc.id = p.client_id
+       WHERE p.assigned_admin_id = ?
+       ORDER BY p.created_at DESC
+       LIMIT 5`,
+      [adminId]
+    )
+  ]);
+
+  return {
+    statusCounts: statusRows,
+    recentProjects: recentClients
+  };
+}

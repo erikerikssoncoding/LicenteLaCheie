@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { createContactRequest } from '../services/contactService.js';
-import { generateContractTemplate, createOffer, getOfferByCode } from '../services/offerService.js';
+import {
+  createOfferRequest,
+  getOfferByCode,
+  DEFAULT_OFFER_EXPIRATION_HOURS
+} from '../services/offerService.js';
+import { ensureClientAccount } from '../services/userService.js';
+import { createTicket } from '../services/ticketService.js';
 
 const router = Router();
 
@@ -53,6 +59,14 @@ router
         description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.'
       });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).render('pages/contact', {
+          title: 'Contact Licente la Cheie',
+          description:
+            'Scrie-ne pentru a afla cum te putem ajuta cu redactarea lucrarii de licenta sau a proiectului tau academic.',
+          error: 'Completeaza corect toate campurile pentru a trimite mesajul.'
+        });
+      }
       next(error);
     }
   });
@@ -75,19 +89,53 @@ router
         program: z.string().min(3),
         topic: z.string().min(5),
         deliveryDate: z.string().min(4),
-        price: z.string().min(2),
-        notes: z.string().optional()
+        notes: z.string().optional(),
+        acceptAccount: z.literal('on')
       });
       const payload = schema.parse(req.body);
-      const contractText = generateContractTemplate(payload);
-      const { offerCode } = await createOffer({ ...payload, contractText });
+      const { userId, generatedPassword } = await ensureClientAccount({
+        fullName: payload.clientName,
+        email: payload.email,
+        phone: payload.phone
+      });
+      const ticketId = await createTicket({
+        projectId: null,
+        userId,
+        subject: `Solicitare oferta - ${payload.topic}`,
+        message: `Program de studiu: ${payload.program}\nLivrare dorita: ${payload.deliveryDate}\nDetalii suplimentare: ${
+          payload.notes || 'nespecificate'
+        }`,
+        kind: 'offer'
+      });
+      const { offerCode } = await createOfferRequest({
+        clientName: payload.clientName,
+        userId,
+        email: payload.email.toLowerCase(),
+        phone: payload.phone,
+        program: payload.program,
+        topic: payload.topic,
+        deliveryDate: payload.deliveryDate,
+        notes: payload.notes,
+        ticketId
+      });
       res.render('pages/offer-success', {
         title: 'Oferta generata',
-        description: 'Am generat contractul personalizat pentru lucrarea ta.',
+        description:
+          'Solicitarea ta a fost inregistrata. Vei primi oferta personalizata in contul tau Licente la Cheie.',
         offerCode,
-        contractText
+        ticketId,
+        generatedPassword,
+        defaultExpiration: DEFAULT_OFFER_EXPIRATION_HOURS
       });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).render('pages/offer', {
+          title: 'Solicita o oferta personalizata pentru lucrarea de licenta',
+          description:
+            'Completeaza formularul pentru a primi o oferta si un contract personalizat pentru redactarea lucrarii tale de licenta.',
+          error: 'Verifica datele introduse si confirma ca ai acceptat crearea contului.'
+        });
+      }
       next(error);
     }
   });

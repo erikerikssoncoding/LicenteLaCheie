@@ -9,7 +9,7 @@ router.get('/', (req, res) => {
   res.render('pages/home', {
     title: 'Lucrari de licenta premium redactate de experti',
     description:
-      'Dtoro.icu ofera servicii profesionale de redactare, consultanta si verificare pentru lucrari de licenta, dizertatii si proiecte academice.'
+      'Licente la Cheie ofera servicii profesionale de redactare, consultanta si verificare pentru lucrari de licenta, dizertatii si proiecte academice.'
   });
 });
 
@@ -17,7 +17,7 @@ router.get('/despre-noi', (req, res) => {
   res.render('pages/about', {
     title: 'Despre echipa noastra',
     description:
-      'Afla cum ajuta echipa Dtoro.icu studentii sa finalizeze cu succes lucrari de licenta si proiecte de absolvire.'
+      'Afla cum echipa Licente la Cheie ii ghideaza pe studenti catre finalizarea cu succes a lucrarilor de licenta si a proiectelor de absolvire.'
   });
 });
 
@@ -33,7 +33,7 @@ router
   .route('/contact')
   .get((req, res) => {
     res.render('pages/contact', {
-      title: 'Contact Dtoro.icu',
+      title: 'Contact Licente la Cheie',
       description:
         'Scrie-ne pentru a afla cum te putem ajuta cu redactarea lucrarii de licenta sau a proiectului tau academic.'
     });

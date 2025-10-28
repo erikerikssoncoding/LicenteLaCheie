@@ -1,76 +1,159 @@
 <%- include('../partials/head', { title, description, request }) %>
 <%- include('../partials/header') %>
-<section class="hero-section py-5 bg-light">
-  <div class="container">
-    <div class="row align-items-center">
+<section class="hero-section position-relative overflow-hidden">
+  <div class="container position-relative z-1">
+    <div class="row align-items-center g-5">
       <div class="col-lg-7">
-        <h1 class="display-5 fw-bold mb-4">Lucrari de licenta impecabile redactate de experti universitari</h1>
-        <p class="lead">
-          Dtoro.icu este partenerul tau strategic pentru redactarea, structurarea si verificarea lucrarilor de licenta,
-          dizertatiilor si proiectelor finale. Folosim metodologii academice validate si garantam originalitatea prin
-          rapoarte antiplagiat.
+        <span class="badge rounded-pill text-bg-light text-uppercase fw-semibold letter-spacing-sm">Platforma completa pentru lucrari de licenta</span>
+        <h1 class="hero-title mt-4">Licente impecabile, gestionate cap-coada de experti universitari</h1>
+        <p class="hero-subtitle mt-3">
+          Planificam, redactam si livram lucrari de licenta si dizertatii cu o metodologie verificata, transparanta si usor de urmarit. Comunicarea are loc intr-un hub dedicat, cu actualizari in timp real si rapoarte antiplagiat incluse.
         </p>
-        <div class="d-flex gap-3 mt-4">
-          <a href="/oferta" class="btn btn-primary btn-lg">Solicita oferta rapida</a>
-          <a href="/servicii" class="btn btn-outline-primary btn-lg">Vezi serviciile</a>
+        <div class="d-flex flex-column flex-sm-row gap-3 align-items-sm-center mt-4">
+          <a href="/oferta" class="btn btn-gradient btn-lg px-4">Solicita oferta instant</a>
+          <a href="/servicii" class="btn btn-link btn-lg px-0 text-decoration-none">Vezi procesul nostru →</a>
+        </div>
+        <div class="hero-stats d-flex flex-wrap gap-4 mt-5">
+          <div>
+            <div class="stat-value">24/7</div>
+            <div class="stat-label">Asistenta prin ticketing</div>
+          </div>
+          <div>
+            <div class="stat-value">48h</div>
+            <div class="stat-label">Prima versiune de capitol</div>
+          </div>
+          <div>
+            <div class="stat-value">100%</div>
+            <div class="stat-label">Rapoarte antiplagiat incluse</div>
+          </div>
         </div>
       </div>
-      <div class="col-lg-5 mt-4 mt-lg-0">
-        <div class="card shadow">
-          <div class="card-body">
-            <h2 class="h4">De ce sa alegi Dtoro.icu pentru lucrarea ta?</h2>
-            <ul class="list-unstyled mt-3">
-              <li class="mb-2">✔️ Redactori cu experienta universitara reala</li>
-              <li class="mb-2">✔️ Management de proiect transparent si deadline-uri clare</li>
-              <li class="mb-2">✔️ Ticketing inteligent pentru comunicare rapida</li>
-              <li>✔️ Contract digital si garantii de confidentialitate</li>
+      <div class="col-lg-5">
+        <div class="hero-visual">
+          <div class="glass-card mb-4">
+            <h2 class="h5 mb-3">Flux inteligent de proiect</h2>
+            <ul class="list-unstyled vstack gap-2 mb-0">
+              <li class="d-flex align-items-center gap-3">
+                <span class="icon-circle">1</span>
+                <span>Brief digital si contract generat automat</span>
+              </li>
+              <li class="d-flex align-items-center gap-3">
+                <span class="icon-circle">2</span>
+                <span>Plan de capitole si calendar transparent</span>
+              </li>
+              <li class="d-flex align-items-center gap-3">
+                <span class="icon-circle">3</span>
+                <span>Ticketing in timp real cu echipa de redactori</span>
+              </li>
             </ul>
           </div>
+          <div class="glass-card">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <p class="text-muted small mb-1">Ticket activ</p>
+                <h3 class="h5 mb-1">Capitol 3 – feedback metodologie</h3>
+                <p class="small mb-0">Actualizat acum 12 minute de Ana Popescu</p>
+              </div>
+              <span class="badge rounded-pill text-bg-success">in lucru</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
+  <div class="hero-blur"></div>
 </section>
-<section class="py-5">
+
+<section class="py-5 py-lg-6">
   <div class="container">
-    <h2 class="h3 text-center mb-4">Servicii integrate pentru lucrari de licenta</h2>
+    <div class="text-center mb-5">
+      <span class="section-label">Servicii end-to-end</span>
+      <h2 class="section-title mt-3">Tot ce ai nevoie pentru o lucrare de licenta reusita</h2>
+      <p class="section-subtitle">De la cercetare si redactare pana la pregatirea prezentarii finale, echipa noastra livreaza rezultate premium in fiecare etapa.</p>
+    </div>
     <div class="row g-4">
       <div class="col-md-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-body">
-            <h3 class="h5">Redactare completa</h3>
-            <p>Planificam, documentam si redactam integral lucrarea, respectand standardele universitare si cerintele tale.</p>
-          </div>
+        <div class="feature-card h-100 glass-card">
+          <div class="icon-bubble">📚</div>
+          <h3 class="h5 mt-3">Redactare academica completa</h3>
+          <p class="mb-0">Construim capitole structurate impecabil, cu bibliografie validata si argumentatie originala pentru domeniul tau.</p>
         </div>
       </div>
       <div class="col-md-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-body">
-            <h3 class="h5">Consultanta strategica</h3>
-            <p>Primesti ghidare pas cu pas pentru structurarea capitolelor, colectarea datelor si pregatirea prezentarii finale.</p>
-          </div>
+        <div class="feature-card h-100 glass-card">
+          <div class="icon-bubble">🤝</div>
+          <h3 class="h5 mt-3">Consultanta si mentori dedicati</h3>
+          <p class="mb-0">Beneficiezi de sesiuni de consultanta video si ghidaj personalizat pentru prezentare, sustinere si livrabile auxiliare.</p>
         </div>
       </div>
       <div class="col-md-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-body">
-            <h3 class="h5">Verificare si antiplagiat</h3>
-            <p>Realizam verificari antiplagiat, corectura si optimizari astfel incat lucrarea sa treaca fara emotii evaluarile.</p>
+        <div class="feature-card h-100 glass-card">
+          <div class="icon-bubble">🛡️</div>
+          <h3 class="h5 mt-3">Control calitate si antiplagiat</h3>
+          <p class="mb-0">Rapoarte antiplagiat, corectura stilistica si verificare tehnica inainte de predarea catre comisie.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="py-5 py-lg-6 gradient-surface text-light">
+  <div class="container">
+    <div class="row g-5 align-items-center">
+      <div class="col-lg-6">
+        <span class="section-label text-light">Comunicare fara frictiuni</span>
+        <h2 class="section-title text-white mt-3">Sistem de ticketing integrat pentru fiecare proiect</h2>
+        <p class="section-subtitle text-light">Clientii, editorii si administratorii colaboreaza intr-o singura interfata: raspunsuri rapide, atasamente securizate si status actualizat pentru fiecare solicitare.</p>
+        <ul class="list-unstyled vstack gap-3 mt-4">
+          <li class="d-flex gap-3 align-items-start">
+            <span class="icon-check">✔</span>
+            <span>Acces instant la istoricul conversatiilor si documentelor</span>
+          </li>
+          <li class="d-flex gap-3 align-items-start">
+            <span class="icon-check">✔</span>
+            <span>Notificari automate cand apar raspunsuri noi sau schimbari de status</span>
+          </li>
+          <li class="d-flex gap-3 align-items-start">
+            <span class="icon-check">✔</span>
+            <span>Administrare pe roluri pentru clienti, redactori si manageri de proiect</span>
+          </li>
+        </ul>
+      </div>
+      <div class="col-lg-6">
+        <div class="ticket-preview glass-card text-dark">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <span class="badge rounded-pill text-bg-primary">Ticket #482</span>
+              <h3 class="h5 mt-3 mb-2">Clarificari capitol metodologic</h3>
+              <p class="small text-muted mb-0">Client: Mihai Ionescu · Deadline: 28 mai</p>
+            </div>
+            <span class="badge rounded-pill text-bg-info text-dark">in analiza</span>
+          </div>
+          <hr class="my-4" />
+          <div class="vstack gap-3">
+            <div class="reply-item">
+              <p class="mb-1">„Am incarcat sursele si as vrea confirmarea cadrului teoretic.”</p>
+              <span class="small text-muted">Creat de client · acum 2 ore</span>
+            </div>
+            <div class="reply-item">
+              <p class="mb-1">„Revizuim bibliografia si raspundem cu propunerile finale pana diseara.”</p>
+              <span class="small text-muted">Editor Licente la Cheie · acum 25 min</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 </section>
-<section class="py-5 bg-primary text-light">
+
+<section class="py-5 py-lg-6">
   <div class="container">
-    <div class="row align-items-center">
-      <div class="col-md-8">
-        <h2 class="h3 mb-3">Esti pregatit sa incepi lucrarea de licenta?</h2>
-        <p class="mb-0">Cere o evaluare gratuita si primesti contractul in cateva minute, gata pentru semnare digitala.</p>
-      </div>
-      <div class="col-md-4 text-md-end mt-3 mt-md-0">
-        <a href="/oferta" class="btn btn-light">Porneste proiectul</a>
+    <div class="call-to-action glass-card text-center">
+      <h2 class="section-title mb-3">Esti pregatit sa pornim lucrul la lucrarea ta?</h2>
+      <p class="section-subtitle mb-4">Completeaza formularul, iar in cateva minute primesti oferta personalizata si contractul gata de semnat digital.</p>
+      <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center">
+        <a href="/oferta" class="btn btn-gradient btn-lg px-4">Porneste proiectul</a>
+        <a href="/contact" class="btn btn-outline-light btn-lg px-4">Discuta cu un consultant</a>
       </div>
     </div>
   </div>

@@ -11,7 +11,7 @@ const sessionStore = new MySQLStore({
   port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'dtoro',
+  database: process.env.DB_NAME || 'licentelacheie',
   clearExpired: true,
   checkExpirationInterval: 900000,
   expiration: 86400000,
@@ -28,7 +28,7 @@ const sessionStore = new MySQLStore({
 
 export default session({
   secret: process.env.SESSION_SECRET || 'schimbati-aceasta-cheie',
-  name: 'dtoro.sid',
+  name: 'licentelacheie.sid',
   resave: false,
   saveUninitialized: false,
   store: sessionStore,

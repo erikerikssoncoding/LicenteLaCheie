@@ -1,7 +1,7 @@
 {
-  "name": "dtoro-icu",
+    "name": "licente-la-cheie",
   "version": "1.0.0",
-  "description": "Platforma pentru lucrari de licenta cu gestionare proiecte si ticketing",
+    "description": "Platforma Licente la Cheie pentru gestionarea proiectelor academice si a ticketelor",
   "type": "module",
   "main": "src/server.js",
   "scripts": {

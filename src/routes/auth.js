@@ -82,7 +82,7 @@ router.post('/inregistrare', async (req, res, next) => {
 
 router.post('/deconectare', ensureAuthenticated, (req, res) => {
   req.session.destroy(() => {
-    res.clearCookie('dtoro.sid');
+    res.clearCookie('licentelacheie.sid');
     res.redirect('/');
   });
 });

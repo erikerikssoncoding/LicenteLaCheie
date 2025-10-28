@@ -90,13 +90,13 @@ async function createSuperAdmin(connection, adminConfig) {
 async function main() {
   let closed = false;
   try {
-    console.log('Instalare platforma Dtoro.icu');
+    console.log('Instalare platforma Licente la Cheie');
     const dbHost = await ask('Host baza de date', '127.0.0.1');
     const dbPort = Number(await ask('Port baza de date', '3306'));
     const dbUser = await ask('Utilizator baza de date', 'root');
     const dbPassword = await ask('Parola utilizator', '', true);
     output.write('\n');
-    const dbName = await ask('Numele bazei de date', 'dtoro');
+    const dbName = await ask('Numele bazei de date', 'licentelacheie');
     const port = Number(await ask('Port aplicatie', '3000'));
     const sessionSecret = await ask('Cheie secreta sesiuni', Math.random().toString(36).slice(2));
 
@@ -117,7 +117,7 @@ async function main() {
     const createAdmin = (await ask('Doriti sa creati un superadmin acum? (da/nu)', 'da')).toLowerCase();
     if (createAdmin.startsWith('d')) {
       const fullName = await ask('Nume complet superadmin', 'Administrator Principal');
-      const email = await ask('Email superadmin', 'admin@dtoro.icu');
+      const email = await ask('Email superadmin', 'admin@licentelacheie.ro');
       const phone = await ask('Telefon superadmin', '+40 700 000 000');
       const password = await ask('Parola superadmin', '', true);
       output.write('\n');

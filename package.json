@@ -1,0 +1,44 @@
+{
+  "name": "dtoro-icu",
+  "version": "1.0.0",
+  "description": "Platforma pentru lucrari de licenta cu gestionare proiecte si ticketing",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "lucrari de licenta",
+    "mariadb",
+    "nodejs",
+    "ticketing",
+    "contract"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.7.4",
+    "csurf": "^1.11.0",
+    "dotenv": "^16.3.1",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-mysql-session": "^3.0.2",
+    "express-session": "^1.17.3",
+    "helmet": "^7.0.0",
+    "mysql2": "^3.9.7",
+    "morgan": "^1.10.0",
+    "nanoid": "^4.0.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-node": "^11.1.0",
+    "nodemon": "^3.1.0",
+    "prettier": "^3.2.5"
+  }
+}

@@ -1,0 +1,10 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5 text-center">
+  <div class="container">
+    <h1 class="display-6">Acces restrictionat</h1>
+    <p class="lead"><%= description || 'Nu aveti permisiunea de a accesa aceasta resursa.' %></p>
+    <a class="btn btn-primary" href="/">Inapoi la prima pagina</a>
+  </div>
+</section>
+<%- include('../partials/footer') %>

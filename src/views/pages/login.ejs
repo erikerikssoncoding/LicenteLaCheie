@@ -1,0 +1,27 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container" style="max-width: 500px;">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h1 class="h4 mb-3">Autentificare</h1>
+        <% if (typeof error !== 'undefined') { %>
+        <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+        <form action="/autentificare" method="post" class="vstack gap-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <div>
+            <label class="form-label" for="email">Email</label>
+            <input class="form-control" type="email" id="email" name="email" required />
+          </div>
+          <div>
+            <label class="form-label" for="password">Parola</label>
+            <input class="form-control" type="password" id="password" name="password" required />
+          </div>
+          <button class="btn btn-primary" type="submit">Autentificare</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+<%- include('../partials/footer') %>

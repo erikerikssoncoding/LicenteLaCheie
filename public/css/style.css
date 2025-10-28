@@ -1,0 +1,100 @@
+body {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background-color: #f7f9fc;
+  color: #1f2933;
+}
+
+.hero-section {
+  background: linear-gradient(135deg, #e3f2fd 0%, #f7f9fc 100%);
+}
+
+.service-card {
+  border-radius: 12px;
+  background-color: #ffffff;
+}
+
+.list-check {
+  list-style: none;
+  padding-left: 0;
+}
+
+.list-check li::before {
+  content: '✔';
+  color: #0d6efd;
+  margin-right: 8px;
+}
+
+footer {
+  background: #0b1d34;
+}
+
+.contract-text {
+  white-space: pre-wrap;
+  font-family: 'Fira Code', monospace;
+}
+
+.timeline {
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12px;
+  width: 4px;
+  height: 100%;
+  background: rgba(13, 110, 253, 0.3);
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 0.25rem;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #0d6efd;
+}
+
+.timeline-content {
+  padding: 1rem 1.25rem;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+}
+
+.navbar {
+  background: linear-gradient(90deg, #0b1d34 0%, #132d55 100%) !important;
+}
+
+.btn-primary {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.btn-outline-primary {
+  color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.btn-outline-primary:hover {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+.card {
+  border: none;
+  border-radius: 16px;
+}
+
+.table > :not(caption) > * > * {
+  padding: 1rem;
+}

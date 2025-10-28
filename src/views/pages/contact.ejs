@@ -1,0 +1,49 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-6">
+        <h1>Contact Dtoro.icu</h1>
+        <p class="lead">
+          Completeaza formularul pentru a discuta despre lucrarea ta de licenta. Raspundem in maximum 2 ore in zilele
+          lucratoare.
+        </p>
+        <ul class="list-unstyled mt-4">
+          <li><strong>Email:</strong> suport@dtoro.icu</li>
+          <li><strong>Telefon:</strong> +40 744 000 000</li>
+          <li><strong>Program:</strong> Luni - Vineri, 09:00 - 18:00</li>
+        </ul>
+      </div>
+      <div class="col-lg-6">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <form action="/contact" method="post" class="row g-3">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <div class="col-md-6">
+                <label class="form-label" for="fullName">Nume complet</label>
+                <input class="form-control" type="text" id="fullName" name="fullName" required />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="email">Email</label>
+                <input class="form-control" type="email" id="email" name="email" required />
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="phone">Telefon</label>
+                <input class="form-control" type="tel" id="phone" name="phone" required />
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="message">Mesaj</label>
+                <textarea class="form-control" id="message" name="message" rows="5" required></textarea>
+              </div>
+              <div class="col-12 text-end">
+                <button class="btn btn-primary" type="submit">Trimite mesajul</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<%- include('../partials/footer') %>

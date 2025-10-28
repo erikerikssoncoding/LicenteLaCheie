@@ -1,0 +1,80 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="h3">Bun venit, <%= currentUser.fullName %></h1>
+        <p class="text-muted mb-0">Rol: <span class="badge bg-secondary text-uppercase"><%= currentUser.role %></span></p>
+      </div>
+      <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
+      <a class="btn btn-primary" href="/cont/proiecte/creeaza">Creaza proiect</a>
+      <% } %>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h2 class="h5 mb-0">Proiectele tale</h2>
+              <% if (currentUser.role === 'client') { %>
+              <a class="btn btn-sm btn-outline-primary" href="/cont/tichete/creeaza">Deschide ticket</a>
+              <% } %>
+            </div>
+            <% if (projects.length === 0) { %>
+            <p class="text-muted">Momentan nu exista proiecte active.</p>
+            <% } else { %>
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Titlu</th>
+                    <th>Status</th>
+                    <th>Deadline</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% projects.forEach((project) => { %>
+                  <tr>
+                    <td>
+                      <div class="fw-semibold"><%= project.title %></div>
+                      <div class="small text-muted"><%= project.degree_level %></div>
+                    </td>
+                    <td><span class="badge bg-info text-dark"><%= project.status %></span></td>
+                    <td><%= project.deadline ? project.deadline.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline : 'N/A' %></td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="/cont/proiecte/<%= project.id %>">Detalii</a></td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h2 class="h5">Tichete recente</h2>
+            <% if (tickets.length === 0) { %>
+            <p class="text-muted">Nu exista tichete deschise.</p>
+            <% } else { %>
+            <ul class="list-group list-group-flush">
+              <% tickets.slice(0, 5).forEach((ticket) => { %>
+              <li class="list-group-item">
+                <div class="fw-semibold"><%= ticket.subject %></div>
+                <div class="small text-muted">Status: <%= ticket.status %></div>
+                <a class="btn btn-sm btn-link px-0" href="/cont/tichete/<%= ticket.id %>">Vezi ticket</a>
+              </li>
+              <% }) %>
+            </ul>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<%- include('../partials/footer') %>

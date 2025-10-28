@@ -28,13 +28,25 @@ export const authConfig: NextAuthConfig = {
           return null;
         }
 
-        const isValid = await bcrypt.compare(password, user.hashedPassword);
+        const { hashedPassword, ...userWithoutPassword } = user;
+
+        if (!hashedPassword) {
+          return null;
+        }
+
+        let isValid = false;
+
+        try {
+          isValid = await bcrypt.compare(password, hashedPassword);
+        } catch (error) {
+          console.error("Failed to compare passwords", error);
+          return null;
+        }
 
         if (!isValid) {
           return null;
         }
 
-        const { hashedPassword, ...userWithoutPassword } = user;
         return userWithoutPassword;
       }
     })

@@ -15,7 +15,11 @@
         <li class="nav-item"><a class="nav-link" href="/autentificare">Autentificare</a></li>
         <li class="nav-item"><a class="btn btn-gradient" href="/inregistrare">Creeaza cont</a></li>
         <% } else { %>
-        <li class="nav-item"><a class="btn btn-gradient" href="/cont">Panou</a></li>
+        <li class="nav-item"><a class="nav-link" href="/cont">Panou</a></li>
+        <li class="nav-item"><a class="nav-link" href="/cont/setari">Setari cont</a></li>
+        <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
+        <li class="nav-item"><a class="nav-link" href="/cont/utilizatori">Administrare utilizatori</a></li>
+        <% } %>
         <li class="nav-item">
           <form action="/deconectare" method="post" class="d-inline">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />

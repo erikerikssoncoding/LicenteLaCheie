@@ -30,21 +30,26 @@
         <div class="glass-card">
           <form action="/contact" method="post" class="row g-3">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <% if (typeof error !== 'undefined' && error) { %>
+            <div class="col-12">
+              <div class="alert alert-danger mb-0"><%= error %></div>
+            </div>
+            <% } %>
             <div class="col-md-6">
               <label class="form-label" for="fullName">Nume complet</label>
-              <input class="form-control" type="text" id="fullName" name="fullName" required />
+              <input class="form-control" type="text" id="fullName" name="fullName" value="<%= request.body?.fullName || '' %>" required />
             </div>
             <div class="col-md-6">
               <label class="form-label" for="email">Email</label>
-              <input class="form-control" type="email" id="email" name="email" required />
+              <input class="form-control" type="email" id="email" name="email" value="<%= request.body?.email || '' %>" required />
             </div>
             <div class="col-12">
               <label class="form-label" for="phone">Telefon</label>
-              <input class="form-control" type="tel" id="phone" name="phone" required />
+              <input class="form-control" type="tel" id="phone" name="phone" value="<%= request.body?.phone || '' %>" required />
             </div>
             <div class="col-12">
               <label class="form-label" for="message">Mesaj</label>
-              <textarea class="form-control" id="message" name="message" rows="5" required></textarea>
+              <textarea class="form-control" id="message" name="message" rows="5" required><%= request.body?.message || '' %></textarea>
             </div>
             <div class="col-12 text-end">
               <button class="btn btn-gradient" type="submit">Trimite mesajul</button>

@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import pool from '../config/db.js';
 
 export async function findUserByEmail(email) {
@@ -14,8 +15,8 @@ export async function createClient({
 }) {
   const passwordHash = await bcrypt.hash(password, 12);
   const [result] = await pool.query(
-    `INSERT INTO users (full_name, email, password_hash, phone, role)
-     VALUES (?, ?, ?, ?, 'client')`,
+    `INSERT INTO users (full_name, email, password_hash, phone, role, is_active, must_reset_password)
+     VALUES (?, ?, ?, ?, 'client', 1, 0)`,
     [fullName, email.toLowerCase(), passwordHash, phone]
   );
   return result.insertId;
@@ -30,7 +31,7 @@ export async function listEditorsAndAdmins() {
   const [rows] = await pool.query(
     `SELECT id, full_name, email, role
      FROM users
-     WHERE role IN ('editor', 'admin', 'superadmin')
+     WHERE role IN ('editor', 'admin', 'superadmin') AND is_active = 1
      ORDER BY role, full_name`
   );
   return rows;
@@ -44,7 +45,110 @@ export async function getUserById(id) {
 export async function listClients() {
   const [rows] = await pool.query(
     `SELECT id, full_name, email, phone, created_at
-     FROM users WHERE role = 'client' ORDER BY created_at DESC`
+     FROM users WHERE role = 'client' AND is_active = 1 ORDER BY created_at DESC`
   );
   return rows;
+}
+
+export async function ensureClientAccount({ fullName, email, phone }) {
+  const normalizedEmail = email.toLowerCase();
+  const existing = await findUserByEmail(normalizedEmail);
+  if (existing) {
+    await pool.query(
+      `UPDATE users SET full_name = ?, phone = ?, is_active = 1 WHERE id = ?`,
+      [fullName, phone, existing.id]
+    );
+    return { userId: existing.id, generatedPassword: null };
+  }
+  const generatedPassword = crypto.randomBytes(6).toString('hex');
+  const passwordHash = await bcrypt.hash(generatedPassword, 12);
+  const [result] = await pool.query(
+    `INSERT INTO users (full_name, email, password_hash, phone, role, is_active, must_reset_password)
+     VALUES (?, ?, ?, ?, 'client', 1, 1)`,
+    [fullName, normalizedEmail, passwordHash, phone]
+  );
+  return { userId: result.insertId, generatedPassword };
+}
+
+export async function updateUserProfile(userId, { fullName, phone }) {
+  await pool.query(
+    `UPDATE users SET full_name = ?, phone = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [fullName, phone, userId]
+  );
+}
+
+export async function changeUserPassword(userId, currentPassword, newPassword) {
+  const user = await getUserById(userId);
+  if (!user) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  const matches = await validatePassword(user, currentPassword);
+  if (!matches) {
+    throw new Error('INVALID_PASSWORD');
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await pool.query(
+    `UPDATE users SET password_hash = ?, must_reset_password = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [passwordHash, userId]
+  );
+}
+
+export async function listUsers({ role, status, search } = {}) {
+  const conditions = [];
+  const params = [];
+  if (role && role !== 'all') {
+    conditions.push('role = ?');
+    params.push(role);
+  }
+  if (status === 'active') {
+    conditions.push('is_active = 1');
+  } else if (status === 'inactive') {
+    conditions.push('is_active = 0');
+  }
+  if (search) {
+    conditions.push('(LOWER(full_name) LIKE ? OR LOWER(email) LIKE ?)');
+    const term = `%${search.toLowerCase()}%`;
+    params.push(term, term);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const [rows] = await pool.query(
+    `SELECT id, full_name, email, phone, role, is_active, must_reset_password, created_at
+     FROM users
+     ${where}
+     ORDER BY created_at DESC`,
+    params
+  );
+  return rows;
+}
+
+export async function createStaffUser({ fullName, email, phone, role }) {
+  const allowedRoles = ['editor', 'admin'];
+  if (!allowedRoles.includes(role)) {
+    throw new Error('INVALID_ROLE');
+  }
+  const normalizedEmail = email.toLowerCase();
+  const existing = await findUserByEmail(normalizedEmail);
+  if (existing) {
+    throw new Error('EMAIL_EXISTS');
+  }
+  const generatedPassword = crypto.randomBytes(6).toString('hex');
+  const passwordHash = await bcrypt.hash(generatedPassword, 12);
+  const [result] = await pool.query(
+    `INSERT INTO users (full_name, email, password_hash, phone, role, is_active, must_reset_password)
+     VALUES (?, ?, ?, ?, ?, 1, 1)`,
+    [fullName, normalizedEmail, passwordHash, phone || null, role]
+  );
+  return { id: result.insertId, generatedPassword };
+}
+
+export async function updateUserRole(userId, role) {
+  const allowedRoles = ['client', 'editor', 'admin', 'superadmin'];
+  if (!allowedRoles.includes(role)) {
+    throw new Error('INVALID_ROLE');
+  }
+  await pool.query(`UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [role, userId]);
+}
+
+export async function setUserActiveStatus(userId, isActive) {
+  await pool.query(`UPDATE users SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [isActive ? 1 : 0, userId]);
 }

@@ -1,10 +1,10 @@
 import pool from '../config/db.js';
 
-export async function createTicket({ projectId, userId, subject, message }) {
+export async function createTicket({ projectId, userId, subject, message, kind = 'support' }) {
   const [result] = await pool.query(
-    `INSERT INTO tickets (project_id, created_by, subject, message)
-     VALUES (?, ?, ?, ?)`,
-    [projectId || null, userId, subject, message]
+    `INSERT INTO tickets (project_id, created_by, subject, message, kind)
+     VALUES (?, ?, ?, ?, ?)`,
+    [projectId || null, userId, subject, message, kind]
   );
   return result.insertId;
 }
@@ -93,4 +93,60 @@ export async function getTicketWithReplies(ticketId) {
 
 export async function updateTicketStatus(ticketId, status) {
   await pool.query(`UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [status, ticketId]);
+}
+
+export async function listPendingSupportTicketsForAdmin(adminId) {
+  if (!adminId) {
+    const [rows] = await pool.query(
+      `SELECT t.*, u.full_name AS author_name, p.title AS project_title
+       FROM tickets t
+       LEFT JOIN users u ON u.id = t.created_by
+       LEFT JOIN projects p ON p.id = t.project_id
+       WHERE t.status <> 'rezolvat' AND t.kind = 'support'
+       ORDER BY t.updated_at DESC
+       LIMIT 5`
+    );
+    return rows;
+  }
+
+  const [rows] = await pool.query(
+    `SELECT t.*, u.full_name AS author_name, p.title AS project_title
+     FROM tickets t
+     LEFT JOIN users u ON u.id = t.created_by
+     LEFT JOIN projects p ON p.id = t.project_id
+     WHERE t.status <> 'rezolvat' AND t.kind = 'support'
+       AND (p.assigned_admin_id = ? OR t.project_id IS NULL)
+     ORDER BY t.updated_at DESC
+     LIMIT 5`,
+    [adminId]
+  );
+  return rows;
+}
+
+export async function listPendingSupportTicketsForEditor(editorId) {
+  const [rows] = await pool.query(
+    `SELECT t.*, u.full_name AS author_name, p.title AS project_title
+     FROM tickets t
+     LEFT JOIN users u ON u.id = t.created_by
+     LEFT JOIN projects p ON p.id = t.project_id
+     WHERE t.status <> 'rezolvat' AND t.kind = 'support'
+       AND p.assigned_editor_id = ?
+     ORDER BY t.updated_at DESC
+     LIMIT 5`,
+    [editorId]
+  );
+  return rows;
+}
+
+export async function listRecentTicketRepliesForUser(userId, limit = 5) {
+  const [rows] = await pool.query(
+    `SELECT tr.*, t.subject
+     FROM ticket_replies tr
+     INNER JOIN tickets t ON t.id = tr.ticket_id
+     WHERE tr.user_id <> ? AND t.created_by = ?
+     ORDER BY tr.created_at DESC
+     LIMIT ?`,
+    [userId, userId, limit]
+  );
+  return rows;
 }

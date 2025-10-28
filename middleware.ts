@@ -6,11 +6,15 @@ const DASHBOARD_PATH = "/dashboard";
 const ADMIN_SEGMENT = "/admin";
 const CLIENT_SEGMENT = "/client";
 
-const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? "";
-const authSalt = process.env.AUTH_SALT ?? process.env.NEXTAUTH_SALT ?? "";
+const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+const authSalt = process.env.AUTH_SALT ?? process.env.NEXTAUTH_SALT;
 
 export async function middleware(request: NextRequest) {
-  const token = await getToken({ req: request, secret: authSecret, salt: authSalt });
+  const token = await getToken({
+    req: request,
+    ...(authSecret ? { secret: authSecret } : {}),
+    ...(authSalt ? { salt: authSalt } : {}),
+  });
 
   if (!token) {
     const loginUrl = new URL("/login", request.url);

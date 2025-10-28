@@ -1,4 +1,20 @@
+import type { Metadata } from "next";
+import Script from "next/script";
+
 import { Button } from "@/components/ui/button";
+
+export const metadata: Metadata = {
+  title: "Lucrari de licenta si consultanta academica | Licente la Cheie",
+  description:
+    "Consultanta academica completa pentru lucrari de licenta, cu metodologie riguroasa, suport profesoral si livrabile gata de predare.",
+  keywords: [
+    "lucrari de licenta",
+    "asistenta lucrari de licenta",
+    "consultanta licenta",
+    "redactare academica",
+    "pregatire prezentare licenta"
+  ]
+};
 
 const highlights = [
   {
@@ -36,6 +52,62 @@ const services = [
   }
 ];
 
+const licentaBenefits = [
+  {
+    title: "Strategie personalizată pentru tema aleasă",
+    description:
+      "Începem fiecare proiect printr-o analiză a cerințelor și a bibliografiei, astfel încât lucrarea de licență să fie ancorată în cercetarea actuală din domeniu."
+  },
+  {
+    title: "Redactare structurată pe capitole cheie",
+    description:
+      "Respectăm structura recomandată de universități și livrăm capitole clare, cu argumente, metodologie și concluzii ușor de urmărit."
+  },
+  {
+    title: "Optimizare pentru susținere și prezentare",
+    description:
+      "Pregătim suportul vizual și notițele de prezentare, astfel încât să puteți susține lucrarea de licență cu încredere maximă."
+  }
+];
+
+const keywordPillars = [
+  "Plan de lucru etapizat pentru lucrări de licență",
+  "Cercetare documentară și analiză statistică",
+  "Corectură, citare academică și anti-plagiat",
+  "Mentorat pentru sesiunea de întrebări din comisie"
+];
+
+const faqItems = [
+  {
+    question: "Cât durează elaborarea unei lucrări de licență complete?",
+    answer:
+      "Durata depinde de complexitatea temei și de nivelul de documentare existent, însă majoritatea proiectelor sunt finalizate în 4-8 săptămâni, cu livrări etapizate pe capitole."
+  },
+  {
+    question: "Cum mă asigurați că lucrarea de licență este originală?",
+    answer:
+      "Folosim instrumente de verificare anti-plagiat și redactăm conținut unic, susținut de bibliografie actualizată și citare corectă conform standardelor academice."
+  },
+  {
+    question: "Ce se întâmplă dacă universitatea solicită revizuiri?",
+    answer:
+      "Revizuirile sunt incluse în serviciu. Ajustăm conținutul în funcție de feedback și vă pregătim pentru o susținere fără emoții."
+  }
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer
+    }
+  }))
+};
+
 export default function HomePage() {
   return (
     <main className="flex min-h-screen flex-col bg-gradient-to-b from-slate-100 to-white">
@@ -55,6 +127,7 @@ export default function HomePage() {
             </div>
           </div>
           <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-700 md:flex">
+            <a href="#licenta">Lucrări de licență</a>
             <a href="#servicii">Servicii</a>
             <a href="#proces">Proces</a>
             <a href="#testimoniale">Testimoniale</a>
@@ -72,13 +145,13 @@ export default function HomePage() {
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-16 lg:flex-row lg:items-center">
           <div className="flex-1 space-y-6">
             <span className="inline-flex items-center gap-2 rounded-full bg-brand/10 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-brand">
-              Academie • Cercetare • Inovație
+              Academie • Cercetare • Lucrări de Licență
             </span>
             <h1 className="text-4xl font-bold text-slate-900 sm:text-5xl">
-              Partenerul dvs. de încredere pentru lucrări academice impecabile
+              Servicii premium de lucrări de licență care garantează rezultate
             </h1>
             <p className="text-lg text-slate-600">
-              La Licențe la Cheie, transformăm obiectivele academice în reușite concrete. Oferim servicii personalizate pentru lucrări de licență, disertație și doctorat, cu accent pe profesionalism, confidențialitate și originalitate.
+              La Licențe la Cheie, transformăm obiectivele academice în reușite concrete. Oferim servicii personalizate pentru lucrări de licență, disertație și doctorat, cu accent pe profesionalism, confidențialitate și conținut verificat.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button size="lg" className="w-full sm:w-auto" asChild>
@@ -121,6 +194,47 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="licenta" className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="max-w-3xl">
+            <h2 className="section-title">Specialiști dedicați pentru lucrări de licență reușite</h2>
+            <p className="mt-4 text-slate-600">
+              Construiți o lucrare de licență solidă cu ajutorul consultanților noștri acreditați. Înțelegem cerințele universităților din România și livrăm capitole bine documentate, adaptate domeniului dvs. de studiu.
+            </p>
+          </div>
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            {licentaBenefits.map((benefit) => (
+              <article
+                key={benefit.title}
+                className="flex h-full flex-col rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm"
+              >
+                <h3 className="text-lg font-semibold text-slate-900">{benefit.title}</h3>
+                <p className="mt-3 text-sm text-slate-600">{benefit.description}</p>
+              </article>
+            ))}
+          </div>
+          <div className="mt-12 rounded-3xl border border-brand/40 bg-brand/5 p-8">
+            <h3 className="text-xl font-semibold text-slate-900">Ce include un proiect complet de licență</h3>
+            <p className="mt-3 text-sm text-slate-600">
+              Fiecare etapă este aliniată cu standardele comisiei de evaluare și urmărește să evidențieze contribuția personală în cadrul lucrării de licență.
+            </p>
+            <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+              {keywordPillars.map((item) => (
+                <li
+                  key={item}
+                  className="flex items-start gap-3 rounded-2xl border border-white bg-white/70 p-4 text-sm text-slate-700 shadow-sm"
+                >
+                  <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs font-bold text-brand-foreground">
+                    ✓
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
@@ -237,6 +351,41 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section id="faq" className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="max-w-3xl">
+            <h2 className="section-title">Întrebări frecvente despre lucrările de licență</h2>
+            <p className="mt-4 text-slate-600">
+              Am adunat răspunsurile la cele mai importante întrebări primite de la studenți pentru a vă ghida în fiecare etapă a proiectului.
+            </p>
+          </div>
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            {faqItems.map((item) => (
+              <article
+                key={item.question}
+                className="flex h-full flex-col rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm"
+              >
+                <h3 className="text-lg font-semibold text-slate-900">{item.question}</h3>
+                <p className="mt-3 text-sm text-slate-600">{item.answer}</p>
+              </article>
+            ))}
+          </div>
+          <div className="mt-10 rounded-3xl border border-brand/30 bg-brand/10 p-8 text-center">
+            <p className="text-lg font-semibold text-slate-900">
+              Aveți o întrebare specifică despre lucrarea dvs. de licență?
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              Echipa noastră vă răspunde în maximum 24 de ore și vă propune un plan personalizat pentru finalizarea lucrării.
+            </p>
+            <div className="mt-6 flex justify-center">
+              <Button size="lg" asChild>
+                <a href="/contact">Trimite o solicitare</a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <footer className="bg-slate-900 py-10 text-brand-foreground">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -252,6 +401,12 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+      <Script
+        id="faq-schema"
+        type="application/ld+json"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
     </main>
   );
 }

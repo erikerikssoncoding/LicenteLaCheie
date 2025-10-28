@@ -73,10 +73,19 @@ echo "DATABASE_URL=\"${connection_url}\"" >> "$tmp_file"
 mv "$tmp_file" "$env_file"
 chmod 600 "$env_file"
 
+# 1. Exportă DATABASE_URL înainte de a rula comanda
+# Folosim valoarea 'connection_url' pe care scriptul a generat-o deja.
+export DATABASE_URL="$connection_url"
+
 echo "Running Prisma migrations..."
-npx prisma migrate deploy --schema prisma/schema.prisma --env-file "$env_file"
+# 2. Rulăm comanda simplificată, fără --env-file
+# Deoarece schema este la calea implicită (prisma/schema.prisma), nici --schema nu e strict necesar, dar e bine să-l păstrăm.
+npx prisma migrate deploy --schema prisma/schema.prisma 
+
+# 3. Anulăm exportul (opțional, dar recomandat)
+unset DATABASE_URL
 
 echo "Generating Prisma client..."
-npx prisma generate --schema prisma/schema.prisma --env-file "$env_file"
+npx prisma generate --schema prisma/schema.prisma
 
 echo "Installation complete."

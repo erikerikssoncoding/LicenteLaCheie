@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { TicketPriority } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -27,11 +28,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const priorityValue =
+    priority && (Object.values(TicketPriority) as string[]).includes(priority)
+      ? (priority as TicketPriority)
+      : undefined;
+
   const newTicket = await prisma.ticket.create({
     data: {
       title,
       content,
-      priority: priority ?? undefined,
+      priority: priorityValue,
       authorId: session.user.id
     }
   });

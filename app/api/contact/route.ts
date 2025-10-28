@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as SibApiV3Sdk from "@sendinblue/client";
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     console.error("Brevo contact sync failed", error);
+    await logError("Brevo contact sync failed", error);
   }
 
   return NextResponse.json({ message: "Success" }, { status: 200 });

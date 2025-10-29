@@ -19,6 +19,7 @@ import {
   listProjectFiles,
   createProjectFile,
   getProjectFileById,
+  softDeleteProjectFile,
   countProjectFilesByOrigin,
   listDocumentRequests,
   createDocumentRequest,
@@ -102,6 +103,7 @@ const CLIENT_MAX_FILE_SIZE = 5 * 1024 * 1024;
 const STAFF_MAX_FILE_SIZE = 30 * 1024 * 1024;
 const ALLOWED_PROJECT_FILE_EXTENSIONS = new Set(['.pdf', '.docx', '.jpg', '.jpeg', '.png']);
 const DOCS_VALIDATED_FLOW_INDEX = PROJECT_FLOW_STATUSES.findIndex((status) => status.id === 'docs_validated');
+const ROLE_HIERARCHY = { client: 1, redactor: 2, admin: 3, superadmin: 4 };
 
 const projectFileStorage = multer.diskStorage({
   destination: async (req, file, cb) => {
@@ -1936,6 +1938,92 @@ router.post('/cont/proiecte/:id/fisiere', (req, res, next) => {
 });
 
 router.post(
+  '/cont/proiecte/:id/fisiere/:fileId/sterge',
+  ensureRole('admin', 'superadmin', 'redactor'),
+  async (req, res, next) => {
+    try {
+      const projectId = Number(req.params.id);
+      const fileId = Number(req.params.fileId);
+      const redirectToFiles = () => res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
+
+      const project = await getProjectById(projectId);
+      if (!project) {
+        return res.status(404).render('pages/404', {
+          title: 'Proiect inexistent',
+          description: 'Proiectul solicitat nu a fost gasit.'
+        });
+      }
+
+      const user = req.session.user;
+      if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti asignat pe acest proiect.'
+        });
+      }
+      if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti responsabil de acest proiect.'
+        });
+      }
+
+      const file = await getProjectFileById(fileId);
+      if (!file || file.project_id !== projectId) {
+        req.session.projectFeedback = {
+          error: 'Fișierul solicitat nu există sau a fost deja șters.',
+          activeTab: 'fisiere'
+        };
+        return redirectToFiles();
+      }
+
+      if (file.origin !== 'staff') {
+        req.session.projectFeedback = {
+          error: 'Poți gestiona doar fișierele încărcate de echipă.',
+          activeTab: 'fisiere'
+        };
+        return redirectToFiles();
+      }
+
+      const isOwnFile = file.uploader_id && user.id === file.uploader_id;
+      const actorLevel = ROLE_HIERARCHY[user.role] || 0;
+      const uploaderLevel = ROLE_HIERARCHY[file.uploader_role] || 0;
+      const canManageOthers = ['admin', 'superadmin'].includes(user.role);
+      const canDelete =
+        isOwnFile || (canManageOthers && uploaderLevel > 0 && uploaderLevel <= actorLevel);
+
+      if (!canDelete) {
+        req.session.projectFeedback = {
+          error: 'Nu aveți permisiunea de a șterge acest fișier.',
+          activeTab: 'fisiere'
+        };
+        return redirectToFiles();
+      }
+
+      await softDeleteProjectFile(fileId, { actor: user });
+
+      const relativePath = path.join(String(projectId), file.stored_name);
+      const absolutePath = resolveStoredFilePath(relativePath);
+      try {
+        await fs.unlink(absolutePath);
+      } catch (unlinkError) {
+        if (unlinkError.code !== 'ENOENT') {
+          console.error('Nu s-a putut sterge fisierul din stocare', unlinkError);
+        }
+      }
+
+      req.session.projectFeedback = {
+        success: `Fișierul „${file.original_name}” a fost șters.`,
+        activeTab: 'fisiere'
+      };
+      return redirectToFiles();
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
+router.post(
   '/cont/proiecte/:id/solicitare-documentatie',
   ensureRole('admin', 'superadmin', 'redactor'),
   async (req, res, next) => {
@@ -2170,9 +2258,8 @@ router
           return res.redirect(`/cont/proiecte/${project.id}`);
         }
         if (user.role === 'admin') {
-          const hierarchy = { client: 1, redactor: 2, admin: 3, superadmin: 4 };
-          const actorLevel = hierarchy[user.role] || 0;
-          const targetLevel = hierarchy[redactorUser.role] || 0;
+          const actorLevel = ROLE_HIERARCHY[user.role] || 0;
+          const targetLevel = ROLE_HIERARCHY[redactorUser.role] || 0;
           if (targetLevel >= actorLevel) {
             req.session.projectFeedback = {
               error: 'Nu poti aloca proiectul catre un membru cu acelasi grad sau cu grad superior.',

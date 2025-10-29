@@ -11,6 +11,8 @@ import { createTicket } from '../services/ticketService.js';
 
 const router = Router();
 
+const MINIMUM_DELIVERY_LEAD_DAYS = 14;
+
 const OFFER_WORK_TYPES = [
   'lucrare de licenta',
   'lucrare de grad',
@@ -18,6 +20,28 @@ const OFFER_WORK_TYPES = [
   'lucrare de doctorat',
   'proiect'
 ];
+
+const getMinimumDeliveryDate = () => {
+  const today = new Date();
+  const utcToday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  utcToday.setUTCDate(utcToday.getUTCDate() + MINIMUM_DELIVERY_LEAD_DAYS);
+  return utcToday;
+};
+
+const formatDateForInput = (date) => {
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getUTCDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateInput = (value) => {
+  const [year, month, day] = value.split('-').map(Number);
+  if (![year, month, day].every(Number.isFinite)) {
+    return null;
+  }
+  return new Date(Date.UTC(year, month - 1, day));
+};
 
 router.get('/', (req, res) => {
   res.render('pages/home', {
@@ -104,7 +128,8 @@ router
     res.render('pages/offer', {
       title: 'Solicita o oferta personalizata pentru lucrarea de licenta',
       description:
-        'Completeaza formularul pentru a primi o oferta si un contract personalizat pentru redactarea lucrarii tale de licenta.'
+        'Completeaza formularul pentru a primi o oferta si un contract personalizat pentru redactarea lucrarii tale de licenta.',
+      minDeliveryDate: formatDateForInput(getMinimumDeliveryDate())
     });
   })
   .post(async (req, res, next) => {
@@ -117,7 +142,17 @@ router
         program: z.string().min(3),
         topic: z.string().min(5),
         workType: z.enum(OFFER_WORK_TYPES),
-        deliveryDate: z.string().min(4),
+        deliveryDate: z
+          .string()
+          .regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u, 'Selecteaza o data de livrare valida (format AAAA-LL-ZZ).')
+          .refine((value) => {
+            const parsed = parseDateInput(value);
+            if (!parsed) {
+              return false;
+            }
+            const minimum = getMinimumDeliveryDate();
+            return parsed >= minimum;
+          }, `Data dorita de livrare trebuie sa fie la cel putin ${MINIMUM_DELIVERY_LEAD_DAYS} zile distanta de astazi.`),
         notes: z.string().optional(),
         acceptAccount: isAuthenticated ? z.any().optional() : z.literal('on')
       });
@@ -176,11 +211,15 @@ router
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
+        const errorMessage =
+          error.errors?.[0]?.message ||
+          'Verifica datele introduse si completeaza toate campurile obligatorii.';
         return res.status(400).render('pages/offer', {
           title: 'Solicita o oferta personalizata pentru lucrarea de licenta',
           description:
             'Completeaza formularul pentru a primi o oferta si un contract personalizat pentru redactarea lucrarii tale de licenta.',
-          error: 'Verifica datele introduse si completeaza toate campurile obligatorii.'
+          error: errorMessage,
+          minDeliveryDate: formatDateForInput(getMinimumDeliveryDate())
         });
       }
       next(error);

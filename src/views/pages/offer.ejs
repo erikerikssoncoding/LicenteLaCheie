@@ -78,7 +78,15 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="deliveryDate">Data dorita de livrare</label>
-                <input class="form-control" type="date" id="deliveryDate" name="deliveryDate" value="<%= request.body?.deliveryDate || '' %>" required />
+                <input
+                  class="form-control"
+                  type="date"
+                  id="deliveryDate"
+                  name="deliveryDate"
+                  min="<%= minDeliveryDate %>"
+                  value="<%= request.body?.deliveryDate || minDeliveryDate %>"
+                  required
+                />
               </div>
               <div class="col-12">
                 <label class="form-label" for="notes">Detalii suplimentare</label>

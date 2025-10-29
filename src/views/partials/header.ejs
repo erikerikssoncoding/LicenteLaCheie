@@ -1,23 +1,40 @@
 <nav class="navbar navbar-expand-lg navbar-light premium-navbar">
+  <% const isAuthenticated = Boolean(currentUser); %>
+  <% const isStaff = isAuthenticated && ['redactor', 'admin', 'superadmin'].includes(currentUser.role); %>
+  <% const isManager = isAuthenticated && ['admin', 'superadmin'].includes(currentUser.role); %>
   <div class="container">
-    <a class="navbar-brand fw-semibold brand-gradient" href="/">Licente la Cheie</a>
+    <a
+      class="navbar-brand fw-semibold brand-gradient"
+      href="<%= !isAuthenticated || currentUser.role === 'client' ? '/' : '/cont' %>"
+    >
+      Licente la Cheie
+    </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Meniu">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-3">
+        <% if (!isStaff) { %>
         <li class="nav-item"><a class="nav-link" href="/">Acasa</a></li>
         <li class="nav-item"><a class="nav-link" href="/servicii">Servicii</a></li>
         <li class="nav-item"><a class="nav-link" href="/despre-noi">Despre noi</a></li>
         <li class="nav-item"><a class="nav-link" href="/oferta">Solicita oferta</a></li>
         <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+        <% } else { %>
+        <li class="nav-item"><a class="nav-link" href="/cont">Panou</a></li>
+        <li class="nav-item"><a class="nav-link" href="/cont/proiecte">Proiecte</a></li>
+        <li class="nav-item"><a class="nav-link" href="/cont/tichete">Tichete</a></li>
+        <% if (isManager) { %>
+        <li class="nav-item"><a class="nav-link" href="/cont/utilizatori">Utilizatori</a></li>
+        <% } %>
+        <% if (currentUser.role === 'superadmin') { %>
+        <li class="nav-item"><a class="nav-link" href="/cont/securitate">Securitate</a></li>
+        <% } %>
+        <% } %>
         <% if (!currentUser) { %>
         <li class="nav-item"><a class="nav-link" href="/autentificare">Autentificare</a></li>
         <li class="nav-item"><a class="btn btn-gradient" href="/inregistrare">Creeaza cont</a></li>
         <% } else { %>
-        <% if (['redactor', 'admin', 'superadmin'].includes(currentUser.role)) { %>
-        <li class="nav-item"><a class="nav-link" href="/cont">Panou</a></li>
-        <% } %>
         <li class="nav-item"><a class="nav-link" href="/cont/setari">Cont</a></li>
         <li class="nav-item">
           <form action="/deconectare" method="post" class="d-inline">

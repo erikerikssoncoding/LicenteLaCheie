@@ -2,17 +2,23 @@
 <%- include('../partials/header') %>
 <section class="py-5">
   <div class="container">
+    <% const isClient = currentUser.role === 'client'; %>
+    <% const isRedactor = currentUser.role === 'redactor'; %>
+    <% const isManager = ['admin', 'superadmin'].includes(currentUser.role); %>
+    <% const projectStatusLabelsMap = Object.fromEntries(
+      (projectStatuses || []).map((status) => [status.id, status.label])
+    ); %>
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
       <div>
         <h1 class="h3">Bun venit, <%= currentUser.fullName %></h1>
         <p class="text-muted mb-0">Rol: <span class="badge bg-secondary text-uppercase"><%= currentUser.role %></span></p>
       </div>
-      <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
+      <% if (isManager) { %>
       <a class="btn btn-primary" href="/cont/proiecte/creeaza">Creaza proiect</a>
       <% } %>
     </div>
 
-    <% if (currentUser.role === 'client') { %>
+    <% if (isClient) { %>
     <div class="row g-4 mb-4">
       <div class="col-lg-4 col-md-6">
         <%- include('../partials/dashboard/cards/summary-card', {
@@ -57,9 +63,6 @@
         counter_pending: 'Contraoferta in asteptare',
         counter_submitted: 'Contraoferta trimisa'
       }; %>
-      <% const projectStatusLabels = Object.fromEntries(
-        (projectStatuses || []).map((status) => [status.id, status.label])
-      ); %>
       <div class="col-lg-4 col-md-6">
         <div class="card shadow-sm h-100">
           <div class="card-body">
@@ -86,7 +89,7 @@
     </div>
     <% } %>
 
-    <% if (currentUser.role === 'redactor') { %>
+    <% if (isRedactor) { %>
     <div class="row g-4 mb-4">
       <div class="col-lg-6">
         <%- include('../partials/dashboard/cards/status-card', {
@@ -112,7 +115,7 @@
     </div>
     <% } %>
 
-    <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
+    <% if (isManager) { %>
     <div class="row g-4 mb-4">
       <div class="col-xl-6">
         <%- include('../partials/dashboard/cards/status-card', {
@@ -199,13 +202,22 @@
         <div class="card shadow-sm h-100">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-3">
-              <h2 class="h5 mb-0">Proiectele tale</h2>
-              <% if (currentUser.role === 'client') { %>
+              <h2 class="h5 mb-0">
+                <%= isClient ? 'Proiectele tale' : isRedactor ? 'Proiecte asignate' : 'Proiecte coordonate' %>
+              </h2>
+              <% if (isClient) { %>
               <a class="btn btn-sm btn-outline-primary" href="/cont/tichete/creeaza">Deschide ticket</a>
               <% } %>
             </div>
             <% if (projects.length === 0) { %>
-            <p class="text-muted">Momentan nu exista proiecte active.</p>
+            <p class="text-muted">
+              <%= isClient
+                ? 'Momentan nu exista proiecte active.'
+                : isRedactor
+                ? 'Nu ai proiecte asignate in acest moment.'
+                : 'Nu exista proiecte in portofoliul tau momentan.'
+              %>
+            </p>
             <% } else { %>
             <div class="table-responsive">
               <table class="table align-middle">
@@ -213,7 +225,7 @@
                   <tr>
                     <th>Titlu</th>
                     <th>Status</th>
-                    <th>Responsabil</th>
+                    <th><%= isClient ? 'Responsabil' : 'Coordonare' %></th>
                     <th>Deadline</th>
                     <th></th>
                   </tr>
@@ -227,14 +239,14 @@
                     </td>
                     <td>
                       <span class="badge bg-info text-dark text-uppercase">
-                        <%= projectStatusLabels[project.status] || project.status %>
+                        <%= projectStatusLabelsMap[project.status] || project.status %>
                       </span>
                     </td>
                     <td class="small">
-                      <% if (currentUser.role === 'client') { %>
+                      <% if (isClient) { %>
                       <div>Admin: <%= project.assigned_admin_name || 'In alocare' %></div>
                       <div>Redactor: <%= project.assigned_redactor_name || 'In alocare' %></div>
-                      <% } else if (currentUser.role === 'redactor') { %>
+                      <% } else if (isRedactor) { %>
                       <div>Client: <%= project.client_name %></div>
                       <% } else { %>
                       <div>Client: <%= project.client_name %></div>

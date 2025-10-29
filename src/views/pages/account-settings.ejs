@@ -17,13 +17,9 @@
       : 'profile'; %>
     <% const alerts = feedback || {}; %>
     <% const ticketStatusLabels = { deschis: 'Deschis', 'in-analiza': 'In analiza', rezolvat: 'Rezolvat' }; %>
-    <% const projectStatusLabels = {
-      initiated: 'Initiat',
-      'in-progress': 'In lucru',
-      'needs-review': 'In revizie',
-      completed: 'Finalizat',
-      delivered: 'Predat'
-    }; %>
+    <% const projectStatusLabels = Object.fromEntries(
+      (projectStatuses || []).map((status) => [status.id, status.label])
+    ); %>
 
     <ul class="nav nav-pills flex-wrap gap-2 mb-4" id="accountTabs" role="tablist">
       <li class="nav-item" role="presentation">

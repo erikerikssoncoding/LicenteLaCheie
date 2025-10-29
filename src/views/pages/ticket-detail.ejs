@@ -256,6 +256,33 @@
       <% } %>
     </div>
     <% } %>
+    <% if (ticket.project_id) { %>
+    <div class="glass-card mb-4">
+      <h3 class="h6 mb-2">Proiect asociat</h3>
+      <p class="mb-2">Cod proiect: <strong><%= ticket.project_code || ticket.project_id %></strong></p>
+      <a class="btn btn-outline-primary" href="/cont/proiecte/<%= ticket.project_id %>">Deschide proiectul</a>
+    </div>
+    <% } else if (
+      ticket.kind === 'contract' &&
+      contractStage === 'completed' &&
+      ['admin', 'superadmin'].includes(currentUser.role)
+    ) { %>
+    <div class="glass-card mb-4">
+      <h3 class="h6 mb-2">Creeaza proiect din ticket</h3>
+      <p class="text-muted mb-3">
+        Contractul este finalizat. Poti crea un proiect care preia automat datele colectate.
+      </p>
+      <form
+        action="/cont/tichete/<%= ticket.id %>/proiect"
+        method="post"
+        onsubmit="return confirm('Actiunea va crea un proiect nou si nu poate fi anulata decat de superadministratori. Continui?');"
+      >
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button class="btn btn-success" type="submit">Creeaza proiect</button>
+      </form>
+      <p class="small text-muted mt-2 mb-0">Poate fi creat un singur proiect pentru fiecare ticket.</p>
+    </div>
+    <% } %>
     <% if (ticket.kind === 'contract' && currentUser.role === 'client') { %>
     <% const contractSigned = ['awaiting_admin', 'completed'].includes(contractStage); %>
     <div class="glass-card mb-4">

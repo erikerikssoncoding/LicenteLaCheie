@@ -2,6 +2,15 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { createClient, findUserByEmail, validatePassword } from '../services/userService.js';
 import { ensureAuthenticated } from '../middleware/auth.js';
+import { collectClientMetadata } from '../utils/requestMetadata.js';
+import {
+  createTrustedDevice,
+  getTrustedDeviceCookieClearOptions,
+  getTrustedDeviceCookieOptions,
+  readTrustedDeviceToken,
+  revokeTrustedDeviceByToken,
+  TRUSTED_DEVICE_COOKIE_NAME
+} from '../services/trustedDeviceService.js';
 
 const router = Router();
 
@@ -19,9 +28,10 @@ router.post('/autentificare', async (req, res, next) => {
   try {
     const schema = z.object({
       email: z.string().email(),
-      password: z.string().min(6)
+      password: z.string().min(6),
+      rememberDevice: z.enum(['on', '1', 'true']).optional()
     });
-    const { email, password } = schema.parse(req.body);
+    const { email, password, rememberDevice } = schema.parse(req.body);
     const user = await findUserByEmail(email.toLowerCase());
     if (!user || !user.is_active) {
       return res.status(401).render('pages/login', {
@@ -45,6 +55,13 @@ router.post('/autentificare', async (req, res, next) => {
       role: user.role,
       phone: user.phone
     };
+    if (rememberDevice) {
+      const metadata = collectClientMetadata(req);
+      const { token } = await createTrustedDevice({ userId: user.id, metadata });
+      res.cookie(TRUSTED_DEVICE_COOKIE_NAME, token, getTrustedDeviceCookieOptions());
+    } else {
+      res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
+    }
     return res.redirect('/cont');
   } catch (error) {
     next(error);
@@ -91,11 +108,20 @@ router.post('/inregistrare', async (req, res, next) => {
   }
 });
 
-router.post('/deconectare', ensureAuthenticated, (req, res) => {
-  req.session.destroy(() => {
-    res.clearCookie('licentelacheie.sid');
-    res.redirect('/');
-  });
+router.post('/deconectare', ensureAuthenticated, async (req, res, next) => {
+  try {
+    const trustedToken = readTrustedDeviceToken(req);
+    if (trustedToken) {
+      await revokeTrustedDeviceByToken(trustedToken);
+    }
+    req.session.destroy(() => {
+      res.clearCookie('licentelacheie.sid');
+      res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
+      res.redirect('/');
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

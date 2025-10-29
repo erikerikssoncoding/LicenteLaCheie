@@ -35,7 +35,7 @@
           <table class="table align-middle">
             <thead>
               <tr>
-                <th>ID</th>
+                <th>Cod</th>
                 <th>Subiect</th>
                 <th>Tip</th>
                 <th>Status</th>
@@ -51,7 +51,7 @@
               <% } else { %>
               <% tickets.forEach((ticket) => { %>
               <tr>
-                <td>#<%= ticket.id %></td>
+                <td><%= ticket.display_code %></td>
                 <td>
                   <div class="fw-semibold"><%= ticket.subject %></div>
                   <div class="small text-muted">

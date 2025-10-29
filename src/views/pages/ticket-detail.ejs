@@ -71,12 +71,22 @@
         display: block;
       }
     </style>
+    <% const isMergedTicket = Boolean(ticket.merged_into_ticket_id); %>
+    <% const statusLabel = ticket.status === 'rezolvat' && isMergedTicket ? 'rezolvat (merged)' : ticket.status; %>
     <div class="glass-card mb-4">
       <h1 class="h4 mb-3"><%= ticket.subject %></h1>
       <p class="text-muted small mb-2">Cod ticket: <strong><%= ticket.display_code %></strong></p>
-      <p class="text-muted">Status: <span class="badge text-bg-info text-dark text-uppercase"><%= ticket.status %></span></p>
+      <p class="text-muted">Status: <span class="badge text-bg-info text-dark text-uppercase"><%= statusLabel %></span></p>
       <% if (ticket.project_title) { %>
       <p class="mb-0">Proiect: <strong><%= ticket.project_title %></strong></p>
+      <% } %>
+      <% if (isMergedTicket) { %>
+      <div class="alert alert-warning mt-3 mb-0" role="alert">
+        Acest ticket a fost fuzionat in
+        <a class="alert-link" href="/cont/tichete/<%= ticket.merged_into_ticket_id %>">
+          ticketul #<%= ticket.merged_into_display_code || ticket.merged_into_ticket_id %>
+        </a>.
+      </div>
       <% } %>
     </div>
 
@@ -247,7 +257,26 @@
     </div>
     <% } %>
     <% if (ticket.kind === 'contract' && currentUser.role === 'client') { %>
+    <% const contractSigned = ['awaiting_admin', 'completed'].includes(contractStage); %>
     <div class="glass-card mb-4">
+      <% if (contractSigned && contractDetails) { %>
+      <h3 class="h6 mb-3">Date beneficiar</h3>
+      <p class="text-muted"><span class="text-success">🔒</span> Datele furnizate pentru contract sunt salvate in siguranta.</p>
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Nume complet</dt>
+        <dd class="col-sm-8"><%= contractDetails.fullName %></dd>
+        <dt class="col-sm-4">Identificat prin</dt>
+        <dd class="col-sm-8"><%= contractDetails.idType %></dd>
+        <dt class="col-sm-4">Seria / Numar</dt>
+        <dd class="col-sm-8"><%= contractDetails.idSeries %> / <%= contractDetails.idNumber %></dd>
+        <% if (contractDetails.cnp) { %>
+        <dt class="col-sm-4">CNP</dt>
+        <dd class="col-sm-8"><%= contractDetails.cnp %></dd>
+        <% } %>
+        <dt class="col-sm-4">Adresa domiciliu</dt>
+        <dd class="col-sm-8"><%= contractDetails.address %></dd>
+      </dl>
+      <% } else { %>
       <h3 class="h6 mb-3">Completeaza datele pentru contract</h3>
       <p class="text-muted"><span class="text-success">🔒</span> Datele de pe buletin sunt salvate criptat si sunt folosite exclusiv pentru generarea contractului.</p>
       <form action="/cont/tichete/<%= ticket.id %>/contract-date" method="post" class="row g-3">
@@ -280,6 +309,7 @@
           <button class="btn btn-success" type="submit">Salveaza datele &amp; Genereaza contractul</button>
         </div>
       </form>
+      <% } %>
     </div>
     <% } %>
     <% if (ticket.kind === 'contract' && contractDetails?.contractDraft) { %>
@@ -369,6 +399,11 @@
       const firstName = parts[0] || 'Echipa';
       return `${firstName}, Echipa Licente la Cheie`;
     } %>
+    <% if (isMergedTicket) { %>
+    <div class="glass-card mt-4">
+      <p class="mb-0 text-muted">Acest ticket este fuzionat si nu mai accepta raspunsuri noi.</p>
+    </div>
+    <% } else { %>
     <div class="glass-card mt-4">
       <form action="/cont/tichete/<%= ticket.id %>/raspuns" method="post" class="vstack gap-3">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -379,6 +414,7 @@
         <button class="btn btn-gradient align-self-end" type="submit">Trimite raspuns</button>
       </form>
     </div>
+    <% } %>
 
     <div
       class="timeline mt-4"
@@ -403,20 +439,53 @@
     </div>
     <% } %>
 
+    <% if (['admin', 'superadmin'].includes(currentUser.role) && !isMergedTicket) { %>
+    <div class="glass-card mt-4">
+      <h3 class="h6 mb-3">Fuzioneaza tickete</h3>
+      <% if (mergeCandidates && mergeCandidates.length > 0) { %>
+      <form action="/cont/tichete/<%= ticket.id %>/merge" method="post" class="vstack gap-3">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <div class="vstack gap-2">
+          <% const mergeKindLabels = { support: 'suport', offer: 'oferta', contract: 'contract' }; %>
+          <% mergeCandidates.forEach((candidate) => { %>
+          <% const candidateStatusLabel = candidate.status === 'rezolvat' && candidate.merged_into_ticket_id ? 'rezolvat (merged)' : candidate.status; %>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="mergeTicket<%= candidate.id %>" name="ticketIds" value="<%= candidate.id %>" />
+            <label class="form-check-label" for="mergeTicket<%= candidate.id %>">
+              <span class="fw-semibold d-block"><%= candidate.subject %></span>
+              <span class="text-muted small">#<%= candidate.display_code %> • Tip: <%= mergeKindLabels[candidate.kind] || candidate.kind %> • Status: <%= candidateStatusLabel %></span>
+            </label>
+          </div>
+          <% }) %>
+        </div>
+        <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center">
+          <button class="btn btn-outline-danger" type="submit">Fuzioneaza selectia in acest ticket</button>
+          <p class="text-muted small mb-0">Ticketele selectate vor fi inchise cu mentiunea „merged”.</p>
+        </div>
+      </form>
+      <% } else { %>
+      <p class="text-muted mb-0">Nu exista alte tickete eligibile pentru merge.</p>
+      <% } %>
+    </div>
+    <% } %>
     <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
     <div class="glass-card mt-4">
+      <% if (isMergedTicket) { %>
+      <p class="mb-0 text-muted">Ticketul este fuzionat in altul si statusul nu poate fi modificat.</p>
+      <% } else { %>
       <form action="/cont/tichete/<%= ticket.id %>/status" method="post" class="d-flex flex-column flex-sm-row gap-3 align-items-sm-end">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <div class="flex-grow-1 w-100">
           <label class="form-label" for="status">Actualizeaza statusul</label>
           <select class="form-select" id="status" name="status">
-            <option value="deschis">Deschis</option>
-            <option value="in-analiza">In analiza</option>
-            <option value="rezolvat">Rezolvat</option>
+            <option value="deschis" <%= ticket.status === 'deschis' ? 'selected' : '' %>>Deschis</option>
+            <option value="in-analiza" <%= ticket.status === 'in-analiza' ? 'selected' : '' %>>In analiza</option>
+            <option value="rezolvat" <%= ticket.status === 'rezolvat' ? 'selected' : '' %>>Rezolvat</option>
           </select>
         </div>
         <button class="btn btn-outline-primary" type="submit">Salveaza</button>
       </form>
+      <% } %>
     </div>
     <% } %>
   </div>

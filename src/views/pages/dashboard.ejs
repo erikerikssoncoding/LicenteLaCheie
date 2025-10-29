@@ -256,7 +256,7 @@
               <% tickets.slice(0, 5).forEach((ticket) => { %>
               <li class="list-group-item">
                 <div class="fw-semibold"><%= ticket.subject %></div>
-                <div class="small text-muted">Cod: <%= ticket.display_code %> • Tip: <%= ticket.kind %> • Status: <%= ticket.status %></div>
+                <div class="small text-muted">Cod: <%= ticket.display_code %> • Tip: <%= ticket.kind %> • Status: <%= ticket.status === 'rezolvat' && ticket.merged_into_ticket_id ? 'rezolvat (merged)' : ticket.status %></div>
                 <a class="btn btn-sm btn-link px-0" href="/cont/tichete/<%= ticket.id %>">Vezi ticket</a>
               </li>
               <% }) %>
@@ -285,7 +285,7 @@
               <% pendingSupportTickets.forEach((ticket) => { %>
               <li class="list-group-item">
                 <div class="fw-semibold"><%= ticket.subject %></div>
-                <div class="small text-muted">Cod: <%= ticket.display_code %> • Status: <%= ticket.status %></div>
+                <div class="small text-muted">Cod: <%= ticket.display_code %> • Status: <%= ticket.status === 'rezolvat' && ticket.merged_into_ticket_id ? 'rezolvat (merged)' : ticket.status %></div>
                 <a class="btn btn-sm btn-link px-0" href="/cont/tichete/<%= ticket.id %>">Gestioneaza</a>
               </li>
               <% }) %>

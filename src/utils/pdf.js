@@ -23,20 +23,25 @@ const CONTRACT_BASE_STYLES = `
   }
   .pdf-wrapper {
     padding: 0;
+    position: relative;
   }
   .contract-document {
     max-width: 720px;
     margin: 0 auto;
     font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
   }
+  .contract-document__header {
+    padding-top: 20px;
+  }
   .copy-label {
-    position: fixed;
-    top: 12mm;
-    right: 15mm;
+    position: absolute;
+    top: 0;
+    right: 0;
     font-size: 10px;
     color: #6c757d;
     letter-spacing: 0.12em;
     text-transform: uppercase;
+    text-align: right;
   }
   .contract-document h1 {
     font-size: 24px;
@@ -103,6 +108,20 @@ const CONTRACT_BASE_STYLES = `
   strong {
     font-weight: 600;
   }
+  .page-number {
+    position: fixed;
+    bottom: 12mm;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 10px;
+    color: #6c757d;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .page-number::after {
+    content: 'Pagina ' counter(page) ' din ' counter(pages);
+  }
 `;
 
 async function getPuppeteer() {
@@ -156,10 +175,11 @@ function buildHtmlDocument(content, { copyLabel } = {}) {
       </style>
     </head>
     <body>
-      ${copyLabel ? `<div class="copy-label">${copyLabel}</div>` : ''}
       <div class="pdf-wrapper">
+        ${copyLabel ? `<div class="copy-label">${copyLabel}</div>` : ''}
         ${content || ''}
       </div>
+      <div class="page-number"></div>
     </body>
   </html>`;
 }

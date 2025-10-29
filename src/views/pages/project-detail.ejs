@@ -197,9 +197,6 @@
               <button class="btn btn-primary align-self-start" type="submit">
                 Treci la etapa următoare: <%= nextStatusInfo?.label || nextStatus %>
               </button>
-              <p class="small text-muted mb-0">
-                Acțiunea este ireversibilă pentru rolurile obișnuite. Doar superadministratorii pot reveni la etapa anterioară.
-              </p>
             </form>
             <% } %>
             <% if (canRevert) { %>

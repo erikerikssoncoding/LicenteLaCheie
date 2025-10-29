@@ -12,6 +12,8 @@ import { addTicketLog } from './ticketService.js';
 
 const PROJECT_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const generateProjectCode = customAlphabet(PROJECT_CODE_ALPHABET, 10);
+export const PROJECT_COMPLETION_LOCK_HOURS = 24;
+const COMPLETION_LOCK_DURATION_MS = PROJECT_COMPLETION_LOCK_HOURS * 60 * 60 * 1000;
 
 function pickExecutor(connection) {
   return connection ?? pool;
@@ -33,6 +35,37 @@ function sanitizeText(value) {
   }
   const trimmed = String(value).trim();
   return trimmed.length ? trimmed : null;
+}
+
+function coerceDate(value) {
+  if (!value) {
+    return null;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date?.getTime()) ? null : date;
+}
+
+export function getProjectCompletionDeadline(project) {
+  const completedAt = coerceDate(project?.completed_at);
+  if (!completedAt) {
+    return null;
+  }
+  return new Date(completedAt.getTime() + COMPLETION_LOCK_DURATION_MS);
+}
+
+export function isProjectConversationLocked(project, referenceDate = new Date()) {
+  if (!project || project.status !== 'completed') {
+    return false;
+  }
+  const finalizedAt = coerceDate(project.finalized_at);
+  if (finalizedAt) {
+    return true;
+  }
+  const deadline = getProjectCompletionDeadline(project);
+  if (!deadline) {
+    return false;
+  }
+  return referenceDate >= deadline;
 }
 
 async function addProjectTimelineEntry({
@@ -166,10 +199,33 @@ export async function updateProjectStatus({ projectId, status, notes = null, act
     throw new Error('INVALID_PROJECT_STATUS');
   }
   const executor = pickExecutor(connection);
+  const [existingRows] = await executor.query(
+    `SELECT status, completed_at, finalized_at FROM projects WHERE id = ?`,
+    [projectId]
+  );
+  const existing = existingRows[0];
+  if (!existing) {
+    throw new Error('PROJECT_NOT_FOUND');
+  }
   const sanitizedNotes = sanitizeText(notes);
+  const now = new Date();
+  let completedAt = coerceDate(existing.completed_at);
+  let finalizedAt = coerceDate(existing.finalized_at);
+  if (status === 'completed') {
+    completedAt = completedAt || now;
+  } else if (existing.status === 'completed') {
+    completedAt = null;
+    finalizedAt = null;
+  }
   await executor.query(
-    `UPDATE projects SET status = ?, progress_notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-    [status, sanitizedNotes, projectId]
+    `UPDATE projects
+        SET status = ?,
+            progress_notes = ?,
+            completed_at = ?,
+            finalized_at = ?,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?`,
+    [status, sanitizedNotes, completedAt, finalizedAt, projectId]
   );
   const statusInfo = getProjectStatusById(status);
   const message = sanitizedNotes || statusInfo?.clientMessage || statusInfo?.description || null;
@@ -462,6 +518,70 @@ export async function addProjectComment({ projectId, message, actor, visibility 
     visibility,
     connection
   });
+}
+
+export async function finalizeProjectConversation(
+  projectId,
+  { actor = null, reason = 'manual', connection = null } = {}
+) {
+  const executor = pickExecutor(connection);
+  const [rows] = await executor.query(
+    `SELECT status, finalized_at FROM projects WHERE id = ?`,
+    [projectId]
+  );
+  const project = rows[0];
+  if (!project) {
+    throw new Error('PROJECT_NOT_FOUND');
+  }
+  if (project.status !== 'completed') {
+    throw new Error('PROJECT_NOT_COMPLETED');
+  }
+  if (project.finalized_at) {
+    return false;
+  }
+  await executor.query(
+    `UPDATE projects
+        SET finalized_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?`,
+    [projectId]
+  );
+  const message =
+    reason === 'auto'
+      ? 'Proiectul a fost arhivat automat după 24 de ore în starea „Proiect Finalizat / Arhivat”.'
+      : 'Proiectul a fost arhivat manual de superadmin. Discuțiile au fost închise.';
+  const actorInfo = actor || { fullName: 'Sistem', role: 'system' };
+  await addProjectTimelineEntry({
+    projectId,
+    entryType: 'comment',
+    message,
+    actor: actorInfo,
+    visibility: 'public',
+    connection: executor
+  });
+  return true;
+}
+
+export async function ensureProjectCompletionFinalized(project) {
+  if (!project || project.status !== 'completed') {
+    return { project, autoFinalized: false };
+  }
+  const finalizedAt = coerceDate(project.finalized_at);
+  if (finalizedAt) {
+    return { project, autoFinalized: false };
+  }
+  const deadline = getProjectCompletionDeadline(project);
+  const now = new Date();
+  if (deadline && now >= deadline) {
+    const finalized = await finalizeProjectConversation(project.id, { reason: 'auto' });
+    if (finalized) {
+      const refreshed = await getProjectById(project.id);
+      return { project: refreshed, autoFinalized: true };
+    }
+    const refreshed = await getProjectById(project.id);
+    return { project: refreshed, autoFinalized: false };
+  }
+  return { project, autoFinalized: false };
 }
 
 export async function createProjectFromTicket({ ticketId, actor }) {

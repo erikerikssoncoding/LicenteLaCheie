@@ -13,6 +13,16 @@
       : 'N/A'; %>
     <% const roleLabelMap = { client: 'Client', redactor: 'Redactor', admin: 'Admin', superadmin: 'Superadmin' }; %>
     <% const roleHierarchy = { client: 1, redactor: 2, admin: 3, superadmin: 4 }; %>
+    <% const formatDateTime = (value) => {
+      if (!value) {
+        return null;
+      }
+      const dateValue = value.toISOString ? value : new Date(value);
+      if (!dateValue || Number.isNaN(dateValue.getTime())) {
+        return null;
+      }
+      return dateValue.toISOString().replace('T', ' ').slice(0, 16);
+    }; %>
     <% if (projectFeedback && projectFeedback.success) { %>
     <div class="alert alert-success mb-4" role="alert"><%= projectFeedback.success %></div>
     <% } %>
@@ -223,7 +233,48 @@
         <div class="card shadow-sm mb-4">
           <div class="card-body">
             <h2 class="h5 mb-3">Timeline proiect</h2>
-            <% if (['admin', 'superadmin', 'redactor', 'client'].includes(currentUser.role)) { %>
+            <% const timelineRoles = ['admin', 'superadmin', 'redactor', 'client']; %>
+            <% const canSubmitTimelineMessage =
+              timelineRoles.includes(currentUser.role) && (!isTimelineLocked || currentUser.role === 'superadmin'); %>
+            <% const completionDeadlineLabel = completionDeadline ? formatDateTime(completionDeadline) : null; %>
+            <% const finalizedAtLabel = finalizedAt ? formatDateTime(finalizedAt) : null; %>
+            <% if (project.status === 'completed') { %>
+            <% if (!isTimelineLocked && completionDeadline) { %>
+            <div class="alert alert-info d-flex flex-column flex-lg-row align-items-lg-center gap-2" role="alert">
+              <span>
+                Discuțiile se vor închide automat după <strong><%= completionLockHours %></strong> ore în această etapă.
+              </span>
+              <span
+                class="badge bg-primary text-white fs-6"
+                data-countdown-target="<%=
+                  completionDeadline.toISOString
+                    ? completionDeadline.toISOString()
+                    : new Date(completionDeadline).toISOString()
+                %>"
+                data-countdown-finished-text="00:00:00"
+              ></span>
+            </div>
+            <% } %>
+            <% if (isTimelineLocked) { %>
+            <div class="alert alert-warning" role="alert">
+              Discuțiile pentru acest proiect au fost închise.
+              <% if (finalizedAtLabel) { %>
+              <br /><small class="text-muted">Arhivat la: <%= finalizedAtLabel %></small>
+              <% } else if (completionDeadlineLabel) { %>
+              <br /><small class="text-muted">Arhivarea automată a avut loc la: <%= completionDeadlineLabel %></small>
+              <% } %>
+            </div>
+            <% } %>
+            <% if (currentUser.role === 'superadmin' && !isTimelineLocked) { %>
+            <form action="/cont/proiecte/<%= project.id %>/finalizeaza" method="post" class="mb-4">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <button class="btn btn-outline-danger btn-sm" type="submit">
+                Finalizează proiectul acum
+              </button>
+            </form>
+            <% } %>
+            <% } %>
+            <% if (canSubmitTimelineMessage) { %>
             <form action="/cont/proiecte/<%= project.id %>/mesaj" method="post" class="vstack gap-3 mb-4">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <div>

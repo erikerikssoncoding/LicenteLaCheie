@@ -25,7 +25,12 @@ import {
   createDocumentRequest,
   closeDocumentRequest,
   getDocumentRequestById,
-  hasOpenDocumentRequests
+  hasOpenDocumentRequests,
+  finalizeProjectConversation,
+  ensureProjectCompletionFinalized,
+  isProjectConversationLocked,
+  getProjectCompletionDeadline,
+  PROJECT_COMPLETION_LOCK_HOURS
 } from '../services/projectService.js';
 import {
   listTicketsForUser,
@@ -2262,6 +2267,39 @@ router.get('/cont/proiecte/:id/fisiere/:fileId/descarca', async (req, res, next)
   }
 });
 
+router.post('/cont/proiecte/:id/finalizeaza', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const projectId = Number(req.params.id);
+    const project = await getProjectById(projectId);
+    if (!project) {
+      return res.status(404).render('pages/404', {
+        title: 'Proiect inexistent',
+        description: 'Proiectul solicitat nu a fost gasit.'
+      });
+    }
+    if (project.status !== 'completed') {
+      req.session.projectFeedback = {
+        error: 'Proiectul poate fi finalizat manual doar atunci când se află în starea „Proiect Finalizat / Arhivat”.',
+        activeTab: 'timeline'
+      };
+      return res.redirect(`/cont/proiecte/${projectId}?tab=timeline`);
+    }
+    const finalized = await finalizeProjectConversation(projectId, { actor: req.session.user, reason: 'manual' });
+    req.session.projectFeedback = finalized
+      ? {
+          success: 'Proiectul a fost arhivat. Discuțiile au fost închise imediat.',
+          activeTab: 'timeline'
+        }
+      : {
+          error: 'Proiectul este deja arhivat.',
+          activeTab: 'timeline'
+        };
+    return res.redirect(`/cont/proiecte/${projectId}?tab=timeline`);
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router
   .route('/cont/proiecte/:id/alocare')
   .post(ensureRole('admin', 'superadmin'), async (req, res, next) => {
@@ -2320,7 +2358,7 @@ router
 router.get('/cont/proiecte/:id', async (req, res, next) => {
   try {
     const projectId = Number(req.params.id);
-    const project = await getProjectById(projectId);
+    let project = await getProjectById(projectId);
     if (!project) {
       return res.status(404).render('pages/404', {
         title: 'Proiect inexistent',
@@ -2346,6 +2384,9 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
         description: 'Nu sunteti responsabil de acest proiect.'
       });
     }
+
+    const { project: hydratedProject } = await ensureProjectCompletionFinalized(project);
+    project = hydratedProject;
 
     const [team, projectFiles, documentRequests] = await Promise.all([
       listTeamMembers(),
@@ -2399,6 +2440,12 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
     const nextStatus = getNextProjectStatusId(project.status);
     const previousStatus = getPreviousProjectStatusId(project.status);
 
+    const isTimelineLocked = isProjectConversationLocked(project);
+    const completionDeadline = getProjectCompletionDeadline(project);
+
+    const completedAt = project.completed_at;
+    const finalizedAt = project.finalized_at;
+
     res.render('pages/project-detail', {
       title: `Proiect ${project.title}`,
       description: 'Detalii actualizate despre stadiul lucrarii de licenta.',
@@ -2427,7 +2474,12 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
       staffUploadsRemaining,
       clientFileLimit: CLIENT_MAX_PROJECT_FILES,
       staffFileLimit: STAFF_MAX_PROJECT_FILES,
-      activeTab
+      activeTab,
+      isTimelineLocked,
+      completionDeadline,
+      completionLockHours: PROJECT_COMPLETION_LOCK_HOURS,
+      completedAt,
+      finalizedAt
     });
   } catch (error) {
     next(error);
@@ -2491,13 +2543,15 @@ router.post('/cont/proiecte/:id/mesaj', async (req, res, next) => {
     });
     const data = schema.parse(req.body);
     const projectId = Number(req.params.id);
-    const project = await getProjectById(projectId);
+    let project = await getProjectById(projectId);
     if (!project) {
       return res.status(404).render('pages/404', {
         title: 'Proiect inexistent',
         description: 'Proiectul solicitat nu a fost gasit.'
       });
     }
+    const { project: hydratedProject } = await ensureProjectCompletionFinalized(project);
+    project = hydratedProject;
     const user = req.session.user;
     if (user.role === 'client' && project.client_id !== user.id) {
       return res.status(403).render('pages/403', {
@@ -2516,6 +2570,13 @@ router.post('/cont/proiecte/:id/mesaj', async (req, res, next) => {
         title: 'Acces restrictionat',
         description: 'Nu sunteti responsabil de acest proiect.'
       });
+    }
+    if (isProjectConversationLocked(project) && user.role !== 'superadmin') {
+      req.session.projectFeedback = {
+        error: 'Discuțiile pentru acest proiect au fost închise.',
+        activeTab: 'timeline'
+      };
+      return res.redirect(`/cont/proiecte/${projectId}?tab=timeline`);
     }
     await addProjectComment({
       projectId,

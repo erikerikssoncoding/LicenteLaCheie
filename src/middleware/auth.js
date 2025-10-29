@@ -1,3 +1,5 @@
+import { getUserById } from '../services/userService.js';
+
 export function ensureAuthenticated(req, res, next) {
   if (req.session?.user) {
     return next();
@@ -21,9 +23,27 @@ export function ensureRole(...roles) {
   };
 }
 
-export function injectUser(req, res, next) {
-  res.locals.currentUser = req.session?.user || null;
-  res.locals.csrfToken = req.csrfToken ? req.csrfToken() : null;
-  res.locals.request = req;
-  next();
+export async function injectUser(req, res, next) {
+  try {
+    if (req.session?.user?.id) {
+      const latestUser = await getUserById(req.session.user.id);
+      if (!latestUser || !latestUser.is_active) {
+        req.session.user = null;
+      } else {
+        req.session.user = {
+          id: latestUser.id,
+          email: latestUser.email,
+          fullName: latestUser.full_name,
+          role: latestUser.role,
+          phone: latestUser.phone
+        };
+      }
+    }
+    res.locals.currentUser = req.session?.user || null;
+    res.locals.csrfToken = req.csrfToken ? req.csrfToken() : null;
+    res.locals.request = req;
+    next();
+  } catch (error) {
+    next(error);
+  }
 }

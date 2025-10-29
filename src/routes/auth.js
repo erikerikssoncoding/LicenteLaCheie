@@ -6,6 +6,9 @@ import { ensureAuthenticated } from '../middleware/auth.js';
 const router = Router();
 
 router.get('/autentificare', (req, res) => {
+  if (req.session?.user) {
+    return res.redirect('/cont');
+  }
   res.render('pages/login', {
     title: 'Autentificare cont client si echipa',
     description: 'Acceseaza panoul tau personalizat pentru a urmari proiectele de licenta si comunicarile.'

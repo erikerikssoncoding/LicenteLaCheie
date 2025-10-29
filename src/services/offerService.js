@@ -77,6 +77,13 @@ export function generateContractTemplate({
 }
 
 export async function attachOfferDetails(offerId, { amount, expiresInHours, notes, program, topic, deliveryDate, clientName }) {
+  const offer = await getOfferById(offerId);
+  if (!offer) {
+    throw new Error('OFFER_NOT_FOUND');
+  }
+  if (offer.offer_amount !== null) {
+    throw new Error('OFFER_LOCKED');
+  }
   const hours = Math.max(Number(expiresInHours || DEFAULT_OFFER_EXPIRATION_HOURS), MIN_OFFER_EXPIRATION_HOURS);
   const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
   const contractText = generateContractTemplate({ clientName, program, topic, deliveryDate, price: amount });
@@ -109,16 +116,65 @@ export async function refuseOffer(offerId) {
 export async function requestCounterOffer(offerId) {
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
   await pool.query(
-    `UPDATE offers SET status = 'counter_pending', counter_expires_at = ?, decision_at = NULL WHERE id = ?`,
+    `UPDATE offers SET status = 'counter_pending', counter_expires_at = ?, counter_amount = NULL, decision_at = NULL WHERE id = ?`,
     [expiresAt, offerId]
   );
   return getOfferById(offerId);
 }
 
 export async function submitCounterOffer(offerId, amount) {
+  const offer = await getOfferById(offerId);
+  if (!offer || offer.status !== 'counter_pending') {
+    throw new Error('INVALID_STATE');
+  }
+  if (!offer.offer_amount) {
+    throw new Error('MISSING_BASE_AMOUNT');
+  }
+  const minimum = Number(offer.offer_amount) * 0.85;
+  if (amount < minimum) {
+    throw new Error('COUNTER_TOO_LOW');
+  }
   await pool.query(
-    `UPDATE offers SET status = 'counter_submitted', counter_amount = ?, decision_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    `UPDATE offers SET status = 'counter_submitted', counter_amount = ?, counter_expires_at = NULL, decision_at = CURRENT_TIMESTAMP WHERE id = ?`,
     [amount, offerId]
+  );
+  return getOfferById(offerId);
+}
+
+export async function acceptCounterOffer(offerId) {
+  const offer = await getOfferById(offerId);
+  if (!offer || offer.status !== 'counter_submitted') {
+    throw new Error('INVALID_STATE');
+  }
+  const finalAmount = Number(offer.counter_amount || offer.offer_amount || 0);
+  if (!finalAmount) {
+    throw new Error('MISSING_BASE_AMOUNT');
+  }
+  const contractText = generateContractTemplate({
+    clientName: offer.client_name,
+    program: offer.program,
+    topic: offer.topic,
+    deliveryDate: offer.delivery_date,
+    price: finalAmount
+  });
+  await pool.query(
+    `UPDATE offers
+       SET status = 'accepted', offer_amount = ?, contract_text = ?, decision_at = CURRENT_TIMESTAMP,
+           counter_expires_at = NULL
+     WHERE id = ?`,
+    [finalAmount, contractText, offerId]
+  );
+  return getOfferById(offerId);
+}
+
+export async function declineCounterOffer(offerId) {
+  const offer = await getOfferById(offerId);
+  if (!offer || offer.status !== 'counter_submitted') {
+    throw new Error('INVALID_STATE');
+  }
+  await pool.query(
+    `UPDATE offers SET status = 'refused', counter_amount = NULL, counter_expires_at = NULL, decision_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [offerId]
   );
   return getOfferById(offerId);
 }

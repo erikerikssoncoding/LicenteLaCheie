@@ -63,6 +63,17 @@
                 </td>
                 <td><span class="badge bg-light text-dark"><%= kindLabels[ticket.kind] || ticket.kind %></span></td>
                 <td>
+                  <% const isMerged = Boolean(ticket.merged_into_ticket_id); %>
+                  <% const statusLabel = ticket.status === 'rezolvat' && isMerged ? 'rezolvat (merged)' : ticket.status; %>
+                  <% if (isMerged) { %>
+                  <div class="d-flex flex-column gap-1">
+                    <span class="badge bg-light text-dark text-uppercase align-self-start"><%= statusLabel %></span>
+                    <p class="text-muted small mb-0">
+                      Fuzionat in
+                      <a href="/cont/tichete/<%= ticket.merged_into_ticket_id %>">#<%= ticket.merged_into_display_code || ticket.merged_into_ticket_id %></a>
+                    </p>
+                  </div>
+                  <% } else { %>
                   <form action="/cont/tichete/<%= ticket.id %>/status" method="post" class="d-flex align-items-center gap-2">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                     <select class="form-select form-select-sm" name="status">
@@ -72,6 +83,7 @@
                     </select>
                     <button class="btn btn-sm btn-outline-secondary" type="submit">Actualizeaza</button>
                   </form>
+                  <% } %>
                 </td>
                 <td><%= ticket.created_at.toISOString ? ticket.created_at.toISOString().slice(0,10) : ticket.created_at %></td>
                 <td class="text-end">

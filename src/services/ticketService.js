@@ -24,9 +24,10 @@ export async function createTicket({ projectId, userId, subject, message, kind =
 export async function listTicketsForUser(user) {
   if (user.role === 'client') {
     const [rows] = await pool.query(
-      `SELECT t.*, p.title AS project_title
+      `SELECT t.*, p.title AS project_title, merged.display_code AS merged_into_display_code
        FROM tickets t
        LEFT JOIN projects p ON p.id = t.project_id
+       LEFT JOIN tickets merged ON merged.id = t.merged_into_ticket_id
        WHERE t.created_by = ?
        ORDER BY t.created_at DESC`,
       [user.id]
@@ -36,10 +37,11 @@ export async function listTicketsForUser(user) {
 
   if (user.role === 'redactor') {
     const [rows] = await pool.query(
-      `SELECT t.*, u.full_name AS author_name, p.title AS project_title
+      `SELECT t.*, u.full_name AS author_name, p.title AS project_title, merged.display_code AS merged_into_display_code
        FROM tickets t
        LEFT JOIN users u ON u.id = t.created_by
        LEFT JOIN projects p ON p.id = t.project_id
+       LEFT JOIN tickets merged ON merged.id = t.merged_into_ticket_id
        WHERE p.assigned_editor_id = ?
        ORDER BY t.created_at DESC`,
       [user.id]
@@ -49,10 +51,11 @@ export async function listTicketsForUser(user) {
 
   if (user.role === 'admin') {
     const [rows] = await pool.query(
-      `SELECT t.*, u.full_name AS author_name, p.title AS project_title
+      `SELECT t.*, u.full_name AS author_name, p.title AS project_title, merged.display_code AS merged_into_display_code
        FROM tickets t
        LEFT JOIN users u ON u.id = t.created_by
        LEFT JOIN projects p ON p.id = t.project_id
+       LEFT JOIN tickets merged ON merged.id = t.merged_into_ticket_id
        WHERE p.assigned_admin_id = ? OR t.project_id IS NULL
        ORDER BY t.created_at DESC`,
       [user.id]
@@ -61,10 +64,11 @@ export async function listTicketsForUser(user) {
   }
 
   const [rows] = await pool.query(
-    `SELECT t.*, u.full_name AS author_name, p.title AS project_title
+    `SELECT t.*, u.full_name AS author_name, p.title AS project_title, merged.display_code AS merged_into_display_code
      FROM tickets t
      LEFT JOIN users u ON u.id = t.created_by
      LEFT JOIN projects p ON p.id = t.project_id
+     LEFT JOIN tickets merged ON merged.id = t.merged_into_ticket_id
      ORDER BY t.created_at DESC`
   );
   return rows;
@@ -82,10 +86,11 @@ export async function addReply({ ticketId, userId, message }) {
 export async function getTicketById(ticketId) {
   const [rows] = await pool.query(
     `SELECT t.*, u.full_name AS author_name, u.role AS author_role, p.title AS project_title,
-            p.assigned_admin_id, p.assigned_editor_id
+            p.assigned_admin_id, p.assigned_editor_id, merged.display_code AS merged_into_display_code
      FROM tickets t
      LEFT JOIN users u ON u.id = t.created_by
      LEFT JOIN projects p ON p.id = t.project_id
+     LEFT JOIN tickets merged ON merged.id = t.merged_into_ticket_id
      WHERE t.id = ?`,
     [ticketId]
   );
@@ -133,6 +138,139 @@ export async function getTicketTimelineEntries(ticketId, { limit = 10, offset = 
   );
 
   return rows;
+}
+
+export async function listMergeCandidates({ baseTicketId, createdBy, actor }) {
+  if (!actor || !['admin', 'superadmin'].includes(actor.role)) {
+    return [];
+  }
+
+  let query =
+    `SELECT t.id, t.display_code, t.subject, t.status, t.kind, t.merged_into_ticket_id, t.project_id,
+            p.assigned_admin_id
+       FROM tickets t
+       LEFT JOIN projects p ON p.id = t.project_id
+      WHERE t.created_by = ? AND t.id <> ? AND t.merged_into_ticket_id IS NULL`;
+  const params = [createdBy, baseTicketId];
+
+  if (actor.role === 'admin') {
+    query += ' AND (t.project_id IS NULL OR p.assigned_admin_id = ?)';
+    params.push(actor.id);
+  }
+
+  query += ' ORDER BY t.updated_at DESC';
+
+  const [rows] = await pool.query(query, params);
+  return rows;
+}
+
+export async function mergeTickets({ targetTicketId, sourceTicketIds, actorId }) {
+  if (!Array.isArray(sourceTicketIds) || sourceTicketIds.length === 0) {
+    throw new Error('MERGE_NO_TICKETS_SELECTED');
+  }
+  if (!actorId) {
+    throw new Error('MERGE_ACTOR_REQUIRED');
+  }
+
+  const normalizedTargetId = Number(targetTicketId);
+  if (!Number.isInteger(normalizedTargetId) || normalizedTargetId <= 0) {
+    throw new Error('MERGE_TARGET_NOT_FOUND');
+  }
+
+  const uniqueSourceIds = [...new Set(sourceTicketIds.map((id) => Number(id)))].filter(
+    (id) => Number.isInteger(id) && id > 0 && id !== normalizedTargetId
+  );
+
+  if (uniqueSourceIds.length === 0) {
+    throw new Error('MERGE_NO_TICKETS_SELECTED');
+  }
+
+  const connection = await pool.getConnection();
+  let transactionStarted = false;
+
+  try {
+    await connection.beginTransaction();
+    transactionStarted = true;
+
+    const [targetRows] = await connection.query(
+      `SELECT id, created_by, display_code, merged_into_ticket_id
+         FROM tickets
+        WHERE id = ?
+        FOR UPDATE`,
+      [normalizedTargetId]
+    );
+
+    const target = targetRows[0];
+    if (!target) {
+      throw new Error('MERGE_TARGET_NOT_FOUND');
+    }
+    if (target.merged_into_ticket_id) {
+      throw new Error('MERGE_TARGET_ALREADY_MERGED');
+    }
+
+    const [sourceRows] = await connection.query(
+      `SELECT id, created_by, display_code, merged_into_ticket_id
+         FROM tickets
+        WHERE id IN (?)
+        FOR UPDATE`,
+      [uniqueSourceIds]
+    );
+
+    if (sourceRows.length !== uniqueSourceIds.length) {
+      throw new Error('MERGE_SOURCE_NOT_FOUND');
+    }
+
+    for (const source of sourceRows) {
+      if (source.merged_into_ticket_id) {
+        throw new Error('MERGE_SOURCE_ALREADY_MERGED');
+      }
+      if (source.created_by !== target.created_by) {
+        throw new Error('MERGE_DIFFERENT_OWNER');
+      }
+    }
+
+    await connection.query(
+      `UPDATE tickets
+          SET status = 'rezolvat', merged_into_ticket_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id IN (?)`,
+      [normalizedTargetId, uniqueSourceIds]
+    );
+
+    const mergeMessage = `Ticketul a fost inchis cu status „merged” si redirectionat catre ticketul #${target.display_code}. Continua conversatia aici: /cont/tichete/${normalizedTargetId}`;
+
+    for (const source of sourceRows) {
+      await connection.query(
+        `INSERT INTO ticket_replies (ticket_id, user_id, message)
+         VALUES (?, ?, ?)`,
+        [source.id, actorId, mergeMessage]
+      );
+    }
+
+    const mergedCodes = sourceRows.map((entry) => `#${entry.display_code}`).join(', ');
+    const targetMessage =
+      sourceRows.length === 1
+        ? `Ticketul ${mergedCodes} a fost fuzionat in aceasta conversatie.`
+        : `Ticketele ${mergedCodes} au fost fuzionate in aceasta conversatie.`;
+
+    await connection.query(
+      `INSERT INTO ticket_replies (ticket_id, user_id, message)
+       VALUES (?, ?, ?)`,
+      [normalizedTargetId, actorId, targetMessage]
+    );
+
+    await connection.query('UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [normalizedTargetId]);
+
+    await connection.commit();
+
+    return { target, sources: sourceRows };
+  } catch (error) {
+    if (transactionStarted) {
+      await connection.rollback();
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 export async function updateTicketStatus(ticketId, status) {

@@ -18,6 +18,8 @@ import {
   getTicketById,
   getTicketTimelineEntries,
   addReply,
+  listMergeCandidates,
+  mergeTickets,
   updateTicketStatus,
   listPendingSupportTicketsForAdmin,
   listPendingSupportTicketsForRedactor,
@@ -494,6 +496,14 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
     const timelineEntries = hasMoreTimeline ? timelineBatch.slice(0, TIMELINE_PAGE_SIZE) : timelineBatch;
     const offer = ticket.kind === 'offer' || ticket.kind === 'contract' ? await getOfferByTicketId(ticket.id) : null;
     const contractDetails = ticket.kind === 'contract' ? await getContractDetailsByTicket(ticket.id) : null;
+    let mergeCandidates = [];
+    if (['admin', 'superadmin'].includes(user.role) && !ticket.merged_into_ticket_id) {
+      mergeCandidates = await listMergeCandidates({
+        baseTicketId: ticket.id,
+        createdBy: ticket.created_by,
+        actor: user
+      });
+    }
     const feedback = req.session.ticketFeedback || {};
     delete req.session.ticketFeedback;
     res.render('pages/ticket-detail', {
@@ -506,7 +516,8 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
       offer,
       offerMinHours: MIN_OFFER_EXPIRATION_HOURS,
       feedback,
-      contractDetails
+      contractDetails,
+      mergeCandidates
     });
   } catch (error) {
     next(error);
@@ -592,6 +603,12 @@ router.post('/cont/tichete/:id/raspuns', async (req, res, next) => {
         title: 'Acces restrictionat',
         description: 'Ticketul nu este gestionat de tine.'
       });
+    }
+    if (ticket.merged_into_ticket_id) {
+      req.session.ticketFeedback = {
+        error: 'Acest ticket a fost fuzionat in altul si nu mai permite raspunsuri.'
+      };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
     }
     await addReply({
       ticketId: ticket.id,
@@ -969,6 +986,13 @@ router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
       req.session.ticketFeedback = { error: 'Oferta trebuie acceptata pentru a completa datele de contract.' };
       return res.redirect(`/cont/tichete/${ticketId}`);
     }
+    const existingContract = await getContractDetailsByTicket(ticketId);
+    if (existingContract && ['awaiting_admin', 'completed'].includes(existingContract.contractStage)) {
+      req.session.ticketFeedback = {
+        error: 'Datele beneficiarului nu mai pot fi modificate dupa semnarea contractului.'
+      };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
     const schema = z.object({
       fullName: z.string().min(3),
       idType: z.string().min(3),
@@ -1013,6 +1037,100 @@ router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       req.session.ticketFeedback = { error: 'Te rugam sa completezi toate campurile obligatorii.' };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/:id/merge', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const { ticket } = await getTicketWithReplies(ticketId);
+    if (!ticket) {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    const user = req.session.user;
+    if (
+      user.role === 'admin' &&
+      ticket.project_id &&
+      ticket.assigned_admin_id &&
+      ticket.assigned_admin_id !== user.id
+    ) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Ticketul nu este gestionat de tine.'
+      });
+    }
+    if (ticket.merged_into_ticket_id) {
+      req.session.ticketFeedback = {
+        error: 'Acest ticket a fost deja fuzionat in altul si nu poate primi alte tickete.'
+      };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    const schema = z.object({
+      ticketIds: z.preprocess(
+        (value) => {
+          if (Array.isArray(value)) {
+            return value;
+          }
+          if (typeof value === 'string') {
+            return value.trim().length ? [value] : [];
+          }
+          return [];
+        },
+        z.array(z.coerce.number().int().positive()).min(1)
+      )
+    });
+    const data = schema.parse(req.body);
+    const availableCandidates = await listMergeCandidates({
+      baseTicketId: ticket.id,
+      createdBy: ticket.created_by,
+      actor: user
+    });
+    const candidateMap = new Map(availableCandidates.map((candidate) => [candidate.id, candidate]));
+    const uniqueSelection = [...new Set(data.ticketIds)];
+    const selectedIds = uniqueSelection.filter((id) => candidateMap.has(id));
+    if (selectedIds.length === 0) {
+      req.session.ticketFeedback = {
+        error: 'Selecteaza cel putin un ticket eligibil pentru a realiza merge.'
+      };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    const { sources } = await mergeTickets({
+      targetTicketId: ticket.id,
+      sourceTicketIds: selectedIds,
+      actorId: user.id
+    });
+    const mergedCodes = sources.map((entry) => `#${entry.display_code}`).join(', ');
+    req.session.ticketFeedback = {
+      success:
+        sources.length === 1
+          ? `Ticketul ${mergedCodes} a fost fuzionat in conversatia curenta.`
+          : `Ticketele ${mergedCodes} au fost fuzionate in conversatia curenta.`
+    };
+    res.redirect(`/cont/tichete/${ticketId}`);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.ticketFeedback = {
+        error: 'Selecteaza cel putin un ticket eligibil pentru a realiza merge.'
+      };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    const handledErrors = new Map([
+      ['MERGE_TARGET_NOT_FOUND', 'Ticketul tinta nu a fost gasit.'],
+      ['MERGE_TARGET_ALREADY_MERGED', 'Ticketul tinta este deja fuzionat in alt ticket.'],
+      ['MERGE_SOURCE_NOT_FOUND', 'Unul dintre ticketele selectate nu a fost gasit.'],
+      ['MERGE_SOURCE_ALREADY_MERGED', 'Unul dintre ticketele selectate este deja fuzionat.'],
+      ['MERGE_DIFFERENT_OWNER', 'Ticketele selectate apartin unui alt client si nu pot fi unite.'],
+      ['MERGE_NO_TICKETS_SELECTED', 'Selecteaza cel putin un ticket eligibil pentru a realiza merge.'],
+      ['MERGE_ACTOR_REQUIRED', 'Utilizatorul curent nu poate efectua aceasta actiune.']
+    ]);
+    if (handledErrors.has(error.message)) {
+      req.session.ticketFeedback = { error: handledErrors.get(error.message) };
       return res.redirect(`/cont/tichete/${req.params.id}`);
     }
     next(error);
@@ -1292,6 +1410,12 @@ router.post('/cont/tichete/:id/status', ensureRole('admin', 'superadmin'), async
         title: 'Acces restrictionat',
         description: 'Nu sunteti responsabil de acest ticket.'
       });
+    }
+    if (ticket.merged_into_ticket_id) {
+      req.session.ticketFeedback = {
+        error: 'Ticketul este fuzionat in altul si nu mai poate avea statusul modificat.'
+      };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
     }
     await updateTicketStatus(ticket.id, data.status);
     res.redirect(`/cont/tichete/${req.params.id}`);

@@ -19,7 +19,8 @@ import {
   updateTicketStatus,
   listPendingSupportTicketsForAdmin,
   listPendingSupportTicketsForRedactor,
-  listRecentTicketRepliesForUser
+  listRecentTicketRepliesForUser,
+  markTicketAsContract
 } from '../services/ticketService.js';
 import {
   listTeamMembers,
@@ -42,8 +43,12 @@ import {
   submitCounterOffer,
   listOffersForUser,
   listPendingOffersForAdmin,
-  MIN_OFFER_EXPIRATION_HOURS
+  MIN_OFFER_EXPIRATION_HOURS,
+  acceptCounterOffer,
+  declineCounterOffer
 } from '../services/offerService.js';
+import { getContractDetailsByTicket, saveContractDetails } from '../services/contractService.js';
+import { isValidCNP } from '../utils/validators.js';
 
 const router = Router();
 
@@ -294,7 +299,7 @@ router.post('/cont/utilizatori/:id/rol', ensureRole('admin', 'superadmin'), asyn
       req.session.flash = { error: 'Numai superadminii pot atribui rolul de superadmin.' };
       return res.redirect('/cont/utilizatori');
     }
-    await updateUserRole(targetId, role);
+    await updateUserRole({ actor: req.session.user, userId: targetId, role });
     req.session.flash = { success: 'Rolul utilizatorului a fost actualizat.' };
     res.redirect('/cont/utilizatori');
   } catch (error) {
@@ -304,6 +309,14 @@ router.post('/cont/utilizatori/:id/rol', ensureRole('admin', 'superadmin'), asyn
     }
     if (error.message === 'PROTECTED_USER') {
       req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi modificat.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'INSUFFICIENT_PRIVILEGES') {
+      req.session.flash = { error: 'Nu aveti permisiuni pentru a modifica acest utilizator.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'USER_NOT_FOUND') {
+      req.session.flash = { error: 'Utilizatorul selectat nu exista.' };
       return res.redirect('/cont/utilizatori');
     }
     next(error);
@@ -327,7 +340,7 @@ router.post('/cont/utilizatori/:id/status', ensureRole('admin', 'superadmin'), a
     }
     const schema = z.object({ isActive: z.enum(['0', '1']) });
     const { isActive } = schema.parse(req.body);
-    await setUserActiveStatus(targetId, isActive === '1');
+    await setUserActiveStatus({ actor: req.session.user, userId: targetId, isActive: isActive === '1' });
     req.session.flash = { success: 'Statusul contului a fost actualizat.' };
     res.redirect('/cont/utilizatori');
   } catch (error) {
@@ -337,6 +350,14 @@ router.post('/cont/utilizatori/:id/status', ensureRole('admin', 'superadmin'), a
     }
     if (error.message === 'PROTECTED_USER') {
       req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi dezactivat.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'INSUFFICIENT_PRIVILEGES') {
+      req.session.flash = { error: 'Nu aveti permisiuni pentru a modifica acest utilizator.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'USER_NOT_FOUND') {
+      req.session.flash = { error: 'Utilizatorul selectat nu exista.' };
       return res.redirect('/cont/utilizatori');
     }
     next(error);
@@ -406,7 +427,8 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
         description: 'Ticketul nu este gestionat de tine.'
       });
     }
-    const offer = ticket.kind === 'offer' ? await getOfferByTicketId(ticket.id) : null;
+    const offer = ticket.kind === 'offer' || ticket.kind === 'contract' ? await getOfferByTicketId(ticket.id) : null;
+    const contractDetails = ticket.kind === 'contract' ? await getContractDetailsByTicket(ticket.id) : null;
     const feedback = req.session.ticketFeedback || {};
     delete req.session.ticketFeedback;
     res.render('pages/ticket-detail', {
@@ -416,7 +438,8 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
       replies,
       offer,
       offerMinHours: MIN_OFFER_EXPIRATION_HOURS,
-      feedback
+      feedback,
+      contractDetails
     });
   } catch (error) {
     next(error);
@@ -531,6 +554,14 @@ router.post('/cont/tichete/:id/oferta/detalii', ensureRole('admin', 'superadmin'
   } catch (error) {
     if (error instanceof z.ZodError) {
       req.session.ticketFeedback = { error: 'Completeaza corect campurile ofertei.' };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    if (error.message === 'OFFER_LOCKED') {
+      req.session.ticketFeedback = { error: 'Oferta a fost deja transmisa si nu mai poate fi modificata.' };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    if (error.message === 'OFFER_NOT_FOUND') {
+      req.session.ticketFeedback = { error: 'Oferta nu a fost gasita.' };
       return res.redirect(`/cont/tichete/${req.params.id}`);
     }
     next(error);
@@ -651,6 +682,218 @@ router.post('/cont/tichete/:id/oferta/contraoferta', async (req, res, next) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       req.session.ticketFeedback = { error: 'Completeaza valoarea contraofertei.' };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    if (error.message === 'COUNTER_TOO_LOW') {
+      req.session.ticketFeedback = {
+        error: 'Contraoferta nu poate fi mai mica de 85% din valoarea propusa initial.'
+      };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    if (error.message === 'INVALID_STATE' || error.message === 'MISSING_BASE_AMOUNT') {
+      req.session.ticketFeedback = { error: 'Nu exista o fereastra activa pentru contraoferta.' };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/:id/oferta/contraoferta/accepta', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const { ticket } = await getTicketWithReplies(ticketId);
+    if (!ticket || ticket.kind !== 'offer') {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    const user = req.session.user;
+    if (
+      user.role === 'admin' &&
+      ticket.project_id &&
+      ticket.assigned_admin_id &&
+      ticket.assigned_admin_id !== user.id
+    ) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti responsabil de acest ticket.'
+      });
+    }
+    const offer = await getOfferByTicketId(ticketId);
+    if (!offer || offer.status !== 'counter_submitted') {
+      req.session.ticketFeedback = { error: 'Nu exista o contraoferta de acceptat.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    await acceptCounterOffer(offer.id);
+    await addReply({
+      ticketId,
+      userId: user.id,
+      message: 'Contraoferta clientului a fost acceptata. Pregatim contractul final.'
+    });
+    req.session.ticketFeedback = {
+      success: 'Ai acceptat contraoferta clientului. Poti continua cu semnarea contractului.'
+    };
+    res.redirect(`/cont/tichete/${ticketId}`);
+  } catch (error) {
+    if (error.message === 'INVALID_STATE' || error.message === 'MISSING_BASE_AMOUNT') {
+      req.session.ticketFeedback = { error: 'Nu exista o contraoferta valida pentru acest ticket.' };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/:id/oferta/contraoferta/refuza', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const { ticket } = await getTicketWithReplies(ticketId);
+    if (!ticket || ticket.kind !== 'offer') {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    const user = req.session.user;
+    if (
+      user.role === 'admin' &&
+      ticket.project_id &&
+      ticket.assigned_admin_id &&
+      ticket.assigned_admin_id !== user.id
+    ) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti responsabil de acest ticket.'
+      });
+    }
+    const offer = await getOfferByTicketId(ticketId);
+    if (!offer || offer.status !== 'counter_submitted') {
+      req.session.ticketFeedback = { error: 'Nu exista o contraoferta de refuzat.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    await declineCounterOffer(offer.id);
+    await addReply({
+      ticketId,
+      userId: user.id,
+      message: 'Contraoferta clientului a fost refuzata. Vom reveni cu o noua propunere.'
+    });
+    req.session.ticketFeedback = {
+      success: 'Ai refuzat contraoferta. Poti transmite o noua propunere din discutie.'
+    };
+    res.redirect(`/cont/tichete/${ticketId}`);
+  } catch (error) {
+    if (error.message === 'INVALID_STATE') {
+      req.session.ticketFeedback = { error: 'Nu exista o contraoferta valida pentru acest ticket.' };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/:id/oferta/contract', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const { ticket } = await getTicketWithReplies(ticketId);
+    if (!ticket || (ticket.kind !== 'offer' && ticket.kind !== 'contract')) {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    const user = req.session.user;
+    if (
+      user.role === 'admin' &&
+      ticket.project_id &&
+      ticket.assigned_admin_id &&
+      ticket.assigned_admin_id !== user.id
+    ) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti responsabil de acest ticket.'
+      });
+    }
+    const offer = await getOfferByTicketId(ticketId);
+    if (!offer || offer.status !== 'accepted') {
+      req.session.ticketFeedback = { error: 'Oferta trebuie sa fie acceptata inainte de a incepe semnarea.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    await markTicketAsContract(ticketId);
+    await addReply({
+      ticketId,
+      userId: user.id,
+      message: 'Ticketul a fost transformat pentru semnarea contractului. Te rugam sa completezi datele personale.'
+    });
+    req.session.ticketFeedback = {
+      success: 'Ai activat etapa de semnare. Clientul poate completa acum datele pentru contract.'
+    };
+    res.redirect(`/cont/tichete/${ticketId}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const { ticket } = await getTicketWithReplies(ticketId);
+    if (!ticket || ticket.kind !== 'contract') {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    const user = req.session.user;
+    if (user.role !== 'client' || ticket.created_by !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu aveti acces la acest ticket.'
+      });
+    }
+    const offer = await getOfferByTicketId(ticketId);
+    if (!offer || offer.status !== 'accepted') {
+      req.session.ticketFeedback = { error: 'Oferta trebuie acceptata pentru a completa datele de contract.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    const schema = z.object({
+      fullName: z.string().min(3),
+      idType: z.string().min(3),
+      idSeries: z.string().trim().min(2),
+      idNumber: z.string().trim().min(3),
+      cnp: z.string().trim().optional(),
+      address: z.string().min(5)
+    });
+    const payload = schema.parse(req.body);
+    const normalizedCnp = payload.cnp && payload.cnp.trim().length ? payload.cnp.trim().replace(/\s+/g, '') : null;
+    if (normalizedCnp && !isValidCNP(normalizedCnp)) {
+      req.session.ticketFeedback = { error: 'CNP-ul introdus nu este valid.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    const sanitizedCnp = normalizedCnp ? normalizedCnp.replace(/\D/g, '') : null;
+    await saveContractDetails({
+      ticketId,
+      offerId: offer.id,
+      userId: user.id,
+      data: {
+        fullName: payload.fullName.trim(),
+        idType: payload.idType.trim(),
+        idSeries: payload.idSeries.trim(),
+        idNumber: payload.idNumber.trim(),
+        cnp: sanitizedCnp,
+        address: payload.address.trim()
+      }
+    });
+    await addReply({
+      ticketId,
+      userId: user.id,
+      message: 'Datele personale pentru contract au fost completate.'
+    });
+    req.session.ticketFeedback = {
+      success: 'Datele pentru contract au fost salvate in siguranta. Consultantul va continua cu semnarea.'
+    };
+    res.redirect(`/cont/tichete/${ticketId}`);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.ticketFeedback = { error: 'Te rugam sa completezi toate campurile obligatorii.' };
       return res.redirect(`/cont/tichete/${req.params.id}`);
     }
     next(error);

@@ -95,6 +95,13 @@ export async function updateTicketStatus(ticketId, status) {
   await pool.query(`UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [status, ticketId]);
 }
 
+export async function markTicketAsContract(ticketId) {
+  await pool.query(
+    `UPDATE tickets SET kind = 'contract', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [ticketId]
+  );
+}
+
 export async function listPendingSupportTicketsForAdmin(adminId) {
   if (!adminId) {
     const [rows] = await pool.query(

@@ -63,18 +63,19 @@
       </dl>
     </div>
 
-    <% if (['admin', 'superadmin'].includes(currentUser.role) && offer.status !== 'accepted') { %>
+    <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
+    <% if (!offer.offer_amount) { %>
     <div class="glass-card mb-4">
       <h3 class="h6 mb-3">Trimite oferta catre client</h3>
       <form action="/cont/tichete/<%= ticket.id %>/oferta/detalii" method="post" class="row g-3">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <div class="col-md-4">
           <label class="form-label" for="offerAmount">Valoare oferta (EUR)</label>
-          <input class="form-control" type="number" step="0.01" min="0" id="offerAmount" name="amount" value="<%= offer.offer_amount || '' %>" required />
+          <input class="form-control" type="number" step="0.01" min="0" id="offerAmount" name="amount" required />
         </div>
         <div class="col-md-4">
           <label class="form-label" for="offerExpires">Valabilitate (ore)</label>
-          <input class="form-control" type="number" min="<%= offerMinHours %>" id="offerExpires" name="expiresInHours" value="<%= offer.expires_at ? '' : offerMinHours %>" placeholder="<%= offerMinHours %>" />
+          <input class="form-control" type="number" min="<%= offerMinHours %>" id="offerExpires" name="expiresInHours" value="<%= offerMinHours %>" />
           <small class="text-muted">Minim <%= offerMinHours %> ore.</small>
         </div>
         <div class="col-12">
@@ -82,15 +83,47 @@
           <textarea class="form-control" id="offerMessage" name="message" rows="2"><%= offer.notes || '' %></textarea>
         </div>
         <div class="col-12 text-end">
-          <button class="btn btn-primary" type="submit">Salveaza oferta</button>
+          <button class="btn btn-primary" type="submit">Trimite oferta</button>
         </div>
       </form>
-      <% if (offer.status === 'counter_submitted') { %>
-      <div class="alert alert-warning mt-3">
-        Clientul a propus o contraoferta de <strong><%= Number(offer.counter_amount).toFixed(2) %> EUR</strong>. Actualizeaza oferta sau lasa un mesaj in ticket.
-      </div>
-      <% } %>
     </div>
+    <% } else { %>
+    <div class="glass-card mb-4">
+      <h3 class="h6 mb-3">Detalii oferta transmisa</h3>
+      <p class="mb-1">Valoare initiala: <strong><%= Number(offer.offer_amount).toFixed(2) %> EUR</strong></p>
+      <p class="mb-2">Valabila pana la: <strong><%= offerExpires %></strong></p>
+      <% if (offer.notes) { %>
+      <p class="mb-2">Mesaj catre client: <%= offer.notes %></p>
+      <% } %>
+      <div class="alert alert-info mb-0">Valoarea si valabilitatea ofertei nu mai pot fi modificate dupa transmiterea initiala.</div>
+    </div>
+    <% } %>
+    <% if (offer.status === 'counter_submitted') { %>
+    <div class="glass-card mb-4">
+      <h3 class="h6 mb-3">Raspunde la contraoferta clientului</h3>
+      <p class="mb-3">Clientul propune <strong><%= Number(offer.counter_amount).toFixed(2) %> EUR</strong>.</p>
+      <div class="d-flex flex-column flex-sm-row gap-3">
+        <form action="/cont/tichete/<%= ticket.id %>/oferta/contraoferta/accepta" method="post">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button class="btn btn-success" type="submit">Accepta contraoferta</button>
+        </form>
+        <form action="/cont/tichete/<%= ticket.id %>/oferta/contraoferta/refuza" method="post">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button class="btn btn-outline-danger" type="submit">Refuza contraoferta</button>
+        </form>
+      </div>
+    </div>
+    <% } %>
+    <% if (offer.status === 'accepted' && ticket.kind !== 'contract') { %>
+    <div class="glass-card mb-4">
+      <h3 class="h6 mb-3">Porneste semnarea contractului</h3>
+      <p class="text-muted">Activeaza formularul pentru ca beneficiarul sa-si completeze datele personale.</p>
+      <form action="/cont/tichete/<%= ticket.id %>/oferta/contract" method="post" class="d-flex flex-column flex-sm-row gap-3">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button class="btn btn-primary" type="submit">Activeaza semnarea contractului</button>
+      </form>
+    </div>
+    <% } %>
     <% } %>
 
     <% if (currentUser.role === 'client') { %>
@@ -103,7 +136,7 @@
         </form>
         <form action="/cont/tichete/<%= ticket.id %>/oferta/refuza" method="post">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <button class="btn btn-outline-danger" type="submit">Refuza si negociaza</button>
+          <button class="btn btn-outline-danger" type="submit">Refuza oferta</button>
         </form>
       </div>
     </div>
@@ -123,6 +156,97 @@
       </form>
     </div>
     <% } %>
+    <% } %>
+    <% if (ticket.kind === 'contract' && currentUser.role === 'client') { %>
+    <div class="glass-card mb-4">
+      <h3 class="h6 mb-3">Completeaza datele pentru contract</h3>
+      <p class="text-muted"><span class="text-success">🔒</span> Datele de pe buletin sunt salvate criptat si sunt folosite exclusiv pentru generarea contractului.</p>
+      <form action="/cont/tichete/<%= ticket.id %>/contract-date" method="post" class="row g-3">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <div class="col-12">
+          <label class="form-label" for="contractFullName">Nume complet</label>
+          <input
+            class="form-control"
+            type="text"
+            id="contractFullName"
+            name="fullName"
+            value="<%= contractDetails?.fullName || currentUser.fullName || '' %>"
+            required
+          />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="contractIdType">Identificat prin</label>
+          <input
+            class="form-control"
+            type="text"
+            id="contractIdType"
+            name="idType"
+            placeholder="ex: CI seria"
+            value="<%= contractDetails?.idType || '' %>"
+            required
+          />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="contractIdSeries">Seria</label>
+          <input
+            class="form-control"
+            type="text"
+            id="contractIdSeries"
+            name="idSeries"
+            value="<%= contractDetails?.idSeries || '' %>"
+            required
+          />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="contractIdNumber">Numar</label>
+          <input
+            class="form-control"
+            type="text"
+            id="contractIdNumber"
+            name="idNumber"
+            value="<%= contractDetails?.idNumber || '' %>"
+            required
+          />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="contractCnp">CNP <span class="text-muted">(optional)</span></label>
+          <input
+            class="form-control"
+            type="text"
+            id="contractCnp"
+            name="cnp"
+            value="<%= contractDetails?.cnp || '' %>"
+          />
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="contractAddress">Adresa de domiciliu</label>
+          <textarea class="form-control" id="contractAddress" name="address" rows="2" required><%= contractDetails?.address || '' %></textarea>
+        </div>
+        <div class="col-12 text-end">
+          <button class="btn btn-success" type="submit">Salveaza datele</button>
+        </div>
+      </form>
+    </div>
+    <% } %>
+    <% if (['admin', 'superadmin'].includes(currentUser.role) && contractDetails) { %>
+    <div class="glass-card mb-4">
+      <h3 class="h6 mb-3">Date contract client</h3>
+      <p class="text-success mb-3">🔒 Date vizibile doar administratorilor autorizati.</p>
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Nume complet</dt>
+        <dd class="col-sm-8"><%= contractDetails.fullName %></dd>
+        <dt class="col-sm-4">Identificat prin</dt>
+        <dd class="col-sm-8"><%= contractDetails.idType %></dd>
+        <dt class="col-sm-4">Seria / Numar</dt>
+        <dd class="col-sm-8"><%= contractDetails.idSeries %> / <%= contractDetails.idNumber %></dd>
+        <% if (contractDetails.cnp) { %>
+        <dt class="col-sm-4">CNP</dt>
+        <dd class="col-sm-8"><%= contractDetails.cnp %></dd>
+        <% } %>
+        <dt class="col-sm-4">Adresa domiciliu</dt>
+        <dd class="col-sm-8"><%= contractDetails.address %></dd>
+      </dl>
+    </div>
     <% } %>
     <% } %>
 

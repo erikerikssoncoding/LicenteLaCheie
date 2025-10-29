@@ -147,7 +147,7 @@ export async function createManagedUser({ fullName, email, phone, role }) {
   return { id: result.insertId, generatedPassword };
 }
 
-export async function updateUserRole(userId, role) {
+export async function updateUserRole({ actor, userId, role }) {
   if (userId === PROTECTED_USER_ID) {
     throw new Error('PROTECTED_USER');
   }
@@ -155,12 +155,43 @@ export async function updateUserRole(userId, role) {
   if (!allowedRoles.includes(role)) {
     throw new Error('INVALID_ROLE');
   }
+  if (!actor) {
+    throw new Error('UNAUTHORIZED');
+  }
+  const target = await getUserById(userId);
+  if (!target) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  if (target.id === actor.id) {
+    throw new Error('SELF_MODIFICATION');
+  }
+  if (target.id === PROTECTED_USER_ID) {
+    throw new Error('PROTECTED_USER');
+  }
+  if (actor.role !== 'superadmin') {
+    if (target.role === 'superadmin' || role === 'superadmin') {
+      throw new Error('INSUFFICIENT_PRIVILEGES');
+    }
+  }
   await pool.query(`UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [role, userId]);
 }
 
-export async function setUserActiveStatus(userId, isActive) {
+export async function setUserActiveStatus({ actor, userId, isActive }) {
   if (userId === PROTECTED_USER_ID) {
     throw new Error('PROTECTED_USER');
+  }
+  if (!actor) {
+    throw new Error('UNAUTHORIZED');
+  }
+  const target = await getUserById(userId);
+  if (!target) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  if (target.id === actor.id) {
+    throw new Error('SELF_MODIFICATION');
+  }
+  if (actor.role !== 'superadmin' && target.role === 'superadmin') {
+    throw new Error('INSUFFICIENT_PRIVILEGES');
   }
   await pool.query(`UPDATE users SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [isActive ? 1 : 0, userId]);
 }

@@ -79,17 +79,23 @@ export async function addReply({ ticketId, userId, message }) {
   await pool.query(`UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [ticketId]);
 }
 
+export async function getTicketById(ticketId) {
+  const [rows] = await pool.query(
+    `SELECT t.*, u.full_name AS author_name, u.role AS author_role, p.title AS project_title,
+            p.assigned_admin_id, p.assigned_editor_id
+     FROM tickets t
+     LEFT JOIN users u ON u.id = t.created_by
+     LEFT JOIN projects p ON p.id = t.project_id
+     WHERE t.id = ?`,
+    [ticketId]
+  );
+
+  return rows[0] || null;
+}
+
 export async function getTicketWithReplies(ticketId) {
-  const [[ticketRows], [replyRows]] = await Promise.all([
-    pool.query(
-      `SELECT t.*, u.full_name AS author_name, u.role AS author_role, p.title AS project_title,
-              p.assigned_admin_id, p.assigned_editor_id
-       FROM tickets t
-       LEFT JOIN users u ON u.id = t.created_by
-       LEFT JOIN projects p ON p.id = t.project_id
-       WHERE t.id = ?`,
-      [ticketId]
-    ),
+  const [ticket, [replyRows]] = await Promise.all([
+    getTicketById(ticketId),
     pool.query(
       `SELECT tr.*, u.full_name AS author_name, u.role AS author_role
        FROM ticket_replies tr
@@ -100,7 +106,33 @@ export async function getTicketWithReplies(ticketId) {
     )
   ]);
 
-  return { ticket: ticketRows[0] || null, replies: replyRows };
+  return { ticket, replies: replyRows };
+}
+
+export async function getTicketTimelineEntries(ticketId, { limit = 10, offset = 0 } = {}) {
+  const safeLimit = Math.max(1, Number(limit));
+  const safeOffset = Math.max(0, Number(offset));
+  const [rows] = await pool.query(
+    `SELECT entry_type, entry_id, message, created_at, author_name, author_role
+     FROM (
+       SELECT 'ticket' AS entry_type, t.id AS entry_id, t.message, t.created_at,
+              u.full_name AS author_name, u.role AS author_role
+       FROM tickets t
+       LEFT JOIN users u ON u.id = t.created_by
+       WHERE t.id = ?
+       UNION ALL
+       SELECT 'reply' AS entry_type, tr.id AS entry_id, tr.message, tr.created_at,
+              u.full_name AS author_name, u.role AS author_role
+       FROM ticket_replies tr
+       LEFT JOIN users u ON u.id = tr.user_id
+       WHERE tr.ticket_id = ?
+     ) AS timeline
+     ORDER BY created_at DESC
+     LIMIT ? OFFSET ?`,
+    [ticketId, ticketId, safeLimit, safeOffset]
+  );
+
+  return rows;
 }
 
 export async function updateTicketStatus(ticketId, status) {

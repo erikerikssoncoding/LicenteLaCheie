@@ -397,7 +397,7 @@
                 Mai poți încărca <strong><%= clientUploadsRemaining %></strong> fișiere.
               </p>
               <form
-                action="/cont/proiecte/<%= project.id %>/fisiere"
+                action="/cont/proiecte/<%= project.id %>/fisiere?_csrf=<%= encodeURIComponent(csrfToken) %>"
                 method="post"
                 enctype="multipart/form-data"
                 class="vstack gap-3"
@@ -436,7 +436,7 @@
                 <strong><%= staffUploadsRemaining %></strong> sloturi.
               </p>
               <form
-                action="/cont/proiecte/<%= project.id %>/fisiere"
+                action="/cont/proiecte/<%= project.id %>/fisiere?_csrf=<%= encodeURIComponent(csrfToken) %>"
                 method="post"
                 enctype="multipart/form-data"
                 class="vstack gap-3"

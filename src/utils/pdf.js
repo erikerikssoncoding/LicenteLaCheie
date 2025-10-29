@@ -45,12 +45,26 @@ const CONTRACT_BASE_STYLES = `
   }
   .contract-document__signatures {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
     gap: 24px;
     margin-top: 32px;
   }
   .signature-block {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .signature-block:first-child {
+    align-items: flex-start;
+    text-align: left;
+  }
+  .signature-block:last-child {
+    align-items: flex-end;
+    text-align: right;
   }
   .signature-box {
     border: 1px dashed #6c757d;
@@ -61,14 +75,16 @@ const CONTRACT_BASE_STYLES = `
     justify-content: center;
     background: #f8f9fa;
     padding: 12px;
+    width: 100%;
+    margin: 12px 0;
   }
   .signature-placeholder {
     color: #6c757d;
     letter-spacing: 0.1em;
   }
   .signature-image {
-    max-width: 100%;
-    max-height: 110px;
+    max-width: 160px;
+    max-height: 90px;
     object-fit: contain;
   }
   img {

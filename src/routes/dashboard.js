@@ -93,6 +93,7 @@ import {
 import { isValidCNP } from '../utils/validators.js';
 import { createPdfBufferFromHtml } from '../utils/pdf.js';
 import { ensureProjectStoragePath, buildStoredFileName, resolveStoredFilePath } from '../utils/fileStorage.js';
+import { collectClientMetadata } from '../utils/requestMetadata.js';
 
 const router = Router();
 const TIMELINE_PAGE_SIZE = 10;
@@ -554,11 +555,13 @@ router
       });
       const data = schema.parse(req.body);
       const projectId = data.projectId ? Number(data.projectId) : null;
+      const clientMetadata = collectClientMetadata(req);
       await createTicket({
         projectId,
         userId: req.session.user.id,
         subject: data.subject,
-        message: data.message
+        message: data.message,
+        clientMetadata
       });
       res.redirect('/cont');
     } catch (error) {
@@ -1977,20 +1980,35 @@ router.post(
         return redirectToFiles();
       }
 
-      if (file.origin !== 'staff') {
+      const isClientFile = file.origin === 'client';
+      const isStaffFile = file.origin === 'staff';
+
+      if (isClientFile && user.role !== 'superadmin') {
         req.session.projectFeedback = {
-          error: 'Poți gestiona doar fișierele încărcate de echipă.',
+          error: 'Doar superadministratorii pot șterge fișiere încărcate de client.',
           activeTab: 'fisiere'
         };
         return redirectToFiles();
       }
 
-      const isOwnFile = file.uploader_id && user.id === file.uploader_id;
-      const actorLevel = ROLE_HIERARCHY[user.role] || 0;
-      const uploaderLevel = ROLE_HIERARCHY[file.uploader_role] || 0;
-      const canManageOthers = ['admin', 'superadmin'].includes(user.role);
-      const canDelete =
-        isOwnFile || (canManageOthers && uploaderLevel > 0 && uploaderLevel <= actorLevel);
+      if (!isClientFile && !isStaffFile) {
+        req.session.projectFeedback = {
+          error: 'Fișierul selectat nu poate fi gestionat din această interfață.',
+          activeTab: 'fisiere'
+        };
+        return redirectToFiles();
+      }
+
+      let canDelete = false;
+      if (isClientFile) {
+        canDelete = user.role === 'superadmin';
+      } else {
+        const isOwnFile = file.uploader_id && user.id === file.uploader_id;
+        const actorLevel = ROLE_HIERARCHY[user.role] || 0;
+        const uploaderLevel = ROLE_HIERARCHY[file.uploader_role] || 0;
+        const canManageOthers = ['admin', 'superadmin'].includes(user.role);
+        canDelete = isOwnFile || (canManageOthers && uploaderLevel > 0 && uploaderLevel <= actorLevel);
+      }
 
       if (!canDelete) {
         req.session.projectFeedback = {

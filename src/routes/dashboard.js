@@ -971,7 +971,7 @@ router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
     }
     const schema = z.object({
       fullName: z.string().min(3),
-      idType: z.string().min(3),
+      idType: z.string().trim().min(2),
       idSeries: z.string().trim().min(2),
       idNumber: z.string().trim().min(3),
       cnp: z.string().trim().optional(),

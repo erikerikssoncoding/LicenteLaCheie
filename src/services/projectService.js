@@ -505,6 +505,46 @@ export async function getProjectTimelineEntries(
   return rows;
 }
 
+export async function getProjectTimelineLastRead(projectId, userId, { connection = null } = {}) {
+  if (!projectId || !userId) {
+    return null;
+  }
+  const executor = pickExecutor(connection);
+  const [rows] = await executor.query(
+    `SELECT last_read_at
+       FROM project_timeline_reads
+      WHERE project_id = ? AND user_id = ?`,
+    [projectId, userId]
+  );
+  const record = rows[0];
+  if (!record?.last_read_at) {
+    return null;
+  }
+  const value = record.last_read_at instanceof Date ? record.last_read_at : new Date(record.last_read_at);
+  return Number.isNaN(value?.getTime()) ? null : value;
+}
+
+export async function markProjectTimelineRead({
+  projectId,
+  userId,
+  timestamp = new Date(),
+  connection = null
+}) {
+  if (!projectId || !userId) {
+    return false;
+  }
+  const executor = pickExecutor(connection);
+  const safeTimestamp = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  const normalizedTimestamp = Number.isNaN(safeTimestamp?.getTime()) ? new Date() : safeTimestamp;
+  await executor.query(
+    `INSERT INTO project_timeline_reads (project_id, user_id, last_read_at)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE last_read_at = GREATEST(last_read_at, VALUES(last_read_at))`,
+    [projectId, userId, normalizedTimestamp]
+  );
+  return true;
+}
+
 export async function addProjectComment({ projectId, message, actor, visibility = 'public', connection = null }) {
   const sanitizedMessage = sanitizeText(message);
   if (!sanitizedMessage) {

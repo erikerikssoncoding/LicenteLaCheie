@@ -14,6 +14,8 @@ import {
   getRedactorProjectHighlights,
   getAdminProjectHighlights,
   getProjectTimelineEntries,
+  getProjectTimelineLastRead,
+  markProjectTimelineRead,
   addProjectComment,
   createProjectFromTicket,
   listProjectFiles,
@@ -38,6 +40,8 @@ import {
   getTicketWithReplies,
   getTicketById,
   getTicketTimelineEntries,
+  getTicketTimelineLastRead,
+  markTicketTimelineRead,
   addReply,
   listMergeCandidates,
   mergeTickets,
@@ -624,13 +628,24 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
       });
     }
     const includeInternalTimeline = ['admin', 'superadmin', 'redactor'].includes(user.role);
-    const timelineBatch = await getTicketTimelineEntries(ticket.id, {
-      limit: TIMELINE_PAGE_SIZE + 1,
-      offset: 0,
-      includeInternal: includeInternalTimeline
-    });
+    const [timelineBatch, timelineLastReadAt] = await Promise.all([
+      getTicketTimelineEntries(ticket.id, {
+        limit: TIMELINE_PAGE_SIZE + 1,
+        offset: 0,
+        includeInternal: includeInternalTimeline
+      }),
+      getTicketTimelineLastRead(ticket.id, user.id)
+    ]);
     const hasMoreTimeline = timelineBatch.length > TIMELINE_PAGE_SIZE;
-    const timelineEntries = hasMoreTimeline ? timelineBatch.slice(0, TIMELINE_PAGE_SIZE) : timelineBatch;
+    const baseTimelineEntries = hasMoreTimeline ? timelineBatch.slice(0, TIMELINE_PAGE_SIZE) : timelineBatch;
+    const timelineEntries = baseTimelineEntries.map((entry) => {
+      const createdAt = entry.created_at instanceof Date ? entry.created_at : new Date(entry.created_at);
+      const isOwnEntry = entry.author_id && entry.author_id === user.id;
+      const isValidDate = createdAt instanceof Date && !Number.isNaN(createdAt.getTime());
+      const isUnread = !isOwnEntry && (!timelineLastReadAt || (isValidDate && createdAt > timelineLastReadAt));
+      return { ...entry, isUnread };
+    });
+    await markTicketTimelineRead({ ticketId: ticket.id, userId: user.id });
     const offer = ticket.kind === 'offer' || ticket.kind === 'contract' ? await getOfferByTicketId(ticket.id) : null;
     const contractDetails = ticket.kind === 'contract' ? await getContractDetailsByTicket(ticket.id) : null;
     let mergeCandidates = [];
@@ -694,16 +709,26 @@ router.get('/cont/tichete/:id/timeline', async (req, res, next) => {
       : Math.max(1, Math.min(TIMELINE_PAGE_SIZE, rawLimit));
 
     const includeInternalTimeline = ['admin', 'superadmin', 'redactor'].includes(user.role);
-    const timelineBatch = await getTicketTimelineEntries(ticketId, {
-      limit: limit + 1,
-      offset,
-      includeInternal: includeInternalTimeline
-    });
+    const [timelineBatch, timelineLastReadAt] = await Promise.all([
+      getTicketTimelineEntries(ticketId, {
+        limit: limit + 1,
+        offset,
+        includeInternal: includeInternalTimeline
+      }),
+      getTicketTimelineLastRead(ticketId, user.id)
+    ]);
     const hasMore = timelineBatch.length > limit;
     const entries = hasMore ? timelineBatch.slice(0, limit) : timelineBatch;
+    const normalizedEntries = entries.map((entry) => {
+      const createdAt = entry.created_at instanceof Date ? entry.created_at : new Date(entry.created_at);
+      const isOwnEntry = entry.author_id && entry.author_id === user.id;
+      const isValidDate = createdAt instanceof Date && !Number.isNaN(createdAt.getTime());
+      const isUnread = !isOwnEntry && (!timelineLastReadAt || (isValidDate && createdAt > timelineLastReadAt));
+      return { ...entry, isUnread };
+    });
 
     res.json({
-      entries,
+      entries: normalizedEntries,
       hasMore,
       nextOffset: offset + entries.length
     });
@@ -2388,10 +2413,11 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
     const { project: hydratedProject } = await ensureProjectCompletionFinalized(project);
     project = hydratedProject;
 
-    const [team, projectFiles, documentRequests] = await Promise.all([
+    const [team, projectFiles, documentRequests, timelineLastReadAt] = await Promise.all([
       listTeamMembers(),
       listProjectFiles(projectId),
-      listDocumentRequests(projectId)
+      listDocumentRequests(projectId),
+      getProjectTimelineLastRead(projectId, user.id)
     ]);
 
     const clientFiles = projectFiles.filter((file) => file.origin === 'client');
@@ -2417,9 +2443,17 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
       visibilities: timelineVisibilities
     });
     const hasMoreTimeline = timelineBatch.length > PROJECT_TIMELINE_PAGE_SIZE;
-    const timelineEntries = hasMoreTimeline
+    const baseTimelineEntries = hasMoreTimeline
       ? timelineBatch.slice(0, PROJECT_TIMELINE_PAGE_SIZE)
       : timelineBatch;
+    const timelineEntries = baseTimelineEntries.map((entry) => {
+      const createdAt = entry.created_at instanceof Date ? entry.created_at : new Date(entry.created_at);
+      const isOwnEntry = entry.created_by && entry.created_by === user.id;
+      const isValidDate = createdAt instanceof Date && !Number.isNaN(createdAt.getTime());
+      const isUnread = !isOwnEntry && (!timelineLastReadAt || (isValidDate && createdAt > timelineLastReadAt));
+      return { ...entry, isUnread };
+    });
+    await markProjectTimelineRead({ projectId, userId: user.id });
 
     const projectFeedback = req.session.projectFeedback || {};
     const feedbackActiveTab = projectFeedback.activeTab;
@@ -2519,15 +2553,25 @@ router.get('/cont/proiecte/:id/timeline', async (req, res, next) => {
     if (includeAdminTimeline) {
       timelineVisibilities.push('admin');
     }
-    const timelineBatch = await getProjectTimelineEntries(projectId, {
-      limit: limit + 1,
-      offset,
-      visibilities: timelineVisibilities
-    });
+    const [timelineBatch, timelineLastReadAt] = await Promise.all([
+      getProjectTimelineEntries(projectId, {
+        limit: limit + 1,
+        offset,
+        visibilities: timelineVisibilities
+      }),
+      getProjectTimelineLastRead(projectId, user.id)
+    ]);
     const hasMore = timelineBatch.length > limit;
     const entries = hasMore ? timelineBatch.slice(0, limit) : timelineBatch;
+    const normalizedEntries = entries.map((entry) => {
+      const createdAt = entry.created_at instanceof Date ? entry.created_at : new Date(entry.created_at);
+      const isOwnEntry = entry.created_by && entry.created_by === user.id;
+      const isValidDate = createdAt instanceof Date && !Number.isNaN(createdAt.getTime());
+      const isUnread = !isOwnEntry && (!timelineLastReadAt || (isValidDate && createdAt > timelineLastReadAt));
+      return { ...entry, isUnread };
+    });
     res.json({
-      entries,
+      entries: normalizedEntries,
       hasMore,
       nextOffset: offset + entries.length
     });

@@ -70,6 +70,10 @@
         touch-action: none;
         display: block;
       }
+      .timeline-item--unread .timeline-content {
+        background-color: rgba(220, 53, 69, 0.08);
+        border-radius: 0.75rem;
+      }
     </style>
     <% const isMergedTicket = Boolean(ticket.merged_into_ticket_id); %>
     <% const statusLabel = ticket.status === 'rezolvat' && isMergedTicket ? 'rezolvat (merged)' : ticket.status; %>
@@ -525,10 +529,19 @@
       <% const entryType = entry.entry_type; %>
       <% const heading = entryType === 'ticket' ? 'Mesaj initial' : entryType === 'reply' ? 'Raspuns' : 'Notificare interna'; %>
       <% const metaPrefix = entryType === 'ticket' ? 'Creat de' : entryType === 'reply' ? 'Trimis de' : 'Inregistrat de'; %>
-      <div class="timeline-item" data-entry-type="<%= entryType %>" data-entry-id="<%= entry.entry_id %>">
+      <% const isUnread = entry.isUnread; %>
+      <div
+        class="timeline-item <%= isUnread ? 'timeline-item--unread' : '' %>"
+        data-entry-type="<%= entryType %>"
+        data-entry-id="<%= entry.entry_id %>"
+        data-entry-unread="<%= isUnread ? 'true' : 'false' %>"
+      >
         <div class="timeline-content <%= entryType === 'log' ? 'timeline-content--log' : '' %>">
           <div class="d-flex align-items-center gap-2 mb-2">
             <h2 class="h6 mb-0"><%= heading %></h2>
+            <% if (isUnread) { %>
+            <span class="badge bg-danger-subtle text-danger-emphasis text-uppercase">Nou</span>
+            <% } %>
             <% if (entryType === 'log') { %>
             <span class="badge bg-warning text-dark text-uppercase">Intern</span>
             <% } %>
@@ -773,6 +786,12 @@
         item.className = 'timeline-item';
         item.setAttribute('data-entry-type', entryType);
         item.setAttribute('data-entry-id', entry.entry_id);
+        if (entry.isUnread) {
+          item.classList.add('timeline-item--unread');
+          item.setAttribute('data-entry-unread', 'true');
+        } else {
+          item.setAttribute('data-entry-unread', 'false');
+        }
 
         const content = document.createElement('div');
         content.className = 'timeline-content';
@@ -787,6 +806,12 @@
         title.className = 'h6 mb-0';
         title.textContent = entryType === 'ticket' ? 'Mesaj initial' : entryType === 'reply' ? 'Raspuns' : 'Notificare interna';
         headingWrapper.appendChild(title);
+        if (entry.isUnread) {
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-danger-subtle text-danger-emphasis text-uppercase';
+          badge.textContent = 'Nou';
+          headingWrapper.appendChild(badge);
+        }
         if (entryType === 'log') {
           const badge = document.createElement('span');
           badge.className = 'badge bg-warning text-dark text-uppercase';

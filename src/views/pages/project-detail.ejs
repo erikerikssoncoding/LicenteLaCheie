@@ -2,6 +2,12 @@
 <%- include('../partials/header') %>
 <section class="py-5 py-lg-6">
   <div class="container" style="max-width: 1000px;">
+    <style>
+      .timeline-item--unread .timeline-content {
+        background-color: rgba(220, 53, 69, 0.08);
+        border-radius: 0.75rem;
+      }
+    </style>
     <% const statusLabel = currentStatusInfo?.label || project.status; %>
     <% const statusMessage = currentStatusInfo?.clientMessage || currentStatusInfo?.description || '' %>
     <% const flowIndex = projectStatusFlow.findIndex((status) => status.id === project.status); %>
@@ -210,13 +216,14 @@
                   <% projectStatusFlow.forEach((status, index) => { %>
                   <% const isCurrent = safeFlowIndex === index; %>
                   <% const isCompleted = safeFlowIndex !== null && index < safeFlowIndex; %>
+                  <% const isFinalizedStage = isCurrent && isTimelineLocked && project.status === 'completed'; %>
                   <li class="list-group-item">
                     <div class="d-flex flex-column">
                       <div class="d-flex align-items-center gap-2">
-                        <% if (isCurrent) { %>
-                        <span class="badge bg-primary">Curent</span>
-                        <% } else if (isCompleted) { %>
+                        <% if (isFinalizedStage || isCompleted) { %>
                         <span class="badge bg-success">Finalizat</span>
+                        <% } else if (isCurrent) { %>
+                        <span class="badge bg-primary">Curent</span>
                         <% } else { %>
                         <span class="badge bg-secondary">În așteptare</span>
                         <% } %>
@@ -406,15 +413,20 @@
               <% const entryTypeLabel =
                 entryType === 'status' ? 'Actualizare status' : entryType === 'log' ? 'Activitate' : 'Mesaj'; %>
               <% const statusInfoEntry = entry.status ? projectStatusMap[entry.status] : null; %>
+              <% const isUnread = entry.isUnread; %>
               <div
-                class="timeline-item"
+                class="timeline-item <%= isUnread ? 'timeline-item--unread' : '' %>"
                 data-entry-type="<%= entryType %>"
                 data-entry-id="<%= entry.id %>"
+                data-entry-unread="<%= isUnread ? 'true' : 'false' %>"
                 <% if (entryType === 'status' && entry.status) { %>data-status="<%= entry.status %>"<% } %>
               >
                 <div class="timeline-content <%= entryType === 'status' ? 'timeline-content--status' : '' %>">
                   <div class="d-flex align-items-center gap-2 mb-2">
                     <h3 class="h6 mb-0"><%= entryTypeLabel %></h3>
+                    <% if (isUnread) { %>
+                    <span class="badge bg-danger-subtle text-danger-emphasis text-uppercase">Nou</span>
+                    <% } %>
                     <% if (entryType === 'status' && statusInfoEntry) { %>
                     <span class="badge bg-info text-dark text-uppercase"><%= statusInfoEntry.label %></span>
                     <% } %>
@@ -931,6 +943,12 @@
       item.className = 'timeline-item';
       item.setAttribute('data-entry-type', entry.entry_type);
       item.setAttribute('data-entry-id', entry.id);
+      if (entry.isUnread) {
+        item.classList.add('timeline-item--unread');
+        item.setAttribute('data-entry-unread', 'true');
+      } else {
+        item.setAttribute('data-entry-unread', 'false');
+      }
       if (entry.entry_type === 'status' && entry.status) {
         item.setAttribute('data-status', entry.status);
       }
@@ -954,6 +972,12 @@
             : 'Mesaj';
       heading.textContent = entryTypeLabel;
       header.appendChild(heading);
+      if (entry.isUnread) {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-danger-subtle text-danger-emphasis text-uppercase';
+        badge.textContent = 'Nou';
+        header.appendChild(badge);
+      }
       if (entry.entry_type === 'status' && entry.status) {
         const badge = document.createElement('span');
         badge.className = 'badge bg-info text-dark text-uppercase';

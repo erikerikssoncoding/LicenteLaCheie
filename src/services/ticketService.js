@@ -3,6 +3,10 @@ import { customAlphabet } from 'nanoid';
 
 const generateTicketCode = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 6);
 
+function pickExecutor(connection) {
+  return connection ?? pool;
+}
+
 async function generateUniqueTicketCode() {
   while (true) {
     const code = generateTicketCode();
@@ -160,22 +164,22 @@ export async function getTicketTimelineEntries(ticketId, { limit = 10, offset = 
   const visibilityClause = includeInternal ? "IN (?, ?)" : "= ?";
   const visibilityParams = includeInternal ? ['public', 'internal'] : ['public'];
   const [rows] = await pool.query(
-    `SELECT entry_type, entry_id, message, created_at, author_name, author_role
+    `SELECT entry_type, entry_id, message, created_at, author_id, author_name, author_role
      FROM (
        SELECT 'ticket' AS entry_type, t.id AS entry_id, t.message, t.created_at,
-              u.full_name AS author_name, u.role AS author_role
+              t.created_by AS author_id, u.full_name AS author_name, u.role AS author_role
        FROM tickets t
        LEFT JOIN users u ON u.id = t.created_by
        WHERE t.id = ?
        UNION ALL
        SELECT 'reply' AS entry_type, tr.id AS entry_id, tr.message, tr.created_at,
-              u.full_name AS author_name, u.role AS author_role
+              tr.user_id AS author_id, u.full_name AS author_name, u.role AS author_role
        FROM ticket_replies tr
        LEFT JOIN users u ON u.id = tr.user_id
        WHERE tr.ticket_id = ?
        UNION ALL
        SELECT 'log' AS entry_type, tal.id AS entry_id, tal.message, tal.created_at,
-              tal.author_name AS author_name, tal.author_role AS author_role
+              tal.created_by AS author_id, tal.author_name AS author_name, tal.author_role AS author_role
        FROM ticket_activity_logs tal
        WHERE tal.ticket_id = ? AND tal.visibility ${visibilityClause}
      ) AS timeline
@@ -200,6 +204,46 @@ export async function addTicketLog({ ticketId, message, visibility = 'internal',
       actor?.role || null
     ]
   );
+}
+
+export async function getTicketTimelineLastRead(ticketId, userId, { connection = null } = {}) {
+  if (!ticketId || !userId) {
+    return null;
+  }
+  const executor = pickExecutor(connection);
+  const [rows] = await executor.query(
+    `SELECT last_read_at
+       FROM ticket_timeline_reads
+      WHERE ticket_id = ? AND user_id = ?`,
+    [ticketId, userId]
+  );
+  const record = rows[0];
+  if (!record?.last_read_at) {
+    return null;
+  }
+  const value = record.last_read_at instanceof Date ? record.last_read_at : new Date(record.last_read_at);
+  return Number.isNaN(value?.getTime()) ? null : value;
+}
+
+export async function markTicketTimelineRead({
+  ticketId,
+  userId,
+  timestamp = new Date(),
+  connection = null
+}) {
+  if (!ticketId || !userId) {
+    return false;
+  }
+  const executor = pickExecutor(connection);
+  const safeTimestamp = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  const normalizedTimestamp = Number.isNaN(safeTimestamp?.getTime()) ? new Date() : safeTimestamp;
+  await executor.query(
+    `INSERT INTO ticket_timeline_reads (ticket_id, user_id, last_read_at)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE last_read_at = GREATEST(last_read_at, VALUES(last_read_at))`,
+    [ticketId, userId, normalizedTimestamp]
+  );
+  return true;
 }
 
 export async function listMergeCandidates({ baseTicketId, createdBy, actor }) {

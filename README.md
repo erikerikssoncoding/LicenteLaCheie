@@ -130,6 +130,12 @@ Sesiunile sunt stocate in MySQL, parolele sunt hash-uite cu bcryptjs (cost 12), 
 4. Clientul poate accepta, refuza sau trimite contraoferta (cu fereastra de 30 de minute), iar discutiile raman in ticket.
 5. Dupa acceptare, contractul personalizat este disponibil online si poate fi urmat de alocarea proiectului.
 
+### Crearea unui proiect din panoul de control
+
+- Adminii si superadminii pot accesa direct formularul de creare la ruta `/cont/proiecte/creeaza`.
+- Formularul randat din `pages/project-create.ejs` permite alegerea clientului, a administratorului responsabil si, optional, a redactorului.
+- Dupa trimiterea formularului, proiectul este creat si este redirectionata lista proiectelor din panou.
+
 ## Cum adaug un redactor, client sau admin?
 
 - Autentifica-te ca admin/superadmin si acceseaza modulul **Administrare utilizatori** din panoul de control.

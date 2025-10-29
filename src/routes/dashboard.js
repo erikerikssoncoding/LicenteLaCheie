@@ -960,46 +960,6 @@ router
     }
   });
 
-router.get('/cont/proiecte/:id', async (req, res, next) => {
-  try {
-    const projectId = Number(req.params.id);
-    const [project, team] = await Promise.all([getProjectById(projectId), listTeamMembers()]);
-    if (!project) {
-      return res.status(404).render('pages/404', {
-        title: 'Proiect inexistent',
-        description: 'Proiectul solicitat nu a fost gasit.'
-      });
-    }
-    const user = req.session.user;
-    if (user.role === 'client' && project.client_id !== user.id) {
-      return res.status(403).render('pages/403', {
-        title: 'Acces restrictionat',
-        description: 'Nu aveti acces la acest proiect.'
-      });
-    }
-    if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
-      return res.status(403).render('pages/403', {
-        title: 'Acces restrictionat',
-        description: 'Nu sunteti asignat pe acest proiect.'
-      });
-    }
-    if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
-      return res.status(403).render('pages/403', {
-        title: 'Acces restrictionat',
-        description: 'Nu sunteti responsabil de acest proiect.'
-      });
-    }
-    res.render('pages/project-detail', {
-      title: `Proiect ${project.title}`,
-      description: 'Detalii actualizate despre stadiul lucrarii de licenta.',
-      project,
-      team
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
 router
   .route('/cont/proiecte/creeaza')
   .get(ensureRole('admin', 'superadmin'), async (req, res, next) => {
@@ -1080,5 +1040,45 @@ router
       next(error);
     }
   });
+
+router.get('/cont/proiecte/:id', async (req, res, next) => {
+  try {
+    const projectId = Number(req.params.id);
+    const [project, team] = await Promise.all([getProjectById(projectId), listTeamMembers()]);
+    if (!project) {
+      return res.status(404).render('pages/404', {
+        title: 'Proiect inexistent',
+        description: 'Proiectul solicitat nu a fost gasit.'
+      });
+    }
+    const user = req.session.user;
+    if (user.role === 'client' && project.client_id !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu aveti acces la acest proiect.'
+      });
+    }
+    if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti asignat pe acest proiect.'
+      });
+    }
+    if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti responsabil de acest proiect.'
+      });
+    }
+    res.render('pages/project-detail', {
+      title: `Proiect ${project.title}`,
+      description: 'Detalii actualizate despre stadiul lucrarii de licenta.',
+      project,
+      team
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router;

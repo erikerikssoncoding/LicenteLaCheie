@@ -418,11 +418,30 @@
         aria-labelledby="tab-security-tab"
         tabindex="0"
       >
+        <% const savedDevices = Array.isArray(trustedDevices) ? trustedDevices : []; %>
+        <% const activeTrustedDeviceId =
+          typeof currentTrustedDeviceId !== 'undefined' && currentTrustedDeviceId !== null
+            ? Number(currentTrustedDeviceId)
+            : null; %>
+        <% const formatDateTime = (value) =>
+          value && typeof value.toISOString === 'function'
+            ? value.toISOString().replace('T', ' ').slice(0, 16)
+            : '—'; %>
+        <% const truncate = (value, length = 120) => {
+          if (!value) return null;
+          return value.length > length ? `${value.slice(0, length)}…` : value;
+        }; %>
         <% if (alerts.passwordSuccess) { %>
         <div class="alert alert-success mb-4"><%= alerts.passwordSuccess %></div>
         <% } %>
         <% if (alerts.passwordError) { %>
         <div class="alert alert-danger mb-4"><%= alerts.passwordError %></div>
+        <% } %>
+        <% if (alerts.deviceSuccess) { %>
+        <div class="alert alert-success mb-4"><%= alerts.deviceSuccess %></div>
+        <% } %>
+        <% if (alerts.deviceError) { %>
+        <div class="alert alert-danger mb-4"><%= alerts.deviceError %></div>
         <% } %>
         <div class="card shadow-sm">
           <div class="card-body">
@@ -457,6 +476,91 @@
                 <button class="btn btn-outline-primary" type="submit">Actualizeaza parola</button>
               </div>
             </form>
+          </div>
+        </div>
+        <div class="card shadow-sm mt-4">
+          <div class="card-body">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-3">
+              <div>
+                <h2 class="h5 mb-1">Dispozitive de incredere</h2>
+                <p class="text-muted mb-0">Controleaza dispozitivele din care se poate recrea automat sesiunea ta.</p>
+              </div>
+              <% if (savedDevices.length) { %>
+              <div class="d-flex flex-column flex-md-row gap-2">
+                <form action="/cont/setari/dispozitive" method="post">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="action" value="revoke_all" />
+                  <button class="btn btn-outline-danger btn-sm" type="submit">Revoca toate dispozitivele</button>
+                </form>
+                <% if (savedDevices.length > 1) { %>
+                <form action="/cont/setari/dispozitive" method="post">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="action" value="revoke_all_except_current" />
+                  <button class="btn btn-outline-secondary btn-sm" type="submit">Pastreaza doar acest dispozitiv</button>
+                </form>
+                <% } %>
+              </div>
+              <% } %>
+            </div>
+            <% if (savedDevices.length) { %>
+            <div class="table-responsive">
+              <table class="table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col">Dispozitiv</th>
+                    <th scope="col">Activitate</th>
+                    <th scope="col">Context</th>
+                    <th scope="col" class="text-end">Actiuni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% savedDevices.forEach((device) => { %>
+                  <% const isCurrent = activeTrustedDeviceId && activeTrustedDeviceId === device.id; %>
+                  <tr class="align-top">
+                    <td style="min-width: 240px;">
+                      <div class="fw-semibold"><%= device.label || 'Dispozitiv salvat' %></div>
+                      <div class="text-muted small text-break">
+                        <%= truncate(device.userAgent, 140) || 'Agent utilizator indisponibil' %>
+                      </div>
+                      <% if (device.clientHints) { %>
+                      <div class="text-muted small text-break">Client hints: <%= truncate(device.clientHints, 160) %></div>
+                      <% } %>
+                      <% if (isCurrent) { %>
+                      <span class="badge bg-primary-subtle text-primary mt-2">Dispozitiv curent</span>
+                      <% } %>
+                    </td>
+                    <td style="min-width: 200px;">
+                      <div class="fw-semibold">Ultima activitate: <%= formatDateTime(device.lastUsedAt) %></div>
+                      <div class="text-muted small">Creat: <%= formatDateTime(device.createdAt) %></div>
+                      <div class="text-muted small">Expira: <%= formatDateTime(device.expiresAt) %></div>
+                    </td>
+                    <td style="min-width: 220px;">
+                      <div class="fw-semibold">IP: <%= device.ipAddress || '—' %></div>
+                      <% if (device.acceptLanguage) { %>
+                      <div class="text-muted small">Limba: <%= device.acceptLanguage %></div>
+                      <% } %>
+                      <% if (device.fingerprint) { %>
+                      <div class="text-muted small text-break">Amprenta: <%= truncate(device.fingerprint, 160) %></div>
+                      <% } %>
+                    </td>
+                    <td class="text-end">
+                      <form action="/cont/setari/dispozitive" method="post" class="d-inline">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                        <input type="hidden" name="action" value="revoke" />
+                        <input type="hidden" name="deviceId" value="<%= device.id %>" />
+                        <button class="btn btn-sm btn-outline-danger" type="submit">
+                          <%= isCurrent ? 'Revoca acest dispozitiv' : 'Revoca' %>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+            <% } else { %>
+            <p class="text-muted mb-0">Nu exista inca dispozitive salvate pentru autentificare rapida.</p>
+            <% } %>
           </div>
         </div>
         <div class="alert alert-info mt-4 mb-0">

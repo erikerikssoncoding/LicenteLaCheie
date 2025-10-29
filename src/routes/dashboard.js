@@ -65,6 +65,13 @@ import {
   PROTECTED_USER_ID
 } from '../services/userService.js';
 import { listSecuritySettings, updateSecuritySetting } from '../services/securityService.js';
+import {
+  getTrustedDeviceCookieClearOptions,
+  listTrustedDevicesForUser,
+  revokeTrustedDevice,
+  revokeTrustedDevicesExcept,
+  TRUSTED_DEVICE_COOKIE_NAME
+} from '../services/trustedDeviceService.js';
 import { refreshSecurityState } from '../utils/securityState.js';
 import {
   PROJECT_STATUSES,
@@ -155,34 +162,43 @@ router
   .get(async (req, res, next) => {
     try {
       const user = req.session.user;
-      const [profile, tickets, projects, contracts] = await Promise.all([
+      const [profile, tickets, projects, contracts, trustedDevices] = await Promise.all([
         getUserById(user.id),
         listTicketsForUser(user),
         listProjectsForUser(user),
-        listContractsForUser(user)
+        listContractsForUser(user),
+        listTrustedDevicesForUser(user.id)
       ]);
       const successKey = typeof req.query.success === 'string' ? req.query.success : null;
       const errorKey = typeof req.query.error === 'string' ? req.query.error : null;
       const requestedTab = typeof req.query.tab === 'string' ? req.query.tab : null;
       const successMessages = {
         profile: 'Datele tale au fost actualizate.',
-        password: 'Parola a fost schimbata cu succes.'
+        password: 'Parola a fost schimbata cu succes.',
+        devices: 'Accesul dispozitivului selectat a fost revocat.',
+        'devices-all': 'Am revocat accesul pentru toate dispozitivele salvate.'
       };
       const errorMessages = {
         'invalid-password': 'Parola curenta nu este corecta.',
         'profile-form': 'Completeaza corect toate campurile obligatorii din profil.',
-        'password-form': 'Completeaza corect toate campurile obligatorii pentru parola.'
+        'password-form': 'Completeaza corect toate campurile obligatorii pentru parola.',
+        'device-action': 'Nu am putut actualiza dispozitivele de incredere. Te rugam sa reincerci.'
       };
       const feedback = {
         profileSuccess: successKey === 'profile' ? successMessages.profile : null,
         passwordSuccess: successKey === 'password' ? successMessages.password : null,
+        deviceSuccess:
+          successKey && (successKey === 'devices' || successKey === 'devices-all')
+            ? successMessages[successKey]
+            : null,
         profileError: errorKey === 'profile-form' ? errorMessages['profile-form'] : null,
         passwordError:
           errorKey === 'password-form'
             ? errorMessages['password-form']
             : errorKey === 'invalid-password'
             ? errorMessages['invalid-password']
-            : null
+            : null,
+        deviceError: errorKey === 'device-action' ? errorMessages['device-action'] : null
       };
       const allowedTabs = new Set(['profile', 'tickets', 'contracts', 'projects', 'security']);
       let activeTab = requestedTab && allowedTabs.has(requestedTab) ? requestedTab : 'profile';
@@ -199,6 +215,7 @@ router
         tickets,
         projects,
         contracts,
+        trustedDevices,
         feedback,
         activeTab,
         projectStatuses: PROJECT_STATUSES,
@@ -251,6 +268,57 @@ router.post('/cont/setari/parola', async (req, res, next) => {
     }
     if (error.message === 'INVALID_PASSWORD') {
       return res.redirect('/cont/setari?error=invalid-password&tab=security');
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/setari/dispozitive', async (req, res, next) => {
+  try {
+    const schema = z.object({
+      action: z.enum(['revoke', 'revoke_all', 'revoke_all_except_current']),
+      deviceId: z
+        .string()
+        .regex(/^[0-9]+$/)
+        .optional()
+    });
+    const data = schema.parse(req.body);
+    const userId = req.session.user.id;
+    const currentTrustedDeviceId = req.currentTrustedDeviceId || res.locals.currentTrustedDeviceId || null;
+
+    if (data.action === 'revoke') {
+      const deviceId = data.deviceId ? Number.parseInt(data.deviceId, 10) : NaN;
+      if (!Number.isInteger(deviceId) || deviceId <= 0) {
+        return res.redirect('/cont/setari?error=device-action&tab=security');
+      }
+      const revoked = await revokeTrustedDevice({ userId, deviceId });
+      if (!revoked) {
+        return res.redirect('/cont/setari?error=device-action&tab=security');
+      }
+      if (currentTrustedDeviceId && deviceId === currentTrustedDeviceId) {
+        res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
+      }
+      return res.redirect('/cont/setari?success=devices&tab=security');
+    }
+
+    if (data.action === 'revoke_all_except_current') {
+      await revokeTrustedDevicesExcept({ userId, exceptDeviceId: currentTrustedDeviceId || undefined });
+      if (!currentTrustedDeviceId) {
+        res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
+      }
+      return res.redirect('/cont/setari?success=devices-all&tab=security');
+    }
+
+    if (data.action === 'revoke_all') {
+      await revokeTrustedDevicesExcept({ userId });
+      res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
+      return res.redirect('/cont/setari?success=devices-all&tab=security');
+    }
+
+    return res.redirect('/cont/setari?error=device-action&tab=security');
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.redirect('/cont/setari?error=device-action&tab=security');
     }
     next(error);
   }

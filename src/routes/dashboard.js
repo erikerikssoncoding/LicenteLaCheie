@@ -540,7 +540,13 @@ router
       res.render('pages/ticket-create', {
         title: 'Deschide un ticket',
         description: 'Trimite o solicitare rapida catre echipa de redactori.',
-        projects
+        projects,
+        error: null,
+        formData: {
+          projectId: '',
+          subject: '',
+          message: ''
+        }
       });
     } catch (error) {
       next(error);
@@ -565,6 +571,20 @@ router
       });
       res.redirect('/cont');
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        const projects = await listProjectsForUser(req.session.user);
+        return res.status(400).render('pages/ticket-create', {
+          title: 'Deschide un ticket',
+          description: 'Trimite o solicitare rapida catre echipa de redactori.',
+          projects,
+          error: 'Completeaza corect toate campurile pentru a deschide ticketul.',
+          formData: {
+            projectId: typeof req.body.projectId === 'string' ? req.body.projectId : '',
+            subject: typeof req.body.subject === 'string' ? req.body.subject : '',
+            message: typeof req.body.message === 'string' ? req.body.message : ''
+          }
+        });
+      }
       next(error);
     }
   });

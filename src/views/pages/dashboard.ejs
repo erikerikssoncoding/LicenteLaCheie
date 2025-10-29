@@ -57,6 +57,9 @@
         counter_pending: 'Contraoferta in asteptare',
         counter_submitted: 'Contraoferta trimisa'
       }; %>
+      <% const projectStatusLabels = Object.fromEntries(
+        (projectStatuses || []).map((status) => [status.id, status.label])
+      ); %>
       <div class="col-lg-4 col-md-6">
         <div class="card shadow-sm h-100">
           <div class="card-body">
@@ -222,7 +225,11 @@
                       <div class="fw-semibold"><%= project.title %></div>
                       <div class="small text-muted"><%= project.degree_level %></div>
                     </td>
-                    <td><span class="badge bg-info text-dark text-uppercase"><%= project.status %></span></td>
+                    <td>
+                      <span class="badge bg-info text-dark text-uppercase">
+                        <%= projectStatusLabels[project.status] || project.status %>
+                      </span>
+                    </td>
                     <td class="small">
                       <% if (currentUser.role === 'client') { %>
                       <div>Admin: <%= project.assigned_admin_name || 'In alocare' %></div>

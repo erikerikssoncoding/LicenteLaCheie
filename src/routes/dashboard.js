@@ -9,7 +9,10 @@ import {
   createProject,
   getClientProjectHighlights,
   getRedactorProjectHighlights,
-  getAdminProjectHighlights
+  getAdminProjectHighlights,
+  getProjectTimelineEntries,
+  addProjectComment,
+  createProjectFromTicket
 } from '../services/projectService.js';
 import {
   listTicketsForUser,
@@ -42,6 +45,15 @@ import {
 import { listSecuritySettings, updateSecuritySetting } from '../services/securityService.js';
 import { refreshSecurityState } from '../utils/securityState.js';
 import {
+  PROJECT_STATUSES,
+  PROJECT_FLOW_STATUSES,
+  getProjectStatusById,
+  getNextProjectStatusId,
+  getPreviousProjectStatusId,
+  buildProjectStatusDictionary,
+  isValidProjectStatus
+} from '../utils/projectStatuses.js';
+import {
   getOfferByTicketId,
   attachOfferDetails,
   acceptOffer,
@@ -70,6 +82,7 @@ import { createPdfBufferFromHtml } from '../utils/pdf.js';
 
 const router = Router();
 const TIMELINE_PAGE_SIZE = 10;
+const PROJECT_TIMELINE_PAGE_SIZE = 10;
 
 router.use(ensureAuthenticated);
 
@@ -123,7 +136,9 @@ router
         projects,
         contracts,
         feedback,
-        activeTab
+        activeTab,
+        projectStatuses: PROJECT_STATUSES,
+        projectStatusMap: buildProjectStatusDictionary()
       });
     } catch (error) {
       next(error);
@@ -239,6 +254,10 @@ router.get('/cont', async (req, res, next) => {
       viewModel.securitySettings = securitySettings;
       viewModel.securityFlash = flash;
     }
+
+    viewModel.projectStatuses = PROJECT_STATUSES;
+    viewModel.projectStatusMap = buildProjectStatusDictionary();
+    viewModel.projectStatusFlow = PROJECT_FLOW_STATUSES;
 
     res.render('pages/dashboard', viewModel);
   } catch (error) {
@@ -1300,6 +1319,62 @@ router.post(
   }
 );
 
+router.post('/cont/tichete/:id/proiect', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const ticket = await getTicketById(ticketId);
+    if (!ticket || ticket.kind !== 'contract') {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    const user = req.session.user;
+    if (
+      user.role === 'admin' &&
+      ticket.project_id &&
+      ticket.assigned_admin_id &&
+      ticket.assigned_admin_id !== user.id
+    ) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti responsabil de acest ticket.'
+      });
+    }
+    const contractDetails = await getContractDetailsByTicket(ticketId);
+    if (!contractDetails || contractDetails.contractStage !== 'completed') {
+      req.session.ticketFeedback = {
+        error: 'Contractul trebuie semnat de ambele parti inainte de a crea proiectul.'
+      };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+
+    try {
+      const { projectId, projectCode } = await createProjectFromTicket({
+        ticketId,
+        actor: user
+      });
+      req.session.projectFeedback = {
+        success: `Proiectul ${projectCode} a fost creat si este gata pentru organizarea etapelor.`
+      };
+      return res.redirect(`/cont/proiecte/${projectId}`);
+    } catch (error) {
+      const errorMessages = {
+        CONTRACT_NOT_COMPLETED: 'Contractul trebuie semnat de ambele parti.',
+        PROJECT_ALREADY_EXISTS: 'Exista deja un proiect creat pentru acest ticket.',
+        CLIENT_NOT_IDENTIFIED: 'Nu am putut identifica clientul pentru acest ticket.'
+      };
+      if (errorMessages[error.message]) {
+        req.session.ticketFeedback = { error: errorMessages[error.message] };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
+      throw error;
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post(
   '/cont/tichete/:id/contract/descarca',
   ensureRole('client', 'admin', 'superadmin'),
@@ -1478,12 +1553,16 @@ router
   .route('/cont/proiecte/:id/status')
   .post(ensureRole('admin', 'superadmin', 'redactor'), async (req, res, next) => {
     try {
-      const schema = z.object({
-        status: z.enum(['initiated', 'in-progress', 'needs-review', 'completed', 'delivered']),
-        notes: z.string().optional()
-      });
+      const schema = z
+        .object({
+          action: z.enum(['advance', 'previous', 'set']).default('advance'),
+          status: z.string().optional(),
+          notes: z.string().optional()
+        })
+        .strict();
       const data = schema.parse(req.body);
-      const project = await getProjectById(Number(req.params.id));
+      const projectId = Number(req.params.id);
+      const project = await getProjectById(projectId);
       if (!project) {
         return res.status(404).render('pages/404', {
           title: 'Proiect inexistent',
@@ -1491,6 +1570,7 @@ router
         });
       }
       const user = req.session.user;
+      const isSuperAdmin = user.role === 'superadmin';
       if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
@@ -1503,9 +1583,67 @@ router
           description: 'Nu sunteti responsabil de acest proiect.'
         });
       }
-      await updateProjectStatus(project.id, data.status, data.notes || null);
-      res.redirect('/cont');
+
+      let targetStatus = null;
+      if (data.action === 'advance') {
+        targetStatus = getNextProjectStatusId(project.status);
+        if (!targetStatus) {
+          req.session.projectFeedback = {
+            error: 'Proiectul este deja în ultima etapă disponibilă.'
+          };
+          return res.redirect(`/cont/proiecte/${projectId}`);
+        }
+      } else if (data.action === 'previous') {
+        if (!isSuperAdmin) {
+          return res.status(403).render('pages/403', {
+            title: 'Acces restrictionat',
+            description: 'Doar superadministratorii pot reveni la etapa anterioară.'
+          });
+        }
+        targetStatus = getPreviousProjectStatusId(project.status);
+        if (!targetStatus) {
+          req.session.projectFeedback = {
+            error: 'Nu există o etapă anterioară în flux pentru acest proiect.'
+          };
+          return res.redirect(`/cont/proiecte/${projectId}`);
+        }
+      } else {
+        if (!isSuperAdmin) {
+          return res.status(403).render('pages/403', {
+            title: 'Acces restrictionat',
+            description: 'Doar superadministratorii pot selecta manual statusul proiectului.'
+          });
+        }
+        if (!data.status || !isValidProjectStatus(data.status)) {
+          req.session.projectFeedback = {
+            error: 'Selecteaza un status valid pentru proiect.'
+          };
+          return res.redirect(`/cont/proiecte/${projectId}`);
+        }
+        targetStatus = data.status;
+      }
+
+      await updateProjectStatus({
+        projectId: project.id,
+        status: targetStatus,
+        notes: data.notes || null,
+        actor: user
+      });
+
+      const statusInfo = getProjectStatusById(targetStatus);
+      const statusLabel = statusInfo?.label || targetStatus;
+      req.session.projectFeedback = {
+        success: `Statusul proiectului a fost actualizat la „${statusLabel}”.`
+      };
+
+      res.redirect(`/cont/proiecte/${projectId}`);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        req.session.projectFeedback = {
+          error: 'Completeaza corect campurile pentru actualizarea statusului.'
+        };
+        return res.redirect(`/cont/proiecte/${req.params.id}`);
+      }
       next(error);
     }
   });
@@ -1543,16 +1681,18 @@ router
         : user.role === 'admin'
         ? user.id
         : null;
-      await createProject({
+      const { id: projectId } = await createProject({
         title: data.title,
         description: data.description,
         degreeLevel: data.degreeLevel,
         deadline: data.deadline,
         clientId: Number(data.clientId),
         assignedAdminId,
-        assignedRedactorId: data.assignedRedactorId ? Number(data.assignedRedactorId) : null
+        assignedRedactorId: data.assignedRedactorId ? Number(data.assignedRedactorId) : null,
+        actor: req.session.user,
+        initialNote: 'Proiect creat manual din panoul de control.'
       });
-      res.redirect('/cont');
+      res.redirect(`/cont/proiecte/${projectId}`);
     } catch (error) {
       next(error);
     }
@@ -1585,7 +1725,7 @@ router
         adminId: data.adminId ? Number(data.adminId) : null,
         redactorId: data.redactorId ? Number(data.redactorId) : null
       });
-      res.redirect('/cont');
+      res.redirect(`/cont/proiecte/${project.id}`);
     } catch (error) {
       next(error);
     }
@@ -1620,13 +1760,138 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
         description: 'Nu sunteti responsabil de acest proiect.'
       });
     }
+
+    const includeInternalTimeline = ['admin', 'superadmin'].includes(user.role);
+    const timelineBatch = await getProjectTimelineEntries(projectId, {
+      limit: PROJECT_TIMELINE_PAGE_SIZE + 1,
+      offset: 0,
+      includeInternal: includeInternalTimeline
+    });
+    const hasMoreTimeline = timelineBatch.length > PROJECT_TIMELINE_PAGE_SIZE;
+    const timelineEntries = hasMoreTimeline
+      ? timelineBatch.slice(0, PROJECT_TIMELINE_PAGE_SIZE)
+      : timelineBatch;
+
+    const projectFeedback = req.session.projectFeedback || {};
+    delete req.session.projectFeedback;
+
+    const statusMap = buildProjectStatusDictionary();
+    const currentStatusInfo = getProjectStatusById(project.status);
+    const nextStatus = getNextProjectStatusId(project.status);
+    const previousStatus = getPreviousProjectStatusId(project.status);
+
     res.render('pages/project-detail', {
       title: `Proiect ${project.title}`,
       description: 'Detalii actualizate despre stadiul lucrarii de licenta.',
       project,
-      team
+      team,
+      projectStatuses: PROJECT_STATUSES,
+      projectStatusFlow: PROJECT_FLOW_STATUSES,
+      projectStatusMap: statusMap,
+      timelineEntries,
+      hasMoreTimeline,
+      timelinePageSize: PROJECT_TIMELINE_PAGE_SIZE,
+      includeInternalTimeline,
+      currentStatusInfo,
+      nextStatus,
+      nextStatusInfo: nextStatus ? getProjectStatusById(nextStatus) : null,
+      previousStatus,
+      previousStatusInfo: previousStatus ? getProjectStatusById(previousStatus) : null,
+      projectFeedback
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/cont/proiecte/:id/timeline', async (req, res, next) => {
+  try {
+    const projectId = Number(req.params.id);
+    const project = await getProjectById(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Proiectul solicitat nu a fost gasit.' });
+    }
+    const user = req.session.user;
+    if (user.role === 'client' && project.client_id !== user.id) {
+      return res.status(403).json({ error: 'Nu aveti acces la acest proiect.' });
+    }
+    if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
+      return res.status(403).json({ error: 'Nu sunteti asignat pe acest proiect.' });
+    }
+    if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+      return res.status(403).json({ error: 'Nu sunteti responsabil de acest proiect.' });
+    }
+
+    const rawOffset = Number.parseInt(req.query.offset ?? '0', 10);
+    const rawLimit = Number.parseInt(req.query.limit ?? `${PROJECT_TIMELINE_PAGE_SIZE}`, 10);
+    const offset = Number.isNaN(rawOffset) ? 0 : Math.max(0, rawOffset);
+    const limit = Number.isNaN(rawLimit)
+      ? PROJECT_TIMELINE_PAGE_SIZE
+      : Math.max(1, Math.min(PROJECT_TIMELINE_PAGE_SIZE, rawLimit));
+    const includeInternalTimeline = ['admin', 'superadmin'].includes(user.role);
+    const timelineBatch = await getProjectTimelineEntries(projectId, {
+      limit: limit + 1,
+      offset,
+      includeInternal: includeInternalTimeline
+    });
+    const hasMore = timelineBatch.length > limit;
+    const entries = hasMore ? timelineBatch.slice(0, limit) : timelineBatch;
+    res.json({
+      entries,
+      hasMore,
+      nextOffset: offset + entries.length
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/proiecte/:id/mesaj', async (req, res, next) => {
+  try {
+    const schema = z.object({
+      message: z.string().min(2)
+    });
+    const data = schema.parse(req.body);
+    const projectId = Number(req.params.id);
+    const project = await getProjectById(projectId);
+    if (!project) {
+      return res.status(404).render('pages/404', {
+        title: 'Proiect inexistent',
+        description: 'Proiectul solicitat nu a fost gasit.'
+      });
+    }
+    const user = req.session.user;
+    if (user.role === 'client' && project.client_id !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu aveti acces la acest proiect.'
+      });
+    }
+    if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti asignat pe acest proiect.'
+      });
+    }
+    if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti responsabil de acest proiect.'
+      });
+    }
+    await addProjectComment({
+      projectId,
+      message: data.message,
+      actor: user
+    });
+    res.redirect(`/cont/proiecte/${projectId}`);
+  } catch (error) {
+    if (error instanceof z.ZodError || error.message === 'EMPTY_MESSAGE') {
+      req.session.projectFeedback = {
+        error: 'Te rugam sa introduci un mesaj pentru a-l trimite in timeline.'
+      };
+      return res.redirect(`/cont/proiecte/${req.params.id}`);
+    }
     next(error);
   }
 });

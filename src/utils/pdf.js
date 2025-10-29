@@ -174,7 +174,8 @@ export async function createPdfBufferFromHtml(html, options = {}) {
     await page.setViewport(VIEWPORT);
     await page.setContent(buildHtmlDocument(String(html), options), { waitUntil: 'networkidle0' });
     await page.emulateMediaType('screen');
-    const buffer = await page.pdf({ format: 'A4', printBackground: true, margin: PDF_MARGIN_MM });
+    const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: PDF_MARGIN_MM });
+    const buffer = Buffer.isBuffer(pdf) ? pdf : Buffer.from(pdf);
     return buffer;
   } finally {
     await page.close();

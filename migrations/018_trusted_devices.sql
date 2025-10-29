@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS trusted_devices (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id INT UNSIGNED NOT NULL,
+  user_id INT NOT NULL,
   token_hash CHAR(128) NOT NULL,
   device_label VARCHAR(150) DEFAULT NULL,
   user_agent TEXT DEFAULT NULL,

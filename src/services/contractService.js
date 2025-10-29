@@ -48,12 +48,14 @@ function buildContractDraft({ offer, clientData, contractNumber, contractDate, c
   const beneficiaryId = `${escapeHtml(clientData.idType || '')} ${escapeHtml(clientData.idSeries || '')} ${escapeHtml(
     clientData.idNumber || ''
   )}`.trim();
+  const workType = escapeHtml(offer?.work_type || '');
   const program = escapeHtml(offer?.program || 'programul comunicat');
   const topic = escapeHtml(offer?.topic || 'tema stabilita de parti');
 
   const beneficiaryNameDisplay = beneficiaryName || '______________________';
   const beneficiaryAddressDisplay = beneficiaryAddress || '______________________';
   const beneficiaryIdDisplay = beneficiaryId || '______________________';
+  const workTypeLabel = workType || 'tipul lucrării agreat cu furnizorul';
   const programLabel = program || 'programul stabilit de părți';
   const topicLabel = topic || 'tema comunicată de beneficiar';
   const contractStartLabel = today;
@@ -87,7 +89,7 @@ function buildContractDraft({ offer, clientData, contractNumber, contractDate, c
         <p><strong>2.1.</strong> Furnizorul se obligă să asigure beneficiarului, servicii de consultanță și management de specialitate.</p>
         <p><strong>2.2.</strong> Furnizorul cesionează pe întreaga durată de protecție legală către beneficiar drepturile patrimoniale de autor privind operele de creație, în orice teritoriu, potrivit art. 28 din Legea nr. 8/1996. În urma cesiunii, beneficiarul va avea următoarele drepturi: dreptul de a reproduce integral sau parțial, direct ori indirect, temporar sau permanent, prin orice mijloace și sub orice formă conținuturile; dreptul de a distribui conținuturile; dreptul de a importa sau a exporta în vederea comercializării a copiilor realizate după conținuturi; dreptul de a închiria conținuturile; dreptul de a împrumuta conținuturile; dreptul de a comunica public direct sau indirect, opera, prin orice mijloace, inclusiv prin punerea scrierilor publicistice la dispoziția publicului, astfel încât să poată fi accesate în orice loc și în orice moment ales, în mod individual, de către public (Internet, inclusiv poștă electronică, TV, rețele de telefonie mobilă, precum și orice alt mijloc pe care beneficiarul îl va considera de cuviință); dreptul de a radiodifuza conținuturile; dreptul de a retransmite prin cablu conținuturile; dreptul de a realiza opere derivate.</p>
         <p><strong>2.3.</strong> Caracterul exclusiv al cesiunii rezultă din: transferul integral al drepturilor patrimoniale, pe durata completă de protecție legală, pe orice teritoriu și în toate formele de exploatare. Acest tip de cesiune este exclusivă, ceea ce înseamnă că doar beneficiarul are dreptul să utilizeze operele respective, iar furnizorul nu mai poate exercita aceste drepturi, nici personal, nici prin cesiuni către terți.</p>
-        <p class="mt-3"><em>Detalii proiect:</em> Program – ${programLabel}; Tema – ${topicLabel}.</p>
+        <p class="mt-3"><em>Detalii proiect:</em> Tip lucrare – ${workTypeLabel}; Program – ${programLabel}; Tema – ${topicLabel}.</p>
         <h2>III. Prețul și modalități de plată</h2>
         <p><strong>3.1.</strong> Beneficiarul se obligă să plătească furnizorului prețul de ${priceLabel}.</p>
         <p><strong>3.2.</strong> Pentru serviciile prestate, Furnizorul este îndreptățită la perceperea comisionului cu titlul de preț pentru exercitarea mandatului său prin prestarea serviciilor sale. În măsura în care beneficiarul a primit un fișier atașat în conformitate cu comanda plasată pe site, se va considera că serviciul pe care s-a obligat să îl presteze a fost îndeplinit și acceptat de beneficiar. Fișierele atașate pentru descărcare oferite beneficiarului nu pot fi retrase o dată ce au fost trimise, iar în măsura în care sunt funcționale se va considera că Furnizorul și-a îndeplinit toate obligațiile față de beneficiar.</p>

@@ -11,14 +11,15 @@ export async function createOfferRequest({
   phone,
   program,
   topic,
+  workType,
   deliveryDate,
   notes,
   ticketId
 }) {
   const offerCode = nanoid(10).toUpperCase();
   const [result] = await pool.query(
-    `INSERT INTO offers (offer_code, client_name, user_id, email, phone, program, topic, delivery_date, offer_amount, notes, contract_text, status, ticket_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, '', 'pending', ?)`,
+    `INSERT INTO offers (offer_code, client_name, user_id, email, phone, program, topic, work_type, delivery_date, offer_amount, notes, contract_text, status, ticket_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, '', 'pending', ?)`,
     [
       offerCode,
       clientName,
@@ -27,6 +28,7 @@ export async function createOfferRequest({
       phone,
       program,
       topic,
+      workType,
       deliveryDate,
       notes || null,
       ticketId
@@ -90,6 +92,7 @@ export function generateContractTemplate({
   clientName,
   program,
   topic,
+  workType,
   deliveryDate,
   price
 }) {
@@ -100,6 +103,9 @@ export function generateContractTemplate({
   const clientSegments = [];
   if (clientName) {
     clientSegments.push(`Nume: ${clientName}`);
+  }
+  if (workType) {
+    clientSegments.push(`Tip lucrare: ${workType}`);
   }
   if (program) {
     clientSegments.push(`Program: ${program}`);
@@ -196,7 +202,14 @@ export async function attachOfferDetails(offerId, { amount, expiresInHours, note
   }
   const hours = Math.max(Number(expiresInHours || DEFAULT_OFFER_EXPIRATION_HOURS), MIN_OFFER_EXPIRATION_HOURS);
   const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
-  const contractText = generateContractTemplate({ clientName, program, topic, deliveryDate, price: amount });
+  const contractText = generateContractTemplate({
+    clientName,
+    program,
+    topic,
+    workType: offer.work_type,
+    deliveryDate,
+    price: amount
+  });
   await pool.query(
     `UPDATE offers
        SET offer_amount = ?, status = 'sent', expires_at = ?, notes = ?, contract_text = ?, counter_amount = NULL,
@@ -264,6 +277,7 @@ export async function acceptCounterOffer(offerId) {
     clientName: offer.client_name,
     program: offer.program,
     topic: offer.topic,
+    workType: offer.work_type,
     deliveryDate: offer.delivery_date,
     price: finalAmount
   });

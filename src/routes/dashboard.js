@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import multer from 'multer';
+import path from 'path';
+import { promises as fs } from 'fs';
 import { z } from 'zod';
 import { ensureAuthenticated, ensureRole } from '../middleware/auth.js';
 import {
@@ -12,7 +15,16 @@ import {
   getAdminProjectHighlights,
   getProjectTimelineEntries,
   addProjectComment,
-  createProjectFromTicket
+  createProjectFromTicket,
+  listProjectFiles,
+  createProjectFile,
+  getProjectFileById,
+  countProjectFilesByOrigin,
+  listDocumentRequests,
+  createDocumentRequest,
+  closeDocumentRequest,
+  getDocumentRequestById,
+  hasOpenDocumentRequests
 } from '../services/projectService.js';
 import {
   listTicketsForUser,
@@ -79,10 +91,50 @@ import {
 } from '../services/contractService.js';
 import { isValidCNP } from '../utils/validators.js';
 import { createPdfBufferFromHtml } from '../utils/pdf.js';
+import { ensureProjectStoragePath, buildStoredFileName, resolveStoredFilePath } from '../utils/fileStorage.js';
 
 const router = Router();
 const TIMELINE_PAGE_SIZE = 10;
 const PROJECT_TIMELINE_PAGE_SIZE = 10;
+const CLIENT_MAX_PROJECT_FILES = 10;
+const STAFF_MAX_PROJECT_FILES = 30;
+const CLIENT_MAX_FILE_SIZE = 5 * 1024 * 1024;
+const STAFF_MAX_FILE_SIZE = 30 * 1024 * 1024;
+const ALLOWED_PROJECT_FILE_EXTENSIONS = new Set(['.pdf', '.docx', '.jpg', '.jpeg', '.png']);
+const DOCS_VALIDATED_FLOW_INDEX = PROJECT_FLOW_STATUSES.findIndex((status) => status.id === 'docs_validated');
+
+const projectFileStorage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    try {
+      const projectId = Number(req.params.id);
+      if (!projectId) {
+        return cb(new Error('PROJECT_ID_REQUIRED'));
+      }
+      const uploadPath = await ensureProjectStoragePath(projectId);
+      return cb(null, uploadPath);
+    } catch (error) {
+      return cb(error);
+    }
+  },
+  filename: (req, file, cb) => {
+    const storedName = buildStoredFileName(file.originalname);
+    // eslint-disable-next-line no-param-reassign
+    file.storedName = storedName;
+    cb(null, storedName);
+  }
+});
+
+const projectFileUpload = multer({
+  storage: projectFileStorage,
+  limits: { files: STAFF_MAX_PROJECT_FILES, fileSize: STAFF_MAX_FILE_SIZE },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_PROJECT_FILE_EXTENSIONS.has(ext)) {
+      return cb(new Error('INVALID_FILE_TYPE'));
+    }
+    return cb(null, true);
+  }
+});
 
 router.use(ensureAuthenticated);
 
@@ -541,7 +593,7 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
         description: 'Ticketul nu este gestionat de tine.'
       });
     }
-    const includeInternalTimeline = ['admin', 'superadmin'].includes(user.role);
+    const includeInternalTimeline = ['admin', 'superadmin', 'redactor'].includes(user.role);
     const timelineBatch = await getTicketTimelineEntries(ticket.id, {
       limit: TIMELINE_PAGE_SIZE + 1,
       offset: 0,
@@ -611,7 +663,7 @@ router.get('/cont/tichete/:id/timeline', async (req, res, next) => {
       ? TIMELINE_PAGE_SIZE
       : Math.max(1, Math.min(TIMELINE_PAGE_SIZE, rawLimit));
 
-    const includeInternalTimeline = ['admin', 'superadmin'].includes(user.role);
+    const includeInternalTimeline = ['admin', 'superadmin', 'redactor'].includes(user.role);
     const timelineBatch = await getTicketTimelineEntries(ticketId, {
       limit: limit + 1,
       offset,
@@ -1623,6 +1675,23 @@ router
         targetStatus = data.status;
       }
 
+      if (targetStatus) {
+        const targetFlowIndex = PROJECT_FLOW_STATUSES.findIndex((status) => status.id === targetStatus);
+        if (
+          DOCS_VALIDATED_FLOW_INDEX !== -1 &&
+          targetFlowIndex !== -1 &&
+          targetFlowIndex > DOCS_VALIDATED_FLOW_INDEX &&
+          !project.assigned_editor_id
+        ) {
+          req.session.projectFeedback = {
+            error:
+              'Aloca un redactor inainte de a trece proiectul peste etapa „Validare Documentatie / Alocare Redactor”.',
+            activeTab: 'detalii'
+          };
+          return res.redirect(`/cont/proiecte/${projectId}`);
+        }
+      }
+
       await updateProjectStatus({
         projectId: project.id,
         status: targetStatus,
@@ -1698,6 +1767,377 @@ router
     }
   });
 
+router.post('/cont/proiecte/:id/fisiere', (req, res, next) => {
+  projectFileUpload.array('files', STAFF_MAX_PROJECT_FILES)(req, res, async (err) => {
+    const projectId = Number(req.params.id);
+    const redirectToFiles = () => res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
+
+    if (err) {
+      const errorMessage =
+        err.message === 'INVALID_FILE_TYPE'
+          ? 'Formatele permise sunt DOCX, PDF, JPG si PNG.'
+          : err.code === 'LIMIT_FILE_SIZE'
+          ? 'Unul dintre fisiere depaseste dimensiunea maxima admisa.'
+          : 'Incarcarea fisierelor a esuat. Incearca din nou.';
+      req.session.projectFeedback = {
+        error: errorMessage,
+        activeTab: 'fisiere'
+      };
+      return redirectToFiles();
+    }
+
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (!files.length) {
+      req.session.projectFeedback = {
+        error: 'Selecteaza cel putin un fisier pentru incarcare.',
+        activeTab: 'fisiere'
+      };
+      return redirectToFiles();
+    }
+
+    const cleanupFiles = async () => {
+      await Promise.all(
+        files.map((file) =>
+          fs.unlink(file.path).catch((unlinkError) => {
+            if (unlinkError.code !== 'ENOENT') {
+              console.error('Nu s-a putut sterge fisierul incarcat temporar', unlinkError);
+            }
+          })
+        )
+      );
+    };
+
+    try {
+      const project = await getProjectById(projectId);
+      if (!project) {
+        await cleanupFiles();
+        return res.status(404).render('pages/404', {
+          title: 'Proiect inexistent',
+          description: 'Proiectul solicitat nu a fost gasit.'
+        });
+      }
+
+      const user = req.session.user;
+      const userRole = user.role;
+      const allowedRoles = new Set(['client', 'admin', 'superadmin', 'redactor']);
+      if (!allowedRoles.has(userRole)) {
+        await cleanupFiles();
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu aveti permisiunea de a incarca fisiere in acest proiect.'
+        });
+      }
+
+      if (userRole === 'client' && project.client_id !== user.id) {
+        await cleanupFiles();
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu aveti acces la acest proiect.'
+        });
+      }
+      if (userRole === 'redactor' && project.assigned_editor_id !== user.id) {
+        await cleanupFiles();
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti asignat pe acest proiect.'
+        });
+      }
+      if (userRole === 'admin' && project.assigned_admin_id !== user.id) {
+        await cleanupFiles();
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti responsabil de acest proiect.'
+        });
+      }
+
+      const origin = userRole === 'client' ? 'client' : 'staff';
+      const maxFiles = origin === 'client' ? CLIENT_MAX_PROJECT_FILES : STAFF_MAX_PROJECT_FILES;
+      const maxFileSize = origin === 'client' ? CLIENT_MAX_FILE_SIZE : STAFF_MAX_FILE_SIZE;
+      const existingCount = await countProjectFilesByOrigin(projectId, origin);
+      if (existingCount + files.length > maxFiles) {
+        await cleanupFiles();
+        req.session.projectFeedback = {
+          error:
+            origin === 'client'
+              ? `Ai atins limita de ${CLIENT_MAX_PROJECT_FILES} fisiere. Sterge un fisier existent sau contacteaza administratorul.`
+              : `Limita de ${STAFF_MAX_PROJECT_FILES} fisiere a fost depasita pentru acest proiect.`,
+          activeTab: 'fisiere'
+        };
+        return redirectToFiles();
+      }
+
+      if (origin === 'client') {
+        const uploadWindowOpen =
+          project.status === 'waiting_docs' || (await hasOpenDocumentRequests(projectId));
+        if (!uploadWindowOpen) {
+          await cleanupFiles();
+          req.session.projectFeedback = {
+            error:
+              'In acest moment nu se accepta documentatie suplimentara. Asteapta solicitarea echipei.',
+            activeTab: 'fisiere'
+          };
+          return redirectToFiles();
+        }
+      }
+
+      const oversizeFiles = files.filter((file) => file.size > maxFileSize);
+      if (oversizeFiles.length) {
+        await cleanupFiles();
+        req.session.projectFeedback = {
+          error:
+            origin === 'client'
+              ? 'Fiecare fisier trebuie sa aiba maximum 5 MB.'
+              : 'Fiecare fisier trebuie sa aiba maximum 30 MB.',
+          activeTab: 'fisiere'
+        };
+        return redirectToFiles();
+      }
+
+      const uploadedNames = [];
+      for (const file of files) {
+        const storedName = file.storedName || path.basename(file.path);
+        await createProjectFile({
+          projectId,
+          uploaderId: user.id,
+          uploaderRole: userRole,
+          origin,
+          originalName: file.originalname,
+          storedName,
+          mimeType: file.mimetype,
+          fileSize: file.size
+        });
+        uploadedNames.push(file.originalname);
+      }
+
+      const uploadMessagePrefix =
+        userRole === 'client'
+          ? 'Clientul a incarcat documentatia'
+          : 'Echipa a incarcat un fisier pentru client';
+      const visibility = userRole === 'client' ? 'internal' : 'public';
+      const timelineMessage = `${uploadMessagePrefix}: ${uploadedNames.join(', ')}.`;
+      await addProjectComment({
+        projectId,
+        message: timelineMessage,
+        actor: user,
+        visibility
+      });
+
+      req.session.projectFeedback = {
+        success:
+          uploadedNames.length === 1
+            ? `Fisierul "${uploadedNames[0]}" a fost incarcat cu succes.`
+            : `${uploadedNames.length} fisiere au fost incarcate cu succes.`,
+        activeTab: 'fisiere'
+      };
+      return redirectToFiles();
+    } catch (error) {
+      await cleanupFiles();
+      return next(error);
+    }
+  });
+});
+
+router.post(
+  '/cont/proiecte/:id/solicitare-documentatie',
+  ensureRole('admin', 'superadmin', 'redactor'),
+  async (req, res, next) => {
+    try {
+      const schema = z.object({
+        message: z.string().min(5)
+      });
+      const data = schema.parse(req.body);
+      const projectId = Number(req.params.id);
+      const project = await getProjectById(projectId);
+      if (!project) {
+        return res.status(404).render('pages/404', {
+          title: 'Proiect inexistent',
+          description: 'Proiectul solicitat nu a fost gasit.'
+        });
+      }
+      const user = req.session.user;
+      if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti asignat pe acest proiect.'
+        });
+      }
+      if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti responsabil de acest proiect.'
+        });
+      }
+
+      const requestId = await createDocumentRequest({
+        projectId,
+        requestedBy: user.id,
+        message: data.message
+      });
+
+      await addProjectComment({
+        projectId,
+        message: `Echipa a solicitat documentatie suplimentara: ${data.message}`,
+        actor: user,
+        visibility: 'public'
+      });
+
+      req.session.projectFeedback = {
+        success: 'Solicitarea pentru documentatie suplimentara a fost trimisa catre client.',
+        activeTab: 'fisiere'
+      };
+      return res.redirect(`/cont/proiecte/${projectId}?tab=fisiere#request-${requestId}`);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        req.session.projectFeedback = {
+          error: 'Completeaza mesajul pentru documentatia necesara.',
+          activeTab: 'fisiere'
+        };
+        return res.redirect(`/cont/proiecte/${req.params.id}?tab=fisiere`);
+      }
+      return next(error);
+    }
+  }
+);
+
+router.post(
+  '/cont/proiecte/:id/solicitare-documentatie/:requestId/inchide',
+  ensureRole('admin', 'superadmin', 'redactor'),
+  async (req, res, next) => {
+    try {
+      const projectId = Number(req.params.id);
+      const requestId = Number(req.params.requestId);
+      const project = await getProjectById(projectId);
+      if (!project) {
+        return res.status(404).render('pages/404', {
+          title: 'Proiect inexistent',
+          description: 'Proiectul solicitat nu a fost gasit.'
+        });
+      }
+      const user = req.session.user;
+      if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti asignat pe acest proiect.'
+        });
+      }
+      if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti responsabil de acest proiect.'
+        });
+      }
+      const request = await getDocumentRequestById(requestId);
+      if (!request || request.project_id !== projectId) {
+        req.session.projectFeedback = {
+          error: 'Solicitarea de documentatie nu a fost gasita.',
+          activeTab: 'fisiere'
+        };
+        return res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
+      }
+      if (request.status === 'closed') {
+        req.session.projectFeedback = {
+          error: 'Aceasta solicitare este deja marcata ca rezolvata.',
+          activeTab: 'fisiere'
+        };
+        return res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
+      }
+
+      await closeDocumentRequest({ requestId, closedBy: user.id });
+      await addProjectComment({
+        projectId,
+        message: 'Solicitarea de documentatie suplimentara a fost marcata ca rezolvata.',
+        actor: user,
+        visibility: 'public'
+      });
+
+      req.session.projectFeedback = {
+        success: 'Solicitarea a fost marcata ca rezolvata.',
+        activeTab: 'fisiere'
+      };
+      return res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
+router.get('/cont/proiecte/:id/fisiere/:fileId/descarca', async (req, res, next) => {
+  try {
+    const projectId = Number(req.params.id);
+    const fileId = Number(req.params.fileId);
+    const project = await getProjectById(projectId);
+    if (!project) {
+      return res.status(404).render('pages/404', {
+        title: 'Proiect inexistent',
+        description: 'Proiectul solicitat nu a fost gasit.'
+      });
+    }
+
+    const file = await getProjectFileById(fileId);
+    if (!file || file.project_id !== projectId) {
+      return res.status(404).render('pages/404', {
+        title: 'Fisier indisponibil',
+        description: 'Fisierul solicitat nu exista sau nu mai este disponibil.'
+      });
+    }
+
+    const user = req.session.user;
+    if (user.role === 'client' && project.client_id !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu aveti acces la acest proiect.'
+      });
+    }
+    if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti asignat pe acest proiect.'
+      });
+    }
+    if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu sunteti responsabil de acest proiect.'
+      });
+    }
+
+    const relativePath = path.join(String(projectId), file.stored_name);
+    const absolutePath = resolveStoredFilePath(relativePath);
+    try {
+      await fs.access(absolutePath);
+    } catch (accessError) {
+      if (accessError.code === 'ENOENT') {
+        return res.status(404).render('pages/404', {
+          title: 'Fisier indisponibil',
+          description: 'Fisierul solicitat nu exista sau nu mai este disponibil.'
+        });
+      }
+      throw accessError;
+    }
+
+    return res.download(absolutePath, file.original_name, (downloadError) => {
+      if (downloadError) {
+        if (!res.headersSent) {
+          next(downloadError);
+        }
+        return;
+      }
+      if (user.role === 'client') {
+        addProjectComment({
+          projectId,
+          message: `Clientul a descarcat fisierul ${file.original_name}.`,
+          actor: user,
+          visibility: 'internal'
+        }).catch((logError) => {
+          console.error('Nu s-a putut inregistra logul pentru descarcarea fisierului', logError);
+        });
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router
   .route('/cont/proiecte/:id/alocare')
   .post(ensureRole('admin', 'superadmin'), async (req, res, next) => {
@@ -1721,9 +2161,32 @@ router
           description: 'Nu sunteti responsabil de acest proiect.'
         });
       }
+      const desiredRedactorId = data.redactorId ? Number(data.redactorId) : null;
+      if (desiredRedactorId) {
+        const redactorUser = await getUserById(desiredRedactorId);
+        if (!redactorUser || !['redactor', 'admin', 'superadmin'].includes(redactorUser.role)) {
+          req.session.projectFeedback = {
+            error: 'Selecteaza un membru valid al echipei pentru rolul de redactor.',
+            activeTab: 'detalii'
+          };
+          return res.redirect(`/cont/proiecte/${project.id}`);
+        }
+        if (user.role === 'admin') {
+          const hierarchy = { client: 1, redactor: 2, admin: 3, superadmin: 4 };
+          const actorLevel = hierarchy[user.role] || 0;
+          const targetLevel = hierarchy[redactorUser.role] || 0;
+          if (targetLevel >= actorLevel) {
+            req.session.projectFeedback = {
+              error: 'Nu poti aloca proiectul catre un membru cu acelasi grad sau cu grad superior.',
+              activeTab: 'detalii'
+            };
+            return res.redirect(`/cont/proiecte/${project.id}`);
+          }
+        }
+      }
       await assignProject(Number(req.params.id), {
         adminId: data.adminId ? Number(data.adminId) : null,
-        redactorId: data.redactorId ? Number(data.redactorId) : null
+        redactorId: desiredRedactorId
       });
       res.redirect(`/cont/proiecte/${project.id}`);
     } catch (error) {
@@ -1734,7 +2197,7 @@ router
 router.get('/cont/proiecte/:id', async (req, res, next) => {
   try {
     const projectId = Number(req.params.id);
-    const [project, team] = await Promise.all([getProjectById(projectId), listTeamMembers()]);
+    const project = await getProjectById(projectId);
     if (!project) {
       return res.status(404).render('pages/404', {
         title: 'Proiect inexistent',
@@ -1761,7 +2224,21 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
       });
     }
 
-    const includeInternalTimeline = ['admin', 'superadmin'].includes(user.role);
+    const [team, projectFiles, documentRequests] = await Promise.all([
+      listTeamMembers(),
+      listProjectFiles(projectId),
+      listDocumentRequests(projectId)
+    ]);
+
+    const clientFiles = projectFiles.filter((file) => file.origin === 'client');
+    const staffFiles = projectFiles.filter((file) => file.origin === 'staff');
+    const openDocumentRequests = documentRequests.filter((request) => request.status === 'open');
+    const clientUploadWindowOpen =
+      project.status === 'waiting_docs' || openDocumentRequests.length > 0;
+    const clientUploadsRemaining = Math.max(0, CLIENT_MAX_PROJECT_FILES - clientFiles.length);
+    const staffUploadsRemaining = Math.max(0, STAFF_MAX_PROJECT_FILES - staffFiles.length);
+
+    const includeInternalTimeline = ['admin', 'superadmin', 'redactor'].includes(user.role);
     const timelineBatch = await getProjectTimelineEntries(projectId, {
       limit: PROJECT_TIMELINE_PAGE_SIZE + 1,
       offset: 0,
@@ -1773,7 +2250,18 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
       : timelineBatch;
 
     const projectFeedback = req.session.projectFeedback || {};
+    const feedbackActiveTab = projectFeedback.activeTab;
+    delete projectFeedback.activeTab;
     delete req.session.projectFeedback;
+
+    const allowedTabs = new Set(['detalii', 'timeline', 'fisiere']);
+    const requestedTab = typeof req.query.tab === 'string' ? req.query.tab : null;
+    let activeTab = 'detalii';
+    if (feedbackActiveTab && allowedTabs.has(feedbackActiveTab)) {
+      activeTab = feedbackActiveTab;
+    } else if (requestedTab && allowedTabs.has(requestedTab)) {
+      activeTab = requestedTab;
+    }
 
     const statusMap = buildProjectStatusDictionary();
     const currentStatusInfo = getProjectStatusById(project.status);
@@ -1797,7 +2285,17 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
       nextStatusInfo: nextStatus ? getProjectStatusById(nextStatus) : null,
       previousStatus,
       previousStatusInfo: previousStatus ? getProjectStatusById(previousStatus) : null,
-      projectFeedback
+      projectFeedback,
+      clientFiles,
+      staffFiles,
+      documentRequests,
+      openDocumentRequests,
+      canClientUpload: clientUploadWindowOpen,
+      clientUploadsRemaining,
+      staffUploadsRemaining,
+      clientFileLimit: CLIENT_MAX_PROJECT_FILES,
+      staffFileLimit: STAFF_MAX_PROJECT_FILES,
+      activeTab
     });
   } catch (error) {
     next(error);
@@ -1828,7 +2326,7 @@ router.get('/cont/proiecte/:id/timeline', async (req, res, next) => {
     const limit = Number.isNaN(rawLimit)
       ? PROJECT_TIMELINE_PAGE_SIZE
       : Math.max(1, Math.min(PROJECT_TIMELINE_PAGE_SIZE, rawLimit));
-    const includeInternalTimeline = ['admin', 'superadmin'].includes(user.role);
+    const includeInternalTimeline = ['admin', 'superadmin', 'redactor'].includes(user.role);
     const timelineBatch = await getProjectTimelineEntries(projectId, {
       limit: limit + 1,
       offset,

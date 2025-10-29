@@ -1,54 +1,430 @@
 <%- include('../partials/head', { title, description, request }) %>
 <%- include('../partials/header') %>
 <section class="py-5">
-  <div class="container" style="max-width: 760px;">
-    <h1 class="h3 mb-4">Setari cont</h1>
-    <% if (successMessage) { %>
-    <div class="alert alert-success"><%= successMessage %></div>
-    <% } %>
-    <% if (errorMessage) { %>
-    <div class="alert alert-danger"><%= errorMessage %></div>
-    <% } %>
-
-    <div class="card shadow-sm mb-4">
-      <div class="card-body">
-        <h2 class="h5 mb-3">Date personale</h2>
-        <form action="/cont/setari" method="post" class="vstack gap-3">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <div>
-            <label class="form-label" for="fullName">Nume complet</label>
-            <input class="form-control" type="text" id="fullName" name="fullName" value="<%= profile.full_name %>" required />
-          </div>
-          <div>
-            <label class="form-label" for="phone">Telefon</label>
-            <input class="form-control" type="tel" id="phone" name="phone" value="<%= profile.phone || '' %>" />
-          </div>
-          <button class="btn btn-primary align-self-end" type="submit">Salveaza datele</button>
-        </form>
+  <div class="container" style="max-width: 960px;">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+      <div>
+        <h1 class="h3 mb-1">Cont</h1>
+        <p class="text-muted mb-0">Centralizeaza datele personale, ticketele si contractele semnate intr-un singur loc.</p>
+      </div>
+      <div class="text-md-end">
+        <span class="badge bg-light text-dark border">Rol: <span class="text-uppercase"><%= currentUser.role %></span></span>
       </div>
     </div>
 
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h2 class="h5 mb-3">Schimbare parola</h2>
-        <form action="/cont/setari/parola" method="post" class="vstack gap-3">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <div>
-            <label class="form-label" for="currentPassword">Parola curenta</label>
-            <input class="form-control" type="password" id="currentPassword" name="currentPassword" required />
-          </div>
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label" for="newPassword">Parola noua</label>
-              <input class="form-control" type="password" id="newPassword" name="newPassword" minlength="8" required />
+    <% const currentTab = ['profile', 'tickets', 'contracts', 'projects', 'security'].includes(activeTab)
+      ? activeTab
+      : 'profile'; %>
+    <% const alerts = feedback || {}; %>
+    <% const ticketStatusLabels = { deschis: 'Deschis', 'in-analiza': 'In analiza', rezolvat: 'Rezolvat' }; %>
+    <% const projectStatusLabels = {
+      initiated: 'Initiat',
+      'in-progress': 'In lucru',
+      'needs-review': 'In revizie',
+      completed: 'Finalizat',
+      delivered: 'Predat'
+    }; %>
+
+    <ul class="nav nav-pills flex-wrap gap-2 mb-4" id="accountTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link <%= currentTab === 'profile' ? 'active' : '' %>"
+          id="tab-profile-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#tab-profile"
+          type="button"
+          role="tab"
+          aria-controls="tab-profile"
+          aria-selected="<%= currentTab === 'profile' ? 'true' : 'false' %>"
+        >
+          Date cont
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link <%= currentTab === 'tickets' ? 'active' : '' %>"
+          id="tab-tickets-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#tab-tickets"
+          type="button"
+          role="tab"
+          aria-controls="tab-tickets"
+          aria-selected="<%= currentTab === 'tickets' ? 'true' : 'false' %>"
+        >
+          Tickete
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link <%= currentTab === 'contracts' ? 'active' : '' %>"
+          id="tab-contracts-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#tab-contracts"
+          type="button"
+          role="tab"
+          aria-controls="tab-contracts"
+          aria-selected="<%= currentTab === 'contracts' ? 'true' : 'false' %>"
+        >
+          Contracte
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link <%= currentTab === 'projects' ? 'active' : '' %>"
+          id="tab-projects-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#tab-projects"
+          type="button"
+          role="tab"
+          aria-controls="tab-projects"
+          aria-selected="<%= currentTab === 'projects' ? 'true' : 'false' %>"
+        >
+          Proiectele mele
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link <%= currentTab === 'security' ? 'active' : '' %>"
+          id="tab-security-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#tab-security"
+          type="button"
+          role="tab"
+          aria-controls="tab-security"
+          aria-selected="<%= currentTab === 'security' ? 'true' : 'false' %>"
+        >
+          Parole si securitate
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content" id="accountTabContent">
+      <div
+        class="tab-pane fade <%= currentTab === 'profile' ? 'show active' : '' %>"
+        id="tab-profile"
+        role="tabpanel"
+        aria-labelledby="tab-profile-tab"
+        tabindex="0"
+      >
+        <% if (alerts.profileSuccess) { %>
+        <div class="alert alert-success mb-4"><%= alerts.profileSuccess %></div>
+        <% } %>
+        <% if (alerts.profileError) { %>
+        <div class="alert alert-danger mb-4"><%= alerts.profileError %></div>
+        <% } %>
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-4">
+              <div>
+                <h2 class="h5 mb-1">Date personale</h2>
+                <p class="text-muted mb-0">Actualizeaza informatiile de contact folosite in comunicarea cu echipa.</p>
+              </div>
+              <span class="badge bg-light text-dark">Ultima actualizare: <%= profile.updated_at?.toISOString ? profile.updated_at.toISOString().slice(0, 10) : '—' %></span>
             </div>
-            <div class="col-md-6">
-              <label class="form-label" for="confirmPassword">Confirma parola noua</label>
-              <input class="form-control" type="password" id="confirmPassword" name="confirmPassword" minlength="8" required />
-            </div>
+            <form action="/cont/setari" method="post" class="vstack gap-3">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <div>
+                <label class="form-label" for="email">Adresa email</label>
+                <input
+                  class="form-control"
+                  type="email"
+                  id="email"
+                  name="email"
+                  value="<%= profile.email %>"
+                  disabled
+                />
+                <small class="text-muted">Pentru actualizarea adresei de email contacteaza administratorul platformei.</small>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="fullName">Nume complet</label>
+                  <input
+                    class="form-control"
+                    type="text"
+                    id="fullName"
+                    name="fullName"
+                    value="<%= profile.full_name %>"
+                    required
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="phone">Telefon</label>
+                  <input
+                    class="form-control"
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    value="<%= profile.phone || '' %>"
+                  />
+                </div>
+              </div>
+              <div class="text-end">
+                <button class="btn btn-primary" type="submit">Salveaza modificarile</button>
+              </div>
+            </form>
           </div>
-          <button class="btn btn-outline-primary align-self-end" type="submit">Actualizeaza parola</button>
-        </form>
+        </div>
+      </div>
+
+      <div
+        class="tab-pane fade <%= currentTab === 'tickets' ? 'show active' : '' %>"
+        id="tab-tickets"
+        role="tabpanel"
+        aria-labelledby="tab-tickets-tab"
+        tabindex="0"
+      >
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+              <div>
+                <h2 class="h5 mb-1">Ticketele mele</h2>
+                <p class="text-muted mb-0">Urmariti solicitarile trimise si raspunsurile echipei.</p>
+              </div>
+              <a class="btn btn-outline-primary btn-sm" href="/cont/tichete/creeaza">Deschide ticket</a>
+            </div>
+            <% if (!tickets || tickets.length === 0) { %>
+            <p class="text-muted mb-0">Momentan nu exista tickete asociate contului tau.</p>
+            <% } else { %>
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th scope="col">Cod</th>
+                    <th scope="col">Subiect</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Actualizat</th>
+                    <th scope="col" class="text-end">Actiuni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% tickets.forEach((ticket) => { %>
+                  <tr>
+                    <td>
+                      <span class="badge bg-light text-dark">#<%= ticket.display_code %></span>
+                    </td>
+                    <td>
+                      <div class="fw-semibold"><%= ticket.subject %></div>
+                      <% if (ticket.project_title) { %>
+                      <div class="small text-muted">Proiect: <%= ticket.project_title %></div>
+                      <% } %>
+                      <div class="small text-muted text-uppercase">Tip: <%= ticket.kind %></div>
+                    </td>
+                    <td>
+                      <span class="badge bg-secondary"><%= ticketStatusLabels[ticket.status] || ticket.status %></span>
+                    </td>
+                    <td class="text-muted">
+                      <%= ticket.updated_at?.toISOString
+                        ? ticket.updated_at.toISOString().slice(0, 10)
+                        : ticket.updated_at?.toString() || '—' %>
+                    </td>
+                    <td class="text-end">
+                      <a class="btn btn-sm btn-outline-primary" href="/cont/tichete/<%= ticket.id %>">Vezi ticket</a>
+                    </td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="tab-pane fade <%= currentTab === 'contracts' ? 'show active' : '' %>"
+        id="tab-contracts"
+        role="tabpanel"
+        aria-labelledby="tab-contracts-tab"
+        tabindex="0"
+      >
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="mb-4">
+              <h2 class="h5 mb-1">Contracte semnate</h2>
+              <p class="text-muted mb-0">Acceseaza rapid contractele finalizate si semnate de ambele parti.</p>
+            </div>
+            <% if (!contracts || contracts.length === 0) { %>
+            <p class="text-muted mb-0">Nu exista contracte semnate disponibile pentru descarcare in acest moment.</p>
+            <% } else { %>
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th scope="col">Numar</th>
+                    <th scope="col">Ticket</th>
+                    <th scope="col">Proiect</th>
+                    <th scope="col">Data semnarii</th>
+                    <th scope="col" class="text-end">Actiuni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% contracts.forEach((contract) => { %>
+                  <tr>
+                    <td>
+                      <strong><%= contract.contract_number || '—' %></strong>
+                    </td>
+                    <td>
+                      <div class="fw-semibold">#<%= contract.ticket_code %></div>
+                      <div class="small text-muted"><%= contract.ticket_subject %></div>
+                    </td>
+                    <td>
+                      <% if (contract.project_title) { %>
+                      <div class="fw-semibold"><%= contract.project_title %></div>
+                      <% } else { %>
+                      <span class="text-muted">—</span>
+                      <% } %>
+                      <% if (contract.client_name && ['admin', 'superadmin'].includes(currentUser.role)) { %>
+                      <div class="small text-muted">Client: <%= contract.client_name %></div>
+                      <% } %>
+                    </td>
+                    <td class="text-muted">
+                      <%= contract.contract_date?.toISOString
+                        ? contract.contract_date.toISOString().slice(0, 10)
+                        : contract.contract_date?.toString() || '—' %>
+                    </td>
+                    <td class="text-end">
+                      <div class="d-flex flex-column flex-lg-row gap-2 justify-content-end">
+                        <a class="btn btn-sm btn-outline-secondary" href="/cont/tichete/<%= contract.ticket_id %>">
+                          Deschide ticket
+                        </a>
+                        <form action="/cont/tichete/<%= contract.ticket_id %>/contract/descarca" method="post" class="d-inline">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                          <button class="btn btn-sm btn-outline-primary" type="submit">Descarca PDF</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="tab-pane fade <%= currentTab === 'projects' ? 'show active' : '' %>"
+        id="tab-projects"
+        role="tabpanel"
+        aria-labelledby="tab-projects-tab"
+        tabindex="0"
+      >
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="mb-4">
+              <h2 class="h5 mb-1">Proiectele mele</h2>
+              <p class="text-muted mb-0">Monitorizeaza statusul proiectelor si termenele stabilite.</p>
+            </div>
+            <% if (!projects || projects.length === 0) { %>
+            <p class="text-muted mb-0">Nu exista proiecte asociate contului tau in acest moment.</p>
+            <% } else { %>
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th scope="col">Titlu</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Deadline</th>
+                    <th scope="col">Coordonare</th>
+                    <th scope="col" class="text-end">Actiuni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% projects.forEach((project) => { %>
+                  <tr>
+                    <td>
+                      <div class="fw-semibold"><%= project.title %></div>
+                      <div class="small text-muted"><%= project.degree_level %></div>
+                    </td>
+                    <td>
+                      <span class="badge bg-info text-dark"><%= projectStatusLabels[project.status] || project.status %></span>
+                    </td>
+                    <td class="text-muted">
+                      <%= project.deadline?.toISOString
+                        ? project.deadline.toISOString().slice(0, 10)
+                        : project.deadline?.toString() || '—' %>
+                    </td>
+                    <td>
+                      <% if (currentUser.role === 'client') { %>
+                      <div class="small text-muted">Administrator: <%= project.assigned_admin_name || 'Nealocat' %></div>
+                      <div class="small text-muted">Redactor: <%= project.assigned_redactor_name || 'Nealocat' %></div>
+                      <% } else if (['admin', 'superadmin'].includes(currentUser.role)) { %>
+                      <div class="small text-muted">Client: <%= project.client_name || 'N/A' %></div>
+                      <div class="small text-muted">Redactor: <%= project.assigned_redactor_name || 'Nealocat' %></div>
+                      <% } else if (currentUser.role === 'redactor') { %>
+                      <div class="small text-muted">Client: <%= project.client_name || 'N/A' %></div>
+                      <% } %>
+                    </td>
+                    <td class="text-end">
+                      <a class="btn btn-sm btn-outline-primary" href="/cont/proiecte/<%= project.id %>">Vezi detalii</a>
+                    </td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="tab-pane fade <%= currentTab === 'security' ? 'show active' : '' %>"
+        id="tab-security"
+        role="tabpanel"
+        aria-labelledby="tab-security-tab"
+        tabindex="0"
+      >
+        <% if (alerts.passwordSuccess) { %>
+        <div class="alert alert-success mb-4"><%= alerts.passwordSuccess %></div>
+        <% } %>
+        <% if (alerts.passwordError) { %>
+        <div class="alert alert-danger mb-4"><%= alerts.passwordError %></div>
+        <% } %>
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="mb-4">
+              <h2 class="h5 mb-1">Schimba parola</h2>
+              <p class="text-muted mb-0">Alege o parola puternica pentru a proteja accesul la proiecte si documente.</p>
+            </div>
+            <form action="/cont/setari/parola" method="post" class="vstack gap-3">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <div>
+                <label class="form-label" for="currentPassword">Parola curenta</label>
+                <input class="form-control" type="password" id="currentPassword" name="currentPassword" required />
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="newPassword">Parola noua</label>
+                  <input class="form-control" type="password" id="newPassword" name="newPassword" minlength="8" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="confirmPassword">Confirma parola noua</label>
+                  <input
+                    class="form-control"
+                    type="password"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    minlength="8"
+                    required
+                  />
+                </div>
+              </div>
+              <div class="text-end">
+                <button class="btn btn-outline-primary" type="submit">Actualizeaza parola</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <div class="alert alert-info mt-4 mb-0">
+          <p class="mb-1 fw-semibold">Recomandari de securitate</p>
+          <ul class="mb-0 small ps-3">
+            <li>Foloseste o parola unica, cu minim 12 caractere, litere mari si mici, cifre si simboluri.</li>
+            <li>Schimba parola periodic si evita reutilizarea aceleiasi parole pe alte platforme.</li>
+            <li>Nu partaja datele de autentificare si deconecteaza-te dupa utilizarea pe dispozitive publice.</li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>

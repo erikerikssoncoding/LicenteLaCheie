@@ -114,9 +114,11 @@ export async function getTicketWithReplies(ticketId) {
   return { ticket, replies: replyRows };
 }
 
-export async function getTicketTimelineEntries(ticketId, { limit = 10, offset = 0 } = {}) {
+export async function getTicketTimelineEntries(ticketId, { limit = 10, offset = 0, includeInternal = false } = {}) {
   const safeLimit = Math.max(1, Number(limit));
   const safeOffset = Math.max(0, Number(offset));
+  const visibilityClause = includeInternal ? "IN (?, ?)" : "= ?";
+  const visibilityParams = includeInternal ? ['public', 'internal'] : ['public'];
   const [rows] = await pool.query(
     `SELECT entry_type, entry_id, message, created_at, author_name, author_role
      FROM (
@@ -131,13 +133,33 @@ export async function getTicketTimelineEntries(ticketId, { limit = 10, offset = 
        FROM ticket_replies tr
        LEFT JOIN users u ON u.id = tr.user_id
        WHERE tr.ticket_id = ?
+       UNION ALL
+       SELECT 'log' AS entry_type, tal.id AS entry_id, tal.message, tal.created_at,
+              tal.author_name AS author_name, tal.author_role AS author_role
+       FROM ticket_activity_logs tal
+       WHERE tal.ticket_id = ? AND tal.visibility ${visibilityClause}
      ) AS timeline
      ORDER BY created_at DESC
      LIMIT ? OFFSET ?`,
-    [ticketId, ticketId, safeLimit, safeOffset]
+    [ticketId, ticketId, ticketId, ...visibilityParams, safeLimit, safeOffset]
   );
 
   return rows;
+}
+
+export async function addTicketLog({ ticketId, message, visibility = 'internal', actor = null }) {
+  await pool.query(
+    `INSERT INTO ticket_activity_logs (ticket_id, message, visibility, created_by, author_name, author_role)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      ticketId,
+      message,
+      visibility,
+      actor?.id || null,
+      actor?.fullName || null,
+      actor?.role || null
+    ]
+  );
 }
 
 export async function listMergeCandidates({ baseTicketId, createdBy, actor }) {

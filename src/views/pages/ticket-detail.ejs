@@ -399,6 +399,15 @@
       const firstName = parts[0] || 'Echipa';
       return `${firstName}, Echipa Licente la Cheie`;
     } %>
+    <% function formatTimelineDate(value) {
+      if (!value) {
+        return '—';
+      }
+      if (value instanceof Date || typeof value?.toISOString === 'function') {
+        return value.toISOString().replace('T', ' ').slice(0, 16);
+      }
+      return value;
+    } %>
     <% if (isMergedTicket) { %>
     <div class="glass-card mt-4">
       <p class="mb-0 text-muted">Acest ticket este fuzionat si nu mai accepta raspunsuri noi.</p>
@@ -416,6 +425,11 @@
     </div>
     <% } %>
 
+    <% if (includeInternalTimeline) { %>
+    <div class="alert alert-warning mt-4 mb-0">
+      <strong>Notificari interne</strong> – aceste inregistrari sunt vizibile doar administratorilor autorizati.
+    </div>
+    <% } %>
     <div
       class="timeline mt-4"
       data-timeline
@@ -424,11 +438,28 @@
       data-limit="<%= timelinePageSize %>"
     >
       <% timelineEntries.forEach((entry) => { %>
-      <div class="timeline-item" data-entry-type="<%= entry.entry_type %>" data-entry-id="<%= entry.entry_id %>">
-        <div class="timeline-content">
-          <h2 class="h6"><%= entry.entry_type === 'ticket' ? 'Mesaj initial' : 'Raspuns' %></h2>
-          <p><%= entry.message %></p>
-          <small class="text-muted"><%= entry.entry_type === 'ticket' ? 'Creat de' : 'Trimis de' %> <%= formatTimelineName(entry.author_name, entry.author_role) %></small>
+      <% const entryType = entry.entry_type; %>
+      <% const heading = entryType === 'ticket' ? 'Mesaj initial' : entryType === 'reply' ? 'Raspuns' : 'Notificare interna'; %>
+      <% const metaPrefix = entryType === 'ticket' ? 'Creat de' : entryType === 'reply' ? 'Trimis de' : 'Inregistrat de'; %>
+      <div class="timeline-item" data-entry-type="<%= entryType %>" data-entry-id="<%= entry.entry_id %>">
+        <div class="timeline-content <%= entryType === 'log' ? 'timeline-content--log' : '' %>">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <h2 class="h6 mb-0"><%= heading %></h2>
+            <% if (entryType === 'log') { %>
+            <span class="badge bg-warning text-dark text-uppercase">Intern</span>
+            <% } %>
+          </div>
+          <p class="mb-2 <%= entryType === 'log' ? 'small text-muted' : '' %>">
+            <% const messageLines = String(entry.message || '').split('\n'); %>
+            <% messageLines.forEach((line, index) => { %>
+            <%= line %><% if (index < messageLines.length - 1) { %><br /><% } %>
+            <% }) %>
+          </p>
+          <small class="text-muted d-block">
+            <%= metaPrefix %> <%= formatTimelineName(entry.author_name, entry.author_role) %>
+            <% if (entryType === 'log') { %> • Vizibil administratorilor<% } %>
+            <% if (entry.created_at) { %> • <%= formatTimelineDate(entry.created_at) %><% } %>
+          </small>
         </div>
       </div>
       <% }) %>
@@ -640,27 +671,66 @@
         return paragraph;
       }
 
+      function formatTimelineDateClient(value) {
+        if (!value) {
+          return null;
+        }
+        const dateInstance = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(dateInstance.getTime())) {
+          return null;
+        }
+        const iso = dateInstance.toISOString();
+        return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+      }
+
       function renderTimelineEntry(entry) {
         const item = document.createElement('div');
+        const entryType = entry.entry_type;
         item.className = 'timeline-item';
-        item.setAttribute('data-entry-type', entry.entry_type);
+        item.setAttribute('data-entry-type', entryType);
         item.setAttribute('data-entry-id', entry.entry_id);
 
         const content = document.createElement('div');
         content.className = 'timeline-content';
+        if (entryType === 'log') {
+          content.classList.add('timeline-content--log');
+        }
         item.appendChild(content);
 
+        const headingWrapper = document.createElement('div');
+        headingWrapper.className = 'd-flex align-items-center gap-2 mb-2';
         const title = document.createElement('h2');
-        title.className = 'h6';
-        title.textContent = entry.entry_type === 'ticket' ? 'Mesaj initial' : 'Raspuns';
-        content.appendChild(title);
+        title.className = 'h6 mb-0';
+        title.textContent = entryType === 'ticket' ? 'Mesaj initial' : entryType === 'reply' ? 'Raspuns' : 'Notificare interna';
+        headingWrapper.appendChild(title);
+        if (entryType === 'log') {
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-warning text-dark text-uppercase';
+          badge.textContent = 'Intern';
+          headingWrapper.appendChild(badge);
+        }
+        content.appendChild(headingWrapper);
 
-        content.appendChild(createMessageParagraph(entry.message));
+        const paragraph = createMessageParagraph(entry.message);
+        paragraph.classList.add('mb-2');
+        if (entryType === 'log') {
+          paragraph.classList.add('small', 'text-muted');
+        }
+        content.appendChild(paragraph);
 
         const meta = document.createElement('small');
-        meta.className = 'text-muted';
-        const prefix = entry.entry_type === 'ticket' ? 'Creat de ' : 'Trimis de ';
-        meta.textContent = `${prefix}${formatTimelineNameClient(entry.author_name, entry.author_role)}`;
+        meta.className = 'text-muted d-block';
+        const prefix =
+          entryType === 'ticket' ? 'Creat de ' : entryType === 'reply' ? 'Trimis de ' : 'Inregistrat de ';
+        let metaText = `${prefix}${formatTimelineNameClient(entry.author_name, entry.author_role)}`;
+        if (entryType === 'log') {
+          metaText += ' • Vizibil administratorilor';
+        }
+        const formattedDate = formatTimelineDateClient(entry.created_at);
+        if (formattedDate) {
+          metaText += ` • ${formattedDate}`;
+        }
+        meta.textContent = metaText;
         content.appendChild(meta);
 
         return item;

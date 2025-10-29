@@ -24,7 +24,8 @@ import {
   listPendingSupportTicketsForAdmin,
   listPendingSupportTicketsForRedactor,
   listRecentTicketRepliesForUser,
-  markTicketAsContract
+  markTicketAsContract,
+  addTicketLog
 } from '../services/ticketService.js';
 import {
   listTeamMembers,
@@ -61,7 +62,8 @@ import {
   applyClientSignature,
   applyAdminSignature,
   createContractDownloadToken,
-  consumeContractDownloadToken
+  consumeContractDownloadToken,
+  listContractsForUser
 } from '../services/contractService.js';
 import { isValidCNP } from '../utils/validators.js';
 import { createPdfBufferFromHtml } from '../utils/pdf.js';
@@ -75,21 +77,53 @@ router
   .route('/cont/setari')
   .get(async (req, res, next) => {
     try {
-      const profile = await getUserById(req.session.user.id);
+      const user = req.session.user;
+      const [profile, tickets, projects, contracts] = await Promise.all([
+        getUserById(user.id),
+        listTicketsForUser(user),
+        listProjectsForUser(user),
+        listContractsForUser(user)
+      ]);
+      const successKey = typeof req.query.success === 'string' ? req.query.success : null;
+      const errorKey = typeof req.query.error === 'string' ? req.query.error : null;
+      const requestedTab = typeof req.query.tab === 'string' ? req.query.tab : null;
       const successMessages = {
         profile: 'Datele tale au fost actualizate.',
         password: 'Parola a fost schimbata cu succes.'
       };
       const errorMessages = {
         'invalid-password': 'Parola curenta nu este corecta.',
-        form: 'Completeaza corect toate campurile obligatorii.'
+        'profile-form': 'Completeaza corect toate campurile obligatorii din profil.',
+        'password-form': 'Completeaza corect toate campurile obligatorii pentru parola.'
       };
+      const feedback = {
+        profileSuccess: successKey === 'profile' ? successMessages.profile : null,
+        passwordSuccess: successKey === 'password' ? successMessages.password : null,
+        profileError: errorKey === 'profile-form' ? errorMessages['profile-form'] : null,
+        passwordError:
+          errorKey === 'password-form'
+            ? errorMessages['password-form']
+            : errorKey === 'invalid-password'
+            ? errorMessages['invalid-password']
+            : null
+      };
+      const allowedTabs = new Set(['profile', 'tickets', 'contracts', 'projects', 'security']);
+      let activeTab = requestedTab && allowedTabs.has(requestedTab) ? requestedTab : 'profile';
+      if (
+        !requestedTab &&
+        (successKey === 'password' || ['password-form', 'invalid-password'].includes(errorKey ?? ''))
+      ) {
+        activeTab = 'security';
+      }
       res.render('pages/account-settings', {
-        title: 'Setari cont',
-        description: 'Actualizeaza-ti datele de contact si parola pentru a proteja accesul la proiecte.',
+        title: 'Cont',
+        description: 'Gestioneaza datele personale, proiectele si securitatea accesului tau.',
         profile,
-        successMessage: successMessages[req.query.success] || null,
-        errorMessage: errorMessages[req.query.error] || null
+        tickets,
+        projects,
+        contracts,
+        feedback,
+        activeTab
       });
     } catch (error) {
       next(error);
@@ -111,7 +145,7 @@ router
       res.redirect('/cont/setari?success=profile');
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.redirect('/cont/setari?error=form');
+        return res.redirect('/cont/setari?error=profile-form');
       }
       next(error);
     }
@@ -131,13 +165,13 @@ router.post('/cont/setari/parola', async (req, res, next) => {
       });
     const data = schema.parse(req.body);
     await changeUserPassword(req.session.user.id, data.currentPassword, data.newPassword);
-    res.redirect('/cont/setari?success=password');
+    res.redirect('/cont/setari?success=password&tab=security');
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.redirect('/cont/setari?error=form');
+      return res.redirect('/cont/setari?error=password-form&tab=security');
     }
     if (error.message === 'INVALID_PASSWORD') {
-      return res.redirect('/cont/setari?error=invalid-password');
+      return res.redirect('/cont/setari?error=invalid-password&tab=security');
     }
     next(error);
   }
@@ -488,9 +522,11 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
         description: 'Ticketul nu este gestionat de tine.'
       });
     }
+    const includeInternalTimeline = ['admin', 'superadmin'].includes(user.role);
     const timelineBatch = await getTicketTimelineEntries(ticket.id, {
       limit: TIMELINE_PAGE_SIZE + 1,
-      offset: 0
+      offset: 0,
+      includeInternal: includeInternalTimeline
     });
     const hasMoreTimeline = timelineBatch.length > TIMELINE_PAGE_SIZE;
     const timelineEntries = hasMoreTimeline ? timelineBatch.slice(0, TIMELINE_PAGE_SIZE) : timelineBatch;
@@ -517,7 +553,8 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
       offerMinHours: MIN_OFFER_EXPIRATION_HOURS,
       feedback,
       contractDetails,
-      mergeCandidates
+      mergeCandidates,
+      includeInternalTimeline
     });
   } catch (error) {
     next(error);
@@ -555,9 +592,11 @@ router.get('/cont/tichete/:id/timeline', async (req, res, next) => {
       ? TIMELINE_PAGE_SIZE
       : Math.max(1, Math.min(TIMELINE_PAGE_SIZE, rawLimit));
 
+    const includeInternalTimeline = ['admin', 'superadmin'].includes(user.role);
     const timelineBatch = await getTicketTimelineEntries(ticketId, {
       limit: limit + 1,
-      offset
+      offset,
+      includeInternal: includeInternalTimeline
     });
     const hasMore = timelineBatch.length > limit;
     const entries = hasMore ? timelineBatch.slice(0, limit) : timelineBatch;
@@ -1386,7 +1425,15 @@ router.get(
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
-      const pdfBuffer = await createPdfBufferFromHtml(contractDetails.contractDraft);
+      if (user.role === 'client') {
+        await addTicketLog({
+          ticketId,
+          message: 'Beneficiarul a descarcat contractul semnat.',
+          actor: user
+        });
+      }
+      const copyLabel = user.role === 'client' ? 'COPIE BENEFICIAR' : 'COPIE FURNIZOR';
+      const pdfBuffer = await createPdfBufferFromHtml(contractDetails.contractDraft, { copyLabel });
       const fileName = `contract-${sanitizedIdentifier || ticketId}.pdf`;
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);

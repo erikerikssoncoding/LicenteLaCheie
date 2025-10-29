@@ -282,6 +282,42 @@ export async function applyAdminSignature({ ticketId, signatureData, offer }) {
   return { draft, contractNumber, contractDate: signedAt };
 }
 
+export async function listContractsForUser(user) {
+  const conditions = [];
+  const params = [];
+
+  if (user.role === 'client') {
+    conditions.push('t.created_by = ?');
+    params.push(user.id);
+  } else if (user.role === 'redactor') {
+    conditions.push('p.assigned_editor_id = ?');
+    params.push(user.id);
+  } else if (user.role === 'admin') {
+    conditions.push('p.assigned_admin_id = ?');
+    params.push(user.id);
+  }
+
+  conditions.push("cs.contract_stage = 'completed'");
+
+  const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : "WHERE cs.contract_stage = 'completed'";
+
+  const [rows] = await pool.query(
+    `SELECT cs.ticket_id, cs.contract_stage, cs.contract_number, cs.contract_date, cs.updated_at,
+            t.display_code AS ticket_code, t.subject AS ticket_subject,
+            p.title AS project_title, p.id AS project_id,
+            uc.full_name AS client_name
+     FROM contract_signatures cs
+     INNER JOIN tickets t ON t.id = cs.ticket_id
+     LEFT JOIN projects p ON p.id = t.project_id
+     LEFT JOIN users uc ON uc.id = p.client_id
+     ${whereClause}
+     ORDER BY cs.contract_date DESC, cs.updated_at DESC`,
+    params
+  );
+
+  return rows;
+}
+
 export function createContractDownloadToken({ ticketId, userId }) {
   purgeExpiredTokens();
   const token = nanoid(48);

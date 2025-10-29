@@ -29,6 +29,15 @@ const CONTRACT_BASE_STYLES = `
     margin: 0 auto;
     font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
   }
+  .copy-label {
+    position: fixed;
+    top: 12mm;
+    right: 15mm;
+    font-size: 10px;
+    color: #6c757d;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
   .contract-document h1 {
     font-size: 24px;
     margin-bottom: 8px;
@@ -136,7 +145,7 @@ async function getBrowser() {
   return browserPromise;
 }
 
-function buildHtmlDocument(content) {
+function buildHtmlDocument(content, { copyLabel } = {}) {
   return `<!DOCTYPE html>
   <html lang="ro">
     <head>
@@ -147,6 +156,7 @@ function buildHtmlDocument(content) {
       </style>
     </head>
     <body>
+      ${copyLabel ? `<div class="copy-label">${copyLabel}</div>` : ''}
       <div class="pdf-wrapper">
         ${content || ''}
       </div>
@@ -154,7 +164,7 @@ function buildHtmlDocument(content) {
   </html>`;
 }
 
-export async function createPdfBufferFromHtml(html) {
+export async function createPdfBufferFromHtml(html, options = {}) {
   if (html === null || html === undefined) {
     throw new Error('HTML_CONTENT_MISSING');
   }
@@ -162,7 +172,7 @@ export async function createPdfBufferFromHtml(html) {
   const page = await browser.newPage();
   try {
     await page.setViewport(VIEWPORT);
-    await page.setContent(buildHtmlDocument(String(html)), { waitUntil: 'networkidle0' });
+    await page.setContent(buildHtmlDocument(String(html), options), { waitUntil: 'networkidle0' });
     await page.emulateMediaType('screen');
     const buffer = await page.pdf({ format: 'A4', printBackground: true, margin: PDF_MARGIN_MM });
     return buffer;

@@ -406,7 +406,12 @@
               <% const entryTypeLabel =
                 entryType === 'status' ? 'Actualizare status' : entryType === 'log' ? 'Activitate' : 'Mesaj'; %>
               <% const statusInfoEntry = entry.status ? projectStatusMap[entry.status] : null; %>
-              <div class="timeline-item" data-entry-type="<%= entryType %>" data-entry-id="<%= entry.id %>">
+              <div
+                class="timeline-item"
+                data-entry-type="<%= entryType %>"
+                data-entry-id="<%= entry.id %>"
+                <% if (entryType === 'status' && entry.status) { %>data-status="<%= entry.status %>"<% } %>
+              >
                 <div class="timeline-content <%= entryType === 'status' ? 'timeline-content--status' : '' %>">
                   <div class="d-flex align-items-center gap-2 mb-2">
                     <h3 class="h6 mb-0"><%= entryTypeLabel %></h3>
@@ -926,6 +931,9 @@
       item.className = 'timeline-item';
       item.setAttribute('data-entry-type', entry.entry_type);
       item.setAttribute('data-entry-id', entry.id);
+      if (entry.entry_type === 'status' && entry.status) {
+        item.setAttribute('data-status', entry.status);
+      }
 
       const content = document.createElement('div');
       content.className = 'timeline-content';

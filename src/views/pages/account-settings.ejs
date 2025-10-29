@@ -2,10 +2,17 @@
 <%- include('../partials/header') %>
 <section class="py-5">
   <div class="container" style="max-width: 960px;">
+    <% const isClient = currentUser.role === 'client'; %>
+    <% const isManager = ['admin', 'superadmin'].includes(currentUser.role); %>
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
       <div>
         <h1 class="h3 mb-1">Cont</h1>
-        <p class="text-muted mb-0">Centralizeaza datele personale, ticketele si contractele semnate intr-un singur loc.</p>
+        <p class="text-muted mb-0">
+          <%= isClient
+            ? 'Centralizeaza datele personale, ticketele si contractele semnate intr-un singur loc.'
+            : 'Administreaza informatiile contului si resursele proiectelor pe care le coordonezi pentru clienti.'
+          %>
+        </p>
       </div>
       <div class="text-md-end">
         <span class="badge bg-light text-dark border">Rol: <span class="text-uppercase"><%= currentUser.role %></span></span>
@@ -75,7 +82,7 @@
           aria-controls="tab-projects"
           aria-selected="<%= currentTab === 'projects' ? 'true' : 'false' %>"
         >
-          Proiectele mele
+          <%= isClient ? 'Proiectele mele' : 'Proiecte gestionate' %>
         </button>
       </li>
       <li class="nav-item" role="presentation">
@@ -113,7 +120,12 @@
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-4">
               <div>
                 <h2 class="h5 mb-1">Date personale</h2>
-                <p class="text-muted mb-0">Actualizeaza informatiile de contact folosite in comunicarea cu echipa.</p>
+                <p class="text-muted mb-0">
+                  <%= isClient
+                    ? 'Actualizeaza informatiile de contact folosite in comunicarea cu echipa.'
+                    : 'Actualizeaza datele vizibile clientilor si colegilor in proiectele active.'
+                  %>
+                </p>
               </div>
               <span class="badge bg-light text-dark">Ultima actualizare: <%= profile.updated_at?.toISOString ? profile.updated_at.toISOString().slice(0, 10) : '—' %></span>
             </div>
@@ -173,13 +185,27 @@
           <div class="card-body">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
               <div>
-                <h2 class="h5 mb-1">Ticketele mele</h2>
-                <p class="text-muted mb-0">Urmariti solicitarile trimise si raspunsurile echipei.</p>
+                <h2 class="h5 mb-1"><%= isClient ? 'Ticketele mele' : 'Tickete asignate' %></h2>
+                <p class="text-muted mb-0">
+                  <%= isClient
+                    ? 'Urmariti solicitarile trimise si raspunsurile echipei.'
+                    : 'Monitorizeaza solicitarile primite de la clienti si statusul interventiilor.'
+                  %>
+                </p>
               </div>
+              <% if (isClient) { %>
               <a class="btn btn-outline-primary btn-sm" href="/cont/tichete/creeaza">Deschide ticket</a>
+              <% } else { %>
+              <a class="btn btn-outline-primary btn-sm" href="/cont/tichete">Vezi toate tichetele</a>
+              <% } %>
             </div>
             <% if (!tickets || tickets.length === 0) { %>
-            <p class="text-muted mb-0">Momentan nu exista tickete asociate contului tau.</p>
+            <p class="text-muted mb-0">
+              <%= isClient
+                ? 'Momentan nu exista tickete asociate contului tau.'
+                : 'Nu ai tichete asignate momentan.'
+              %>
+            </p>
             <% } else { %>
             <div class="table-responsive">
               <table class="table align-middle">
@@ -237,10 +263,20 @@
           <div class="card-body">
             <div class="mb-4">
               <h2 class="h5 mb-1">Contracte semnate</h2>
-              <p class="text-muted mb-0">Acceseaza rapid contractele finalizate si semnate de ambele parti.</p>
+              <p class="text-muted mb-0">
+                <%= isClient
+                  ? 'Acceseaza rapid contractele finalizate si semnate de ambele parti.'
+                  : 'Consulta contractele finalizate pentru clientii din portofoliul tau.'
+                %>
+              </p>
             </div>
             <% if (!contracts || contracts.length === 0) { %>
-            <p class="text-muted mb-0">Nu exista contracte semnate disponibile pentru descarcare in acest moment.</p>
+            <p class="text-muted mb-0">
+              <%= isClient
+                ? 'Nu exista contracte semnate disponibile pentru descarcare in acest moment.'
+                : 'Nu exista contracte finalizate pentru portofoliul tau.'
+              %>
+            </p>
             <% } else { %>
             <div class="table-responsive">
               <table class="table align-middle">
@@ -269,7 +305,7 @@
                       <% } else { %>
                       <span class="text-muted">—</span>
                       <% } %>
-                      <% if (contract.client_name && ['admin', 'superadmin'].includes(currentUser.role)) { %>
+                      <% if (contract.client_name && isManager) { %>
                       <div class="small text-muted">Client: <%= contract.client_name %></div>
                       <% } %>
                     </td>
@@ -309,11 +345,21 @@
         <div class="card shadow-sm">
           <div class="card-body">
             <div class="mb-4">
-              <h2 class="h5 mb-1">Proiectele mele</h2>
-              <p class="text-muted mb-0">Monitorizeaza statusul proiectelor si termenele stabilite.</p>
+              <h2 class="h5 mb-1"><%= isClient ? 'Proiectele mele' : 'Proiecte gestionate' %></h2>
+              <p class="text-muted mb-0">
+                <%= isClient
+                  ? 'Monitorizeaza statusul proiectelor si termenele stabilite.'
+                  : 'Verifica proiectele asignate si prioritatile agreate cu clientii.'
+                %>
+              </p>
             </div>
             <% if (!projects || projects.length === 0) { %>
-            <p class="text-muted mb-0">Nu exista proiecte asociate contului tau in acest moment.</p>
+            <p class="text-muted mb-0">
+              <%= isClient
+                ? 'Nu exista proiecte asociate contului tau in acest moment.'
+                : 'Nu ai proiecte alocate in prezent.'
+              %>
+            </p>
             <% } else { %>
             <div class="table-responsive">
               <table class="table align-middle">
@@ -342,10 +388,10 @@
                         : project.deadline?.toString() || '—' %>
                     </td>
                     <td>
-                      <% if (currentUser.role === 'client') { %>
+                      <% if (isClient) { %>
                       <div class="small text-muted">Administrator: <%= project.assigned_admin_name || 'Nealocat' %></div>
                       <div class="small text-muted">Redactor: <%= project.assigned_redactor_name || 'Nealocat' %></div>
-                      <% } else if (['admin', 'superadmin'].includes(currentUser.role)) { %>
+                      <% } else if (isManager) { %>
                       <div class="small text-muted">Client: <%= project.client_name || 'N/A' %></div>
                       <div class="small text-muted">Redactor: <%= project.assigned_redactor_name || 'Nealocat' %></div>
                       <% } else if (currentUser.role === 'redactor') { %>

@@ -1,5 +1,9 @@
 <footer class="footer-modern text-light py-5 mt-5">
+  <% const isAuthenticated = Boolean(currentUser); %>
+  <% const isStaff = isAuthenticated && ['redactor', 'admin', 'superadmin'].includes(currentUser.role); %>
+  <% const isManager = isAuthenticated && ['admin', 'superadmin'].includes(currentUser.role); %>
   <div class="container">
+    <% if (!isStaff) { %>
     <div class="row">
       <div class="col-md-6">
         <h5 class="fw-bold">Licente la Cheie</h5>
@@ -21,6 +25,31 @@
         <p class="mb-0">Telefon: +40 744 000 000</p>
       </div>
     </div>
+    <% } else { %>
+    <div class="row">
+      <div class="col-lg-6">
+        <h5 class="fw-bold">Panou operatiuni</h5>
+        <p class="mb-2">Acceseaza rapid resursele interne si pastreaza contextul proiectelor active.</p>
+        <p class="small mb-0">© <%= new Date().getFullYear() %> Licente la Cheie • Zona interna a echipei.</p>
+      </div>
+      <div class="col-lg-3">
+        <h6>Acces rapid</h6>
+        <ul class="list-unstyled">
+          <li><a class="link-light" href="/cont">Panou principal</a></li>
+          <li><a class="link-light" href="/cont/proiecte">Proiecte</a></li>
+          <li><a class="link-light" href="/cont/tichete">Tichete</a></li>
+          <% if (isManager) { %>
+          <li><a class="link-light" href="/cont/utilizatori">Utilizatori</a></li>
+          <% } %>
+        </ul>
+      </div>
+      <div class="col-lg-3">
+        <h6>Contact intern</h6>
+        <p class="mb-1">Escalări urgente: #suport-intern</p>
+        <p class="mb-0">Telefon duty manager: +40 744 111 222</p>
+      </div>
+    </div>
+    <% } %>
   </div>
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>

@@ -8,8 +8,12 @@
         border-radius: 0.75rem;
       }
     </style>
+    <% const isClient = currentUser && currentUser.role === 'client'; %>
     <% const statusLabel = currentStatusInfo?.label || project.status; %>
-    <% const statusMessage = currentStatusInfo?.clientMessage || currentStatusInfo?.description || '' %>
+    <% const statusMessage = isClient
+      ? currentStatusInfo?.clientMessage || currentStatusInfo?.description || ''
+      : currentStatusInfo?.description || currentStatusInfo?.clientMessage || '';
+    %>
     <% const flowIndex = projectStatusFlow.findIndex((status) => status.id === project.status); %>
     <% const safeFlowIndex = flowIndex === -1 ? null : flowIndex; %>
     <% const totalStatuses = projectStatusFlow.length || 0; %>

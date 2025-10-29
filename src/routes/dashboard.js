@@ -15,6 +15,8 @@ import {
   listTicketsForUser,
   createTicket,
   getTicketWithReplies,
+  getTicketById,
+  getTicketTimelineEntries,
   addReply,
   updateTicketStatus,
   listPendingSupportTicketsForAdmin,
@@ -60,6 +62,7 @@ import {
 import { isValidCNP } from '../utils/validators.js';
 
 const router = Router();
+const TIMELINE_PAGE_SIZE = 10;
 
 router.use(ensureAuthenticated);
 
@@ -410,7 +413,8 @@ router
 
 router.get('/cont/tichete/:id', async (req, res, next) => {
   try {
-    const { ticket, replies } = await getTicketWithReplies(Number(req.params.id));
+    const ticketId = Number(req.params.id);
+    const ticket = await getTicketById(ticketId);
     if (!ticket) {
       return res.status(404).render('pages/404', {
         title: 'Ticket inexistent',
@@ -436,6 +440,12 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
         description: 'Ticketul nu este gestionat de tine.'
       });
     }
+    const timelineBatch = await getTicketTimelineEntries(ticket.id, {
+      limit: TIMELINE_PAGE_SIZE + 1,
+      offset: 0
+    });
+    const hasMoreTimeline = timelineBatch.length > TIMELINE_PAGE_SIZE;
+    const timelineEntries = hasMoreTimeline ? timelineBatch.slice(0, TIMELINE_PAGE_SIZE) : timelineBatch;
     const offer = ticket.kind === 'offer' || ticket.kind === 'contract' ? await getOfferByTicketId(ticket.id) : null;
     const contractDetails = ticket.kind === 'contract' ? await getContractDetailsByTicket(ticket.id) : null;
     const feedback = req.session.ticketFeedback || {};
@@ -444,11 +454,61 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
       title: `Ticket ${ticket.display_code} – ${ticket.subject}`,
       description: 'Comunicare rapida cu echipa de proiect.',
       ticket,
-      replies,
+      timelineEntries,
+      hasMoreTimeline,
+      timelinePageSize: TIMELINE_PAGE_SIZE,
       offer,
       offerMinHours: MIN_OFFER_EXPIRATION_HOURS,
       feedback,
       contractDetails
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/cont/tichete/:id/timeline', async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticketul solicitat nu a fost gasit.' });
+    }
+
+    const user = req.session.user;
+    if (user.role === 'client' && ticket.created_by !== user.id) {
+      return res.status(403).json({ error: 'Nu aveti acces la acest ticket.' });
+    }
+    if (
+      user.role === 'redactor' &&
+      ticket.project_id &&
+      ticket.assigned_editor_id &&
+      ticket.assigned_editor_id !== user.id
+    ) {
+      return res.status(403).json({ error: 'Ticketul nu este asociat proiectelor tale.' });
+    }
+    if (user.role === 'admin' && ticket.project_id && ticket.assigned_admin_id && ticket.assigned_admin_id !== user.id) {
+      return res.status(403).json({ error: 'Ticketul nu este gestionat de tine.' });
+    }
+
+    const rawOffset = Number.parseInt(req.query.offset ?? '0', 10);
+    const rawLimit = Number.parseInt(req.query.limit ?? `${TIMELINE_PAGE_SIZE}`, 10);
+    const offset = Number.isNaN(rawOffset) ? 0 : Math.max(0, rawOffset);
+    const limit = Number.isNaN(rawLimit)
+      ? TIMELINE_PAGE_SIZE
+      : Math.max(1, Math.min(TIMELINE_PAGE_SIZE, rawLimit));
+
+    const timelineBatch = await getTicketTimelineEntries(ticketId, {
+      limit: limit + 1,
+      offset
+    });
+    const hasMore = timelineBatch.length > limit;
+    const entries = hasMore ? timelineBatch.slice(0, limit) : timelineBatch;
+
+    res.json({
+      entries,
+      hasMore,
+      nextOffset: offset + entries.length
     });
   } catch (error) {
     next(error);

@@ -367,25 +367,6 @@
       const firstName = parts[0] || 'Echipa';
       return `${firstName}, Echipa Licente la Cheie`;
     } %>
-    <div class="timeline">
-      <div class="timeline-item">
-        <div class="timeline-content">
-          <h2 class="h6">Mesaj initial</h2>
-          <p><%= ticket.message %></p>
-          <small class="text-muted">Creat de <%= formatTimelineName(ticket.author_name, ticket.author_role) %></small>
-        </div>
-      </div>
-      <% replies.forEach((reply) => { %>
-      <div class="timeline-item">
-        <div class="timeline-content">
-          <h2 class="h6">Raspuns</h2>
-          <p><%= reply.message %></p>
-          <small class="text-muted">Trimis de <%= formatTimelineName(reply.author_name, reply.author_role) %></small>
-        </div>
-      </div>
-      <% }) %>
-    </div>
-
     <div class="glass-card mt-4">
       <form action="/cont/tichete/<%= ticket.id %>/raspuns" method="post" class="vstack gap-3">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -396,6 +377,29 @@
         <button class="btn btn-gradient align-self-end" type="submit">Trimite raspuns</button>
       </form>
     </div>
+
+    <div
+      class="timeline mt-4"
+      data-timeline
+      data-ticket-id="<%= ticket.id %>"
+      data-offset="<%= timelineEntries.length %>"
+      data-limit="<%= timelinePageSize %>"
+    >
+      <% timelineEntries.forEach((entry) => { %>
+      <div class="timeline-item" data-entry-type="<%= entry.entry_type %>" data-entry-id="<%= entry.entry_id %>">
+        <div class="timeline-content">
+          <h2 class="h6"><%= entry.entry_type === 'ticket' ? 'Mesaj initial' : 'Raspuns' %></h2>
+          <p><%= entry.message %></p>
+          <small class="text-muted"><%= entry.entry_type === 'ticket' ? 'Creat de' : 'Trimis de' %> <%= formatTimelineName(entry.author_name, entry.author_role) %></small>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+    <% if (hasMoreTimeline) { %>
+    <div class="text-center mt-3">
+      <button class="btn btn-outline-primary" type="button" data-timeline-load>Vezi mai mult</button>
+    </div>
+    <% } %>
 
     <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
     <div class="glass-card mt-4">
@@ -535,6 +539,108 @@
         }
       });
     });
+
+    const timeline = document.querySelector('[data-timeline]');
+    if (timeline) {
+      const loadMoreButton = document.querySelector('[data-timeline-load]');
+      const ticketId = timeline.getAttribute('data-ticket-id');
+      const limit = Number(timeline.getAttribute('data-limit') || '10');
+      let offset = Number(timeline.getAttribute('data-offset') || '0');
+
+      function formatTimelineNameClient(name, role) {
+        if (!role || role === 'client') {
+          return name || 'Autor necunoscut';
+        }
+        const parts = (name || '').trim().split(/\s+/);
+        const firstName = parts[0] || 'Echipa';
+        return `${firstName}, Echipa Licente la Cheie`;
+      }
+
+      function createMessageParagraph(message) {
+        const paragraph = document.createElement('p');
+        const lines = `${message ?? ''}`.split(/\n/);
+        lines.forEach((line, index) => {
+          if (index > 0) {
+            paragraph.appendChild(document.createElement('br'));
+          }
+          paragraph.appendChild(document.createTextNode(line));
+        });
+        return paragraph;
+      }
+
+      function renderTimelineEntry(entry) {
+        const item = document.createElement('div');
+        item.className = 'timeline-item';
+        item.setAttribute('data-entry-type', entry.entry_type);
+        item.setAttribute('data-entry-id', entry.entry_id);
+
+        const content = document.createElement('div');
+        content.className = 'timeline-content';
+        item.appendChild(content);
+
+        const title = document.createElement('h2');
+        title.className = 'h6';
+        title.textContent = entry.entry_type === 'ticket' ? 'Mesaj initial' : 'Raspuns';
+        content.appendChild(title);
+
+        content.appendChild(createMessageParagraph(entry.message));
+
+        const meta = document.createElement('small');
+        meta.className = 'text-muted';
+        const prefix = entry.entry_type === 'ticket' ? 'Creat de ' : 'Trimis de ';
+        meta.textContent = `${prefix}${formatTimelineNameClient(entry.author_name, entry.author_role)}`;
+        content.appendChild(meta);
+
+        return item;
+      }
+
+      if (loadMoreButton) {
+        loadMoreButton.addEventListener('click', async () => {
+          loadMoreButton.disabled = true;
+          const originalText = loadMoreButton.textContent;
+          loadMoreButton.textContent = 'Se incarca...';
+          try {
+            const response = await fetch(
+              `/cont/tichete/${ticketId}/timeline?offset=${offset}&limit=${limit}`,
+              {
+                headers: {
+                  Accept: 'application/json'
+                }
+              }
+            );
+
+            if (!response.ok) {
+              throw new Error('Network response was not ok');
+            }
+
+            const data = await response.json();
+            if (Array.isArray(data.entries)) {
+              data.entries.forEach((entry) => {
+                timeline.appendChild(renderTimelineEntry(entry));
+              });
+            }
+
+            if (typeof data.nextOffset === 'number') {
+              offset = data.nextOffset;
+            } else if (Array.isArray(data.entries)) {
+              offset += data.entries.length;
+            }
+            timeline.setAttribute('data-offset', String(offset));
+
+            if (!data.hasMore) {
+              loadMoreButton.remove();
+            } else {
+              loadMoreButton.disabled = false;
+              loadMoreButton.textContent = originalText;
+            }
+          } catch (error) {
+            loadMoreButton.disabled = false;
+            loadMoreButton.textContent = originalText;
+            window.alert('Nu am putut incarca mesaje suplimentare. Incearca din nou.');
+          }
+        });
+      }
+    }
   })();
 </script>
 <%- include('../partials/footer') %>

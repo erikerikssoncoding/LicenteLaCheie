@@ -11,6 +11,7 @@ import publicRoutes from './routes/public.js';
 import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
 import { injectUser } from './middleware/auth.js';
+import { initializeSecurityState, getSecurityState } from './utils/securityState.js';
 
 dotenv.config();
 
@@ -19,23 +20,32 @@ process.env.TZ = 'Europe/Bucharest';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+await initializeSecurityState();
+
 const app = express();
 
 app.set('trust proxy', 1);
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    useDefaults: true,
-    directives: {
-      "img-src": ["'self'", 'data:', 'https://images.unsplash.com'],
-      "script-src": ["'self'", 'https://cdn.jsdelivr.net'],
-      "style-src": ["'self'", 'https://cdn.jsdelivr.net', "'unsafe-inline'"],
-      "connect-src": ["'self'"]
-    }
+const baseHelmet = helmet({ contentSecurityPolicy: false });
+const cspMiddleware = helmet.contentSecurityPolicy({
+  useDefaults: true,
+  directives: {
+    "img-src": ["'self'", 'data:', 'https://images.unsplash.com'],
+    "script-src": ["'self'", 'https://cdn.jsdelivr.net'],
+    "style-src": ["'self'", 'https://cdn.jsdelivr.net', "'unsafe-inline'"],
+    "connect-src": ["'self'"]
   }
-}));
+});
+
+app.use((req, res, next) => baseHelmet(req, res, next));
+app.use((req, res, next) => {
+  if (!getSecurityState().csp) {
+    return next();
+  }
+  return cspMiddleware(req, res, next);
+});
 app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -47,7 +57,7 @@ app.use(injectUser);
 
 app.use((req, res, next) => {
   const proto = req.headers['x-forwarded-proto'];
-  if (process.env.ENFORCE_HTTPS === 'true' && proto && proto !== 'https') {
+  if (getSecurityState().enforce_https && proto && proto !== 'https') {
     return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
   }
   return next();
@@ -72,9 +82,17 @@ app.use((err, req, res, next) => {
       description: 'Formularul a expirat. Te rugam sa reincerci.'
     });
   }
-  res.status(err.status || 500).render('pages/500', {
+  const status = err.status || 500;
+  const debugEnabled = getSecurityState().debug_mode;
+  res.status(status).render('pages/500', {
     title: 'Eroare interna',
-    description: 'A intervenit o problema neasteptata. Echipa tehnica a fost notificata.'
+    description: 'A intervenit o problema neasteptata. Echipa tehnica a fost notificata.',
+    debugDetails: debugEnabled
+      ? {
+          message: err.message,
+          stack: err.stack
+        }
+      : null
   });
 });
 

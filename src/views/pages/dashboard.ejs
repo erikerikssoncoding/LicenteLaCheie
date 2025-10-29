@@ -135,16 +135,60 @@
     </div>
     <div class="card shadow-sm mb-4">
       <div class="card-body">
-        <h2 class="h5 mb-3">Meniu administrare</h2>
-        <p class="text-muted">Acceseaza rapid instrumentele dedicate supervizarii echipei si a clientilor.</p>
+        <h2 class="h5 mb-3">Instrumente rapide</h2>
+        <p class="text-muted">Acceseaza rapid zonele dedicate supervizarii echipei si a clientilor.</p>
         <div class="d-flex flex-wrap gap-2">
-          <a class="btn btn-outline-primary" href="/cont/utilizatori">Administrare utilizatori</a>
-          <a class="btn btn-outline-primary" href="/cont/tichete">Administrare tichete</a>
+          <a class="btn btn-outline-primary" href="/cont/utilizatori">Utilizatori</a>
+          <a class="btn btn-outline-primary" href="/cont/tichete">Tichete</a>
           <a class="btn btn-outline-primary" href="/cont/proiecte/creeaza">Creaza proiect</a>
           <a class="btn btn-outline-primary" href="/cont">Vizualizeaza proiectele active</a>
         </div>
       </div>
     </div>
+    <% if (currentUser.role === 'superadmin') { %>
+    <div class="card shadow-sm mb-4" id="securitate">
+      <div class="card-body">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-3">
+          <div>
+            <h2 class="h5 mb-1">Securitate platforma</h2>
+            <p class="text-muted mb-0">Activeaza sau dezactiveaza politicile critice de protectie pentru aplicatie.</p>
+          </div>
+          <% if (securityFlash) { %>
+          <div class="flex-shrink-0">
+            <div class="alert <%= securityFlash.type === 'success' ? 'alert-success' : 'alert-danger' %> mb-0" role="alert">
+              <%= securityFlash.message %>
+            </div>
+          </div>
+          <% } %>
+        </div>
+        <div class="vstack gap-3">
+          <% securitySettings.forEach((setting) => { %>
+          <form method="post" action="/cont/securitate" class="border rounded-3 p-3 bg-body-tertiary">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <input type="hidden" name="key" value="<%= setting.key %>" />
+            <input type="hidden" name="enabled" value="<%= setting.isEnabled ? '0' : '1' %>" />
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+              <div>
+                <h3 class="h6 mb-1"><%= setting.label %></h3>
+                <p class="small text-muted mb-0"><%= setting.description %></p>
+              </div>
+              <div class="text-md-end">
+                <span class="badge <%= setting.isEnabled ? 'bg-success' : 'bg-secondary' %> mb-2">
+                  <%= setting.isEnabled ? 'Activ' : 'Inactiv' %>
+                </span>
+                <div>
+                  <button class="btn <%= setting.isEnabled ? 'btn-outline-danger' : 'btn-outline-success' %>" type="submit">
+                    <%= setting.isEnabled ? 'Dezactiveaza' : 'Activeaza' %>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+    <% } %>
     <% } %>
 
     <div class="row g-4">

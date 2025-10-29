@@ -34,6 +34,8 @@ import {
   setUserActiveStatus,
   PROTECTED_USER_ID
 } from '../services/userService.js';
+import { listSecuritySettings, updateSecuritySetting } from '../services/securityService.js';
+import { refreshSecurityState } from '../utils/securityState.js';
 import {
   getOfferByTicketId,
   attachOfferDetails,
@@ -152,7 +154,9 @@ router.get('/cont', async (req, res, next) => {
       adminHighlights: { statusCounts: [], recentProjects: [] },
       pendingSupportTickets: [],
       pendingOffers: [],
-      recentReplies: []
+      recentReplies: [],
+      securitySettings: [],
+      securityFlash: null
     };
 
     if (user.role === 'client') {
@@ -186,6 +190,14 @@ router.get('/cont', async (req, res, next) => {
       viewModel.pendingOffers = pendingOffers;
     }
 
+    if (user.role === 'superadmin') {
+      const securitySettings = await listSecuritySettings();
+      const flash = req.session.securityFlash || null;
+      delete req.session.securityFlash;
+      viewModel.securitySettings = securitySettings;
+      viewModel.securityFlash = flash;
+    }
+
     res.render('pages/dashboard', viewModel);
   } catch (error) {
     next(error);
@@ -208,7 +220,7 @@ router.get('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, r
     const flash = req.session.flash || {};
     delete req.session.flash;
     res.render('pages/user-management', {
-      title: 'Administrare utilizatori',
+      title: 'Gestionare utilizatori',
       description: 'Creeaza conturi pentru echipa si gestioneaza accesul clientilor.',
       users,
       filters,
@@ -234,12 +246,45 @@ router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, 
       return statusMatch && kindMatch;
     });
     res.render('pages/ticket-management', {
-      title: 'Administrare tichete',
+      title: 'Gestionare tichete',
       description: 'Vizualizeaza rapid solicitarile clientilor si actualizeaza statusurile direct din panoul de control.',
       tickets: filteredTickets,
       filters
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/securitate', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const schema = z.object({
+      key: z.enum(['csp', 'enforce_https', 'debug_mode']),
+      enabled: z.enum(['0', '1'])
+    });
+    const data = schema.parse(req.body);
+    await updateSecuritySetting(data.key, data.enabled === '1');
+    await refreshSecurityState();
+    req.session.securityFlash = {
+      type: 'success',
+      message: 'Setarea de securitate a fost actualizata.'
+    };
+    res.redirect('/cont#securitate');
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.securityFlash = {
+        type: 'error',
+        message: 'Solicitarea trimisa nu este valida.'
+      };
+      return res.redirect('/cont#securitate');
+    }
+    if (error.message === 'UNKNOWN_SECURITY_SETTING') {
+      req.session.securityFlash = {
+        type: 'error',
+        message: 'Setarea selectata nu exista.'
+      };
+      return res.redirect('/cont#securitate');
+    }
     next(error);
   }
 });

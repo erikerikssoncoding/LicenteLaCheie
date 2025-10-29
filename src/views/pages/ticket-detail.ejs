@@ -258,7 +258,7 @@
         </div>
         <div class="col-md-6">
           <label class="form-label" for="contractIdType">Identificat prin</label>
-          <input class="form-control" type="text" id="contractIdType" name="idType" placeholder="ex: CI seria" value="<%= contractDetails?.idType || '' %>" required />
+          <input class="form-control" type="text" id="contractIdType" name="idType" placeholder="ex: CI" value="<%= contractDetails?.idType || '' %>" minlength="2" required />
         </div>
         <div class="col-md-3">
           <label class="form-label" for="contractIdSeries">Seria</label>

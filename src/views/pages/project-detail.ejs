@@ -120,8 +120,11 @@
                 </div>
                 <div class="project-progress-steps">
                   <% projectStatusFlow.forEach((status, index) => { %>
-                  <% const isCompleted = safeFlowIndex !== null && index < safeFlowIndex; %>
-                  <% const isCurrent = safeFlowIndex === index; %>
+                  <% const isFinalStatus = status.id === 'completed'; %>
+                  <% const isCompleted =
+                    safeFlowIndex !== null &&
+                    (index < safeFlowIndex || (index === safeFlowIndex && isFinalStatus)); %>
+                  <% const isCurrent = safeFlowIndex === index && !isFinalStatus; %>
                   <div class="project-progress-step <%= isCompleted ? 'is-complete' : '' %> <%= isCurrent ? 'is-current' : '' %>">
                     <span class="project-progress-dot"></span>
                     <span class="project-progress-label"><%= status.shortLabel || status.label %></span>

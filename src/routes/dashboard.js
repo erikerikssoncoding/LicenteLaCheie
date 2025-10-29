@@ -53,7 +53,9 @@ import {
   saveContractDetails,
   generateDraftForContract,
   applyClientSignature,
-  applyAdminSignature
+  applyAdminSignature,
+  createContractDownloadToken,
+  consumeContractDownloadToken
 } from '../services/contractService.js';
 import { isValidCNP } from '../utils/validators.js';
 
@@ -1027,6 +1029,129 @@ router.post(
         req.session.ticketFeedback = { error: 'Deseneaza semnatura pentru a o aplica pe contract.' };
         return res.redirect(`/cont/tichete/${req.params.id}`);
       }
+      next(error);
+    }
+  }
+);
+
+router.post(
+  '/cont/tichete/:id/contract/descarca',
+  ensureRole('client', 'admin', 'superadmin'),
+  async (req, res, next) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const { ticket } = await getTicketWithReplies(ticketId);
+      if (!ticket || ticket.kind !== 'contract') {
+        return res.status(404).render('pages/404', {
+          title: 'Ticket inexistent',
+          description: 'Ticketul solicitat nu a fost gasit.'
+        });
+      }
+      const user = req.session.user;
+      if (user.role === 'client' && ticket.created_by !== user.id) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu aveti acces la acest ticket.'
+        });
+      }
+      if (
+        user.role === 'admin' &&
+        ticket.project_id &&
+        ticket.assigned_admin_id &&
+        ticket.assigned_admin_id !== user.id
+      ) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti responsabil de acest ticket.'
+        });
+      }
+      const contractDetails = await getContractDetailsByTicket(ticketId);
+      if (!contractDetails || !contractDetails.contractDraft) {
+        req.session.ticketFeedback = {
+          error: 'Contractul nu este disponibil pentru descarcare in acest moment.'
+        };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
+      const { token } = createContractDownloadToken({ ticketId, userId: user.id });
+      return res.redirect(
+        `/cont/tichete/${ticketId}/contract/descarca?token=${encodeURIComponent(token)}`
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  '/cont/tichete/:id/contract/descarca',
+  ensureRole('client', 'admin', 'superadmin'),
+  async (req, res, next) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const { ticket } = await getTicketWithReplies(ticketId);
+      if (!ticket || ticket.kind !== 'contract') {
+        return res.status(404).render('pages/404', {
+          title: 'Ticket inexistent',
+          description: 'Ticketul solicitat nu a fost gasit.'
+        });
+      }
+      const user = req.session.user;
+      if (user.role === 'client' && ticket.created_by !== user.id) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu aveti acces la acest ticket.'
+        });
+      }
+      if (
+        user.role === 'admin' &&
+        ticket.project_id &&
+        ticket.assigned_admin_id &&
+        ticket.assigned_admin_id !== user.id
+      ) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti responsabil de acest ticket.'
+        });
+      }
+      const contractDetails = await getContractDetailsByTicket(ticketId);
+      if (!contractDetails || !contractDetails.contractDraft) {
+        req.session.ticketFeedback = {
+          error: 'Contractul nu este disponibil pentru descarcare in acest moment.'
+        };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
+      const token = typeof req.query.token === 'string' ? req.query.token : null;
+      if (!token) {
+        req.session.ticketFeedback = {
+          error: 'Tokenul de descarcare lipseste sau este invalid. Genereaza unul nou din pagina contractului.'
+        };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
+      const validation = consumeContractDownloadToken({
+        token,
+        ticketId,
+        userId: user.id
+      });
+      if (!validation) {
+        req.session.ticketFeedback = {
+          error: 'Linkul de descarcare a expirat sau nu este valid. Genereaza un token nou din pagina contractului.'
+        };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
+      const identifier =
+        contractDetails.contractNumber ||
+        ticket.display_code ||
+        `ticket-${ticketId}`;
+      const sanitizedIdentifier = identifier
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      const fileName = `contract-${sanitizedIdentifier || ticketId}.html`;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      return res.send(contractDetails.contractDraft);
+    } catch (error) {
       next(error);
     }
   }

@@ -662,7 +662,7 @@ router.post('/cont/tichete/:id/oferta/detalii', ensureRole('admin', 'superadmin'
       await addReply({
         ticketId: ticketId,
         userId: user.id,
-        message: `Oferta transmisa: ${amount.toFixed(2)} EUR. ${data.message}`
+        message: `Oferta transmisa: ${amount.toFixed(2)} RON. ${data.message}`
       });
     }
     req.session.ticketFeedback = { success: 'Oferta a fost transmisa clientului.' };
@@ -791,7 +791,7 @@ router.post('/cont/tichete/:id/oferta/contraoferta', async (req, res, next) => {
     await addReply({
       ticketId,
       userId: user.id,
-      message: `Contraoferta propusa: ${amount.toFixed(2)} EUR.`
+      message: `Contraoferta propusa: ${amount.toFixed(2)} RON.`
     });
     req.session.ticketFeedback = { success: 'Contraoferta a fost trimisa administratorului.' };
     res.redirect(`/cont/tichete/${ticketId}`);

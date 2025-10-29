@@ -72,7 +72,7 @@ export function generateContractTemplate({
   price
 }) {
   const today = new Date().toISOString().split('T')[0];
-  const valueText = price ? `${price} EUR` : 'valoarea va fi stabilita conform ofertei transmise';
+  const valueText = price ? `${price} RON` : 'valoarea va fi stabilita conform ofertei transmise';
   return `CONTRACT DE PRESTARI SERVICII\n\nIncheiat astazi ${today} intre:\n\n1. Licente la Cheie Consulting SRL, cu sediul in Bucuresti, denumit in continuare "Prestator";\n2. ${clientName}, inscris la programul ${program}, denumit in continuare "Beneficiar".\n\nArt.1 Obiectul contractului\nPrestatorul se obliga sa redacteze si sa ofere consultanta pentru lucrarea de licenta cu tema "${topic}".\n\nArt.2 Durata contractului\nLucrarea se va livra pana la data de ${deliveryDate}.\n\nArt.3 Pretul si modalitatea de plata\nValoarea serviciilor este de ${valueText}.\n\nArt.4 Confidentialitate\nPrestatorul garanteaza confidentialitatea tuturor informatiilor furnizate de Beneficiar.\n\nArt.5 Drepturile si obligatiile partilor\nPrestatorul va furniza materiale originale, iar Beneficiarul va oferi informatiile necesare la timp.\n\nArt.6 Semnatura partilor\nPrestator: ______________________\nBeneficiar: ______________________\n\nContractul poate fi semnat electronic prin platforma licentelacheie.ro.`;
 }
 

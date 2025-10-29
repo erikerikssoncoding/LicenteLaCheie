@@ -40,7 +40,7 @@ function formatDate(date) {
 function buildContractDraft({ offer, clientData, contractNumber, contractDate, clientSignature, adminSignature }) {
   const deliveryDate = offer?.delivery_date ? formatDate(offer.delivery_date) : '';
   const today = formatDate(new Date());
-  const price = offer?.offer_amount ? `${Number(offer.offer_amount).toFixed(2)} EUR` : 'valoarea se stabileste conform ofertei';
+  const price = offer?.offer_amount ? `${Number(offer.offer_amount).toFixed(2)} RON` : 'valoarea se stabileste conform ofertei';
   const beneficiaryName = escapeHtml(clientData.fullName || offer?.client_name || '');
   const beneficiaryAddress = escapeHtml(clientData.address || '');
   const beneficiaryId = `${escapeHtml(clientData.idType || '')} ${escapeHtml(clientData.idSeries || '')} ${escapeHtml(

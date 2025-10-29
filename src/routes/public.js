@@ -11,6 +11,14 @@ import { createTicket } from '../services/ticketService.js';
 
 const router = Router();
 
+const OFFER_WORK_TYPES = [
+  'lucrare de licenta',
+  'lucrare de grad',
+  'lucrare de disertatie',
+  'lucrare de doctorat',
+  'proiect'
+];
+
 router.get('/', (req, res) => {
   res.render('pages/home', {
     title: 'Lucrari de licenta premium redactate de experti',
@@ -108,6 +116,7 @@ router
         phone: z.string().min(6),
         program: z.string().min(3),
         topic: z.string().min(5),
+        workType: z.enum(OFFER_WORK_TYPES),
         deliveryDate: z.string().min(4),
         notes: z.string().optional(),
         acceptAccount: isAuthenticated ? z.any().optional() : z.literal('on')
@@ -138,9 +147,9 @@ router
         projectId: null,
         userId,
         subject: `Solicitare oferta - ${payload.topic}`,
-        message: `Program de studiu: ${payload.program}\nLivrare dorita: ${payload.deliveryDate}\nDetalii suplimentare: ${
-          payload.notes || 'nespecificate'
-        }`,
+        message: `Tip lucrare: ${payload.workType}\nProgram de studiu: ${payload.program}\nLivrare dorita: ${
+          payload.deliveryDate
+        }\nDetalii suplimentare: ${payload.notes || 'nespecificate'}`,
         kind: 'offer'
       });
       const { offerCode } = await createOfferRequest({
@@ -150,6 +159,7 @@ router
         phone: payload.phone,
         program: payload.program,
         topic: payload.topic,
+        workType: payload.workType,
         deliveryDate: payload.deliveryDate,
         notes: payload.notes,
         ticketId

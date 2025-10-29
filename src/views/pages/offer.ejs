@@ -66,6 +66,17 @@
                 <input class="form-control" type="text" id="topic" name="topic" value="<%= request.body?.topic || '' %>" required />
               </div>
               <div class="col-md-6">
+                <label class="form-label" for="workType">Tipul lucrarii</label>
+                <select class="form-select" id="workType" name="workType" required>
+                  <option value="" disabled <%= request.body?.workType ? '' : 'selected' %>>Selecteaza tipul lucrarii</option>
+                  <option value="lucrare de licenta" <%= request.body?.workType === 'lucrare de licenta' ? 'selected' : '' %>>Lucrare de licenta</option>
+                  <option value="lucrare de grad" <%= request.body?.workType === 'lucrare de grad' ? 'selected' : '' %>>Lucrare de grad</option>
+                  <option value="lucrare de disertatie" <%= request.body?.workType === 'lucrare de disertatie' ? 'selected' : '' %>>Lucrare de disertatie</option>
+                  <option value="lucrare de doctorat" <%= request.body?.workType === 'lucrare de doctorat' ? 'selected' : '' %>>Lucrare de doctorat</option>
+                  <option value="proiect" <%= request.body?.workType === 'proiect' ? 'selected' : '' %>>Proiect</option>
+                </select>
+              </div>
+              <div class="col-md-6">
                 <label class="form-label" for="deliveryDate">Data dorita de livrare</label>
                 <input class="form-control" type="date" id="deliveryDate" name="deliveryDate" value="<%= request.body?.deliveryDate || '' %>" required />
               </div>

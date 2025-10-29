@@ -96,7 +96,7 @@ async function getBrowser() {
     const puppeteer = await getPuppeteer();
     browserPromise = puppeteer
       .launch({
-        headless: 'new',
+        headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=medium', '--disable-dev-shm-usage']
       })
       .catch((error) => {

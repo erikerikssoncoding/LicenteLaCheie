@@ -62,8 +62,7 @@ import {
   consumeContractDownloadToken
 } from '../services/contractService.js';
 import { isValidCNP } from '../utils/validators.js';
-import { htmlToPlainText } from '../utils/htmlToPlainText.js';
-import { createPdfBufferFromText } from '../utils/pdf.js';
+import { createPdfBufferFromHtml } from '../utils/pdf.js';
 
 const router = Router();
 const TIMELINE_PAGE_SIZE = 10;
@@ -1266,8 +1265,7 @@ router.get(
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
-      const plainTextContract = htmlToPlainText(contractDetails.contractDraft);
-      const pdfBuffer = createPdfBufferFromText(plainTextContract);
+      const pdfBuffer = await createPdfBufferFromHtml(contractDetails.contractDraft);
       const fileName = `contract-${sanitizedIdentifier || ticketId}.pdf`;
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);

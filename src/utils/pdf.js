@@ -3,6 +3,157 @@ const PAGE_HEIGHT = 841.89;
 const LEFT_MARGIN = 72;
 const TOP_MARGIN = 770;
 const MAX_LINE_LENGTH = 100;
+const PDF_MARGIN_MM = { top: '20mm', right: '15mm', bottom: '20mm', left: '15mm' };
+const VIEWPORT = { width: 1240, height: 1754, deviceScaleFactor: 2 };
+
+let browserPromise = null;
+let puppeteerModulePromise = null;
+
+const CONTRACT_BASE_STYLES = `
+  @page {
+    size: A4;
+    margin: 20mm 15mm;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    color: #212529;
+    font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
+  }
+  .pdf-wrapper {
+    padding: 0;
+  }
+  .contract-document {
+    max-width: 720px;
+    margin: 0 auto;
+    font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
+  }
+  .contract-document h1 {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+  .contract-document__body h2 {
+    font-size: 18px;
+    margin-top: 24px;
+    margin-bottom: 8px;
+  }
+  .contract-document__body p,
+  .contract-document__body li {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .contract-document__signatures {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    margin-top: 32px;
+  }
+  .signature-block {
+    flex: 1;
+  }
+  .signature-box {
+    border: 1px dashed #6c757d;
+    border-radius: 12px;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    padding: 12px;
+  }
+  .signature-placeholder {
+    color: #6c757d;
+    letter-spacing: 0.1em;
+  }
+  .signature-image {
+    max-width: 100%;
+    max-height: 110px;
+    object-fit: contain;
+  }
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+  strong {
+    font-weight: 600;
+  }
+`;
+
+async function getPuppeteer() {
+  if (!puppeteerModulePromise) {
+    puppeteerModulePromise = import('puppeteer').catch((error) => {
+      puppeteerModulePromise = null;
+      throw new Error(`PUPPETEER_IMPORT_FAILED: ${error.message}`);
+    });
+  }
+  const module = await puppeteerModulePromise;
+  return module.default || module;
+}
+
+async function getBrowser() {
+  if (!browserPromise) {
+    const puppeteer = await getPuppeteer();
+    browserPromise = puppeteer
+      .launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=medium', '--disable-dev-shm-usage']
+      })
+      .catch((error) => {
+        browserPromise = null;
+        throw error;
+      });
+
+    const cleanup = () => {
+      if (!browserPromise) {
+        return;
+      }
+      browserPromise
+        .then((browser) => browser?.close?.())
+        .catch(() => {})
+        .finally(() => {
+          browserPromise = null;
+        });
+    };
+    process.once('exit', cleanup);
+  }
+  return browserPromise;
+}
+
+function buildHtmlDocument(content) {
+  return `<!DOCTYPE html>
+  <html lang="ro">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <style>
+        ${CONTRACT_BASE_STYLES}
+      </style>
+    </head>
+    <body>
+      <div class="pdf-wrapper">
+        ${content || ''}
+      </div>
+    </body>
+  </html>`;
+}
+
+export async function createPdfBufferFromHtml(html) {
+  if (html === null || html === undefined) {
+    throw new Error('HTML_CONTENT_MISSING');
+  }
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setViewport(VIEWPORT);
+    await page.setContent(buildHtmlDocument(String(html)), { waitUntil: 'networkidle0' });
+    await page.emulateMediaType('screen');
+    const buffer = await page.pdf({ format: 'A4', printBackground: true, margin: PDF_MARGIN_MM });
+    return buffer;
+  } finally {
+    await page.close();
+  }
+}
 
 function escapePdfText(text) {
   return text.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');

@@ -354,6 +354,17 @@ a:hover {
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
 }
 
+.timeline-item[data-entry-type='log']::before {
+  background: #ffc107;
+  box-shadow: 0 0 0 6px rgba(255, 193, 7, 0.25);
+}
+
+.timeline-content--log {
+  background: rgba(255, 243, 205, 0.7);
+  border: 1px dashed rgba(255, 193, 7, 0.6);
+  box-shadow: none;
+}
+
 .call-to-action {
   background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(124, 58, 237, 0.08));
   padding: 3rem 2rem;

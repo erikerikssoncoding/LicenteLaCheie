@@ -706,12 +706,15 @@ router.post('/cont/tichete/:id/oferta/accepta', async (req, res, next) => {
       return res.redirect(`/cont/tichete/${ticketId}`);
     }
     await acceptOffer(offer.id);
+    await markTicketAsContract(ticketId);
     await addReply({
       ticketId,
       userId: user.id,
-      message: 'Oferta a fost acceptata. Astept instructiunile de contract.'
+      message: 'Oferta a fost acceptata si a fost deschisa etapa de semnare a contractului.'
     });
-    req.session.ticketFeedback = { success: 'Ai acceptat oferta. Un consultant te va contacta pentru contract.' };
+    req.session.ticketFeedback = {
+      success: 'Ai acceptat oferta. Completeaza datele contractului pentru a continua semnarea.'
+    };
     res.redirect(`/cont/tichete/${ticketId}`);
   } catch (error) {
     next(error);

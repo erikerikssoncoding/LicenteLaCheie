@@ -199,6 +199,158 @@ a:hover {
   padding: 2rem;
 }
 
+.project-progress-summary {
+  background: rgba(37, 99, 235, 0.05);
+  border-radius: 18px;
+  padding: 1.5rem;
+}
+
+.project-progress-card,
+.project-deadline-card {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  padding: 1.5rem;
+  height: 100%;
+}
+
+.project-progress-bar {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.project-progress-bar .progress-bar {
+  background: var(--accent-gradient);
+}
+
+.project-progress-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.project-progress-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.project-progress-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.2);
+  border: 2px solid rgba(37, 99, 235, 0.4);
+  flex-shrink: 0;
+}
+
+.project-progress-step.is-current .project-progress-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.project-progress-step.is-current {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.project-progress-step.is-complete .project-progress-dot {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+.project-progress-step.is-complete {
+  color: #15803d;
+}
+
+.project-deadline-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.project-deadline-card::after {
+  content: '';
+  position: absolute;
+  inset: auto -40% -50% auto;
+  width: 160px;
+  height: 160px;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.16), transparent 70%);
+  pointer-events: none;
+}
+
+.deadline-countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  font-weight: 600;
+  font-size: 1.5rem;
+  color: var(--accent);
+  margin-top: 0.5rem;
+}
+
+.deadline-countdown--expired {
+  color: #dc3545;
+}
+
+.deadline-countdown small {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.project-urgent-callout {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 193, 7, 0.35);
+}
+
+.project-tabs-wrapper {
+  position: sticky;
+  top: 72px;
+  z-index: 9;
+  background: var(--background);
+  padding: 0.75rem 0;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.project-tabs-wrapper .nav-tabs {
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.project-tabs-wrapper .nav-link {
+  border-radius: 999px;
+  padding: 0.5rem 1.5rem;
+}
+
+@media (max-width: 991.98px) {
+  .project-progress-summary {
+    padding: 1rem;
+  }
+
+  .project-tabs-wrapper {
+    top: 64px;
+    padding: 0.5rem 0;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .project-progress-steps {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .project-progress-card,
+  .project-deadline-card {
+    padding: 1.25rem;
+  }
+}
+
 .service-card {
   background: var(--surface-strong);
   border-radius: 20px;

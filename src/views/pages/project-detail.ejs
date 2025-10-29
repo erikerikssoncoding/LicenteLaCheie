@@ -6,11 +6,19 @@
     <% const statusMessage = currentStatusInfo?.clientMessage || currentStatusInfo?.description || '' %>
     <% const flowIndex = projectStatusFlow.findIndex((status) => status.id === project.status); %>
     <% const safeFlowIndex = flowIndex === -1 ? null : flowIndex; %>
+    <% const totalStatuses = projectStatusFlow.length || 0; %>
+    <% const progressPercent =
+      safeFlowIndex === null || !totalStatuses ? 0 : Math.round(((safeFlowIndex + 1) / totalStatuses) * 100); %>
     <% const deadlineLabel = project.deadline
       ? project.deadline.toISOString
         ? project.deadline.toISOString().slice(0, 10)
         : project.deadline
       : 'N/A'; %>
+    <% const deadlineIso = project.deadline
+      ? project.deadline.toISOString
+        ? project.deadline.toISOString()
+        : new Date(project.deadline).toISOString()
+      : null; %>
     <% const roleLabelMap = { client: 'Client', redactor: 'Redactor', admin: 'Admin', superadmin: 'Superadmin' }; %>
     <% const roleHierarchy = { client: 1, redactor: 2, admin: 3, superadmin: 4 }; %>
     <% const formatDateTime = (value) => {
@@ -35,7 +43,18 @@
           <div>
             <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
               <h1 class="h4 mb-0"><%= project.title %></h1>
-              <span class="badge bg-dark-subtle text-dark">Cod: <%= project.project_code %></span>
+              <div class="d-inline-flex align-items-center gap-2">
+                <span class="badge bg-dark-subtle text-dark">Cod: <%= project.project_code %></span>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  data-copy-button
+                  data-copy-value="<%= project.project_code %>"
+                  aria-label="Copiază codul proiectului"
+                >
+                  Copiază
+                </button>
+              </div>
             </div>
             <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
               <span class="badge bg-primary-subtle text-primary-emphasis text-uppercase">
@@ -54,10 +73,83 @@
               <% if (project.redactor_name) { %>
               <li><strong>Redactor asignat:</strong> <%= project.redactor_name %></li>
               <% } %>
-              <li><strong>Client:</strong> <%= project.client_name %> &bull; <%= project.client_email %></li>
+              <li>
+                <strong>Client:</strong>
+                <%= project.client_name %>
+                &bull;
+                <%= project.client_email %>
+                <button
+                  class="btn btn-sm btn-link text-decoration-none px-1"
+                  type="button"
+                  data-copy-button
+                  data-copy-value="<%= project.client_email %>"
+                  aria-label="Copiază adresa de email a clientului"
+                >
+                  Copiază
+                </button>
+              </li>
             </ul>
           </div>
         </div>
+        <% if (totalStatuses || deadlineIso) { %>
+        <div class="project-progress-summary mt-4">
+          <div class="row g-3 align-items-center">
+            <div class="col-lg-7">
+              <div class="project-progress-card h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <div>
+                    <span class="text-uppercase text-muted small">Progres general</span>
+                    <p class="fw-semibold mb-0 fs-5"><%= progressPercent %>% completat</p>
+                  </div>
+                  <span class="badge bg-primary-subtle text-primary-emphasis">
+                    <%= totalStatuses
+                      ? safeFlowIndex !== null
+                        ? `${safeFlowIndex + 1}/${totalStatuses}`
+                        : `0/${totalStatuses}`
+                      : 'N/A' %>
+                  </span>
+                </div>
+                <div class="progress project-progress-bar mb-3" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= progressPercent %>">
+                  <div class="progress-bar" style="width: <%= progressPercent %>%"></div>
+                </div>
+                <div class="project-progress-steps">
+                  <% projectStatusFlow.forEach((status, index) => { %>
+                  <% const isCompleted = safeFlowIndex !== null && index < safeFlowIndex; %>
+                  <% const isCurrent = safeFlowIndex === index; %>
+                  <div class="project-progress-step <%= isCompleted ? 'is-complete' : '' %> <%= isCurrent ? 'is-current' : '' %>">
+                    <span class="project-progress-dot"></span>
+                    <span class="project-progress-label"><%= status.shortLabel || status.label %></span>
+                  </div>
+                  <% }); %>
+                  <% if (!projectStatusFlow.length) { %>
+                  <span class="text-muted small">Fluxul de status nu este configurat.</span>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-5">
+              <div class="project-deadline-card h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="text-uppercase text-muted small">Deadline oficial</span>
+                  <span class="badge bg-dark-subtle text-dark"><%= deadlineLabel %></span>
+                </div>
+                <p class="mb-1 text-muted small">
+                  Monitorizează timpul rămas pentru a evita întârzierile și pentru a prioritiza livrările critice.
+                </p>
+                <div
+                  class="deadline-countdown"
+                  data-deadline-countdown
+                  data-deadline-value="<%= deadlineIso %>"
+                  data-deadline-label="<%= deadlineLabel %>"
+                >
+                  <span class="deadline-countdown-value" data-countdown-display>--:--:--</span>
+                  <small class="text-muted">Timp rămas</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <% } %>
         <% if (project.progress_notes) { %>
         <div class="alert alert-info mt-3 mb-0">
           <strong>Nota recenta:</strong> <%= project.progress_notes %>
@@ -66,23 +158,41 @@
       </div>
     </div>
 
-    <ul class="nav nav-tabs nav-tabs-bordered mb-4" data-project-tabs>
-      <li class="nav-item">
-        <button class="nav-link <%= activeTab === 'detalii' ? 'active' : '' %>" type="button" data-tab-target="detalii">
-          Detalii
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link <%= activeTab === 'timeline' ? 'active' : '' %>" type="button" data-tab-target="timeline">
-          Timeline
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link <%= activeTab === 'fisiere' ? 'active' : '' %>" type="button" data-tab-target="fisiere">
-          Fișiere
-        </button>
-      </li>
-    </ul>
+    <% const hasUrgentActions = openDocumentRequests.length > 0; %>
+    <% if (hasUrgentActions) { %>
+    <div class="alert alert-warning d-flex flex-column flex-lg-row align-items-lg-center gap-3 mb-4 project-urgent-callout">
+      <div>
+        <strong>Sarcini prioritare:</strong>
+        <%= openDocumentRequests.length %>
+        solicitări de documentație așteaptă răspuns.
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-sm btn-outline-warning" href="#tab-fisiere" data-tab-shortcut="fisiere">
+          Vezi solicitările
+        </a>
+      </div>
+    </div>
+    <% } %>
+
+    <div class="project-tabs-wrapper mb-4">
+      <ul class="nav nav-tabs nav-tabs-bordered" data-project-tabs>
+        <li class="nav-item">
+          <button class="nav-link <%= activeTab === 'detalii' ? 'active' : '' %>" type="button" data-tab-target="detalii">
+            Detalii
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link <%= activeTab === 'timeline' ? 'active' : '' %>" type="button" data-tab-target="timeline">
+            Timeline
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link <%= activeTab === 'fisiere' ? 'active' : '' %>" type="button" data-tab-target="fisiere">
+            Fișiere
+          </button>
+        </li>
+      </ul>
+    </div>
 
     <div class="tab-content" data-project-tab-content>
       <div
@@ -682,6 +792,102 @@
         activateTab(target);
       });
     });
+    const tabShortcuts = document.querySelectorAll('[data-tab-shortcut]');
+    tabShortcuts.forEach((shortcut) => {
+      shortcut.addEventListener('click', (event) => {
+        event.preventDefault();
+        const target = shortcut.getAttribute('data-tab-shortcut');
+        activateTab(target);
+        const tabsWrapper = document.querySelector('.project-tabs-wrapper');
+        if (tabsWrapper) {
+          tabsWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+
+    const copyButtons = document.querySelectorAll('[data-copy-button]');
+    copyButtons.forEach((button) => {
+      button.addEventListener('click', async () => {
+        const value = button.getAttribute('data-copy-value');
+        if (!value) {
+          return;
+        }
+        const originalText = button.textContent.trim();
+        function fallbackCopy() {
+          const tempInput = document.createElement('input');
+          tempInput.value = value;
+          document.body.appendChild(tempInput);
+          tempInput.select();
+          document.execCommand('copy');
+          document.body.removeChild(tempInput);
+        }
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(value);
+          } else {
+            fallbackCopy();
+          }
+          button.textContent = 'Copiat!';
+          setTimeout(() => {
+            button.textContent = originalText || 'Copiază';
+          }, 1500);
+        } catch (error) {
+          try {
+            fallbackCopy();
+            button.textContent = 'Copiat!';
+            setTimeout(() => {
+              button.textContent = originalText || 'Copiază';
+            }, 1500);
+          } catch (copyError) {
+            button.textContent = 'Eroare';
+            setTimeout(() => {
+              button.textContent = originalText || 'Copiază';
+            }, 2000);
+          }
+        }
+      });
+    });
+  })();
+</script>
+<script>
+  (function () {
+    const countdownElement = document.querySelector('[data-deadline-countdown]');
+    if (!countdownElement) {
+      return;
+    }
+    const deadlineValue = countdownElement.getAttribute('data-deadline-value');
+    const display = countdownElement.querySelector('[data-countdown-display]');
+    if (!deadlineValue || !display) {
+      display.textContent = 'N/A';
+      return;
+    }
+    const targetDate = new Date(deadlineValue);
+    if (Number.isNaN(targetDate.getTime())) {
+      display.textContent = countdownElement.getAttribute('data-deadline-label') || 'N/A';
+      return;
+    }
+
+    function updateCountdown() {
+      const now = new Date();
+      const diff = targetDate.getTime() - now.getTime();
+      if (diff <= 0) {
+        display.textContent = '00:00:00';
+        countdownElement.classList.add('deadline-countdown--expired');
+        return;
+      }
+      const totalSeconds = Math.floor(diff / 1000);
+      const days = Math.floor(totalSeconds / 86400);
+      const hours = Math.floor((totalSeconds % 86400) / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const hoursLabel = String(hours).padStart(2, '0');
+      const minutesLabel = String(minutes).padStart(2, '0');
+      const secondsLabel = String(seconds).padStart(2, '0');
+      display.textContent = days > 0 ? `${days}z ${hoursLabel}:${minutesLabel}:${secondsLabel}` : `${hoursLabel}:${minutesLabel}:${secondsLabel}`;
+    }
+
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
   })();
 </script>
 <script>

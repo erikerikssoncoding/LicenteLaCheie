@@ -1,9 +1,11 @@
 import pool from '../config/db.js';
-import { nanoid } from 'nanoid';
+import { customAlphabet } from 'nanoid';
+
+const generateTicketCode = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 6);
 
 async function generateUniqueTicketCode() {
   while (true) {
-    const code = nanoid(6).toUpperCase();
+    const code = generateTicketCode();
     const [rows] = await pool.query('SELECT id FROM tickets WHERE display_code = ?', [code]);
     if (rows.length === 0) {
       return code;

@@ -2323,11 +2323,19 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
     const clientUploadsRemaining = Math.max(0, CLIENT_MAX_PROJECT_FILES - clientFiles.length);
     const staffUploadsRemaining = Math.max(0, STAFF_MAX_PROJECT_FILES - staffFiles.length);
 
+    const timelineVisibilities = ['public'];
     const includeInternalTimeline = ['admin', 'superadmin', 'redactor'].includes(user.role);
+    const includeAdminTimeline = ['admin', 'superadmin'].includes(user.role);
+    if (includeInternalTimeline) {
+      timelineVisibilities.push('internal');
+    }
+    if (includeAdminTimeline) {
+      timelineVisibilities.push('admin');
+    }
     const timelineBatch = await getProjectTimelineEntries(projectId, {
       limit: PROJECT_TIMELINE_PAGE_SIZE + 1,
       offset: 0,
-      includeInternal: includeInternalTimeline
+      visibilities: timelineVisibilities
     });
     const hasMoreTimeline = timelineBatch.length > PROJECT_TIMELINE_PAGE_SIZE;
     const timelineEntries = hasMoreTimeline
@@ -2365,6 +2373,7 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
       hasMoreTimeline,
       timelinePageSize: PROJECT_TIMELINE_PAGE_SIZE,
       includeInternalTimeline,
+      includeAdminTimeline,
       currentStatusInfo,
       nextStatus,
       nextStatusInfo: nextStatus ? getProjectStatusById(nextStatus) : null,
@@ -2411,11 +2420,19 @@ router.get('/cont/proiecte/:id/timeline', async (req, res, next) => {
     const limit = Number.isNaN(rawLimit)
       ? PROJECT_TIMELINE_PAGE_SIZE
       : Math.max(1, Math.min(PROJECT_TIMELINE_PAGE_SIZE, rawLimit));
+    const timelineVisibilities = ['public'];
     const includeInternalTimeline = ['admin', 'superadmin', 'redactor'].includes(user.role);
+    const includeAdminTimeline = ['admin', 'superadmin'].includes(user.role);
+    if (includeInternalTimeline) {
+      timelineVisibilities.push('internal');
+    }
+    if (includeAdminTimeline) {
+      timelineVisibilities.push('admin');
+    }
     const timelineBatch = await getProjectTimelineEntries(projectId, {
       limit: limit + 1,
       offset,
-      includeInternal: includeInternalTimeline
+      visibilities: timelineVisibilities
     });
     const hasMore = timelineBatch.length > limit;
     const entries = hasMore ? timelineBatch.slice(0, limit) : timelineBatch;

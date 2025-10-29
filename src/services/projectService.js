@@ -275,7 +275,7 @@ export async function softDeleteProjectFile(fileId, { actor } = {}) {
     await addProjectTimelineEntry({
       projectId: file.project_id,
       entryType: 'log',
-      visibility: 'internal',
+      visibility: 'admin',
       message: `${actor.fullName} (${actor.role}) a șters fișierul ${file.original_name}.`,
       actor
     });
@@ -425,17 +425,26 @@ export async function getAdminProjectHighlights(adminId) {
   };
 }
 
-export async function getProjectTimelineEntries(projectId, { limit = 10, offset = 0, includeInternal = false } = {}) {
+export async function getProjectTimelineEntries(
+  projectId,
+  { limit = 10, offset = 0, visibilities = ['public'] } = {}
+) {
   const safeLimit = Math.max(1, Number(limit));
   const safeOffset = Math.max(0, Number(offset));
-  const visibilityClause = includeInternal ? "IN ('public','internal')" : "= 'public'";
+  const rawVisibilities = Array.isArray(visibilities) ? visibilities : ['public'];
+  const sanitizedVisibilities = rawVisibilities
+    .map((value) => (typeof value === 'string' ? value.trim() : null))
+    .filter((value) => value);
+  const uniqueVisibilities = Array.from(new Set(sanitizedVisibilities));
+  const finalVisibilities = uniqueVisibilities.length ? uniqueVisibilities : ['public'];
+  const placeholders = finalVisibilities.map(() => '?').join(', ');
   const [rows] = await pool.query(
     `SELECT id, entry_type, status, message, visibility, created_at, created_by, author_name, author_role
        FROM project_timeline_entries
-       WHERE project_id = ? AND visibility ${visibilityClause}
+       WHERE project_id = ? AND visibility IN (${placeholders})
        ORDER BY created_at DESC, id DESC
        LIMIT ? OFFSET ?`,
-    [projectId, safeLimit, safeOffset]
+    [projectId, ...finalVisibilities, safeLimit, safeOffset]
   );
   return rows;
 }

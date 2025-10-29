@@ -31,18 +31,19 @@
           <form action="/contact" method="post" class="row g-3">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <div class="col-12">
-              <a class="alert alert-warning d-flex align-items-center gap-3 text-decoration-none mb-0" href="/oferta">
-                <span class="bg-white text-warning rounded-circle d-flex align-items-center justify-content-center p-2 flex-shrink-0">
+              <div class="alert alert-success d-flex align-items-center gap-3 flex-wrap justify-content-between mb-0">
+                <span class="bg-white text-success rounded-circle d-flex align-items-center justify-content-center p-2 flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
                     <path d="M8 3.5a.5.5 0 0 1 .5.5v3.879l2.146 2.147a.5.5 0 0 1-.708.707l-2.3-2.3A.5.5 0 0 1 7.5 8V4a.5.5 0 0 1 .5-.5z"></path>
                     <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm0-1A7 7 0 1 1 8 1a7 7 0 0 1 0 14z"></path>
                   </svg>
                 </span>
-                <span class="text-body">
+                <span class="text-body flex-grow-1">
                   <strong>Vrei o oferta personalizata mai rapid?</strong>
                   Cere oferta direct si iti raspundem in maximum 30 de minute in timpul programului de lucru.
                 </span>
-              </a>
+                <a class="btn btn-success ms-auto" href="/oferta">Apasa Aici</a>
+              </div>
             </div>
             <% if (typeof error !== 'undefined' && error) { %>
             <div class="col-12">

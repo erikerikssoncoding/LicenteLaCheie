@@ -1605,13 +1605,11 @@ router
   .route('/cont/proiecte/:id/status')
   .post(ensureRole('admin', 'superadmin', 'redactor'), async (req, res, next) => {
     try {
-      const schema = z
-        .object({
-          action: z.enum(['advance', 'previous', 'set']).default('advance'),
-          status: z.string().optional(),
-          notes: z.string().optional()
-        })
-        .strict();
+      const schema = z.object({
+        action: z.enum(['advance', 'previous', 'set']).default('advance'),
+        status: z.string().optional(),
+        notes: z.string().optional()
+      });
       const data = schema.parse(req.body);
       const projectId = Number(req.params.id);
       const project = await getProjectById(projectId);

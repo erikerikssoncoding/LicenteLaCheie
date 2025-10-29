@@ -1,10 +1,22 @@
 import pool from '../config/db.js';
+import { nanoid } from 'nanoid';
+
+async function generateUniqueTicketCode() {
+  while (true) {
+    const code = nanoid(6).toUpperCase();
+    const [rows] = await pool.query('SELECT id FROM tickets WHERE display_code = ?', [code]);
+    if (rows.length === 0) {
+      return code;
+    }
+  }
+}
 
 export async function createTicket({ projectId, userId, subject, message, kind = 'support' }) {
+  const displayCode = await generateUniqueTicketCode();
   const [result] = await pool.query(
-    `INSERT INTO tickets (project_id, created_by, subject, message, kind)
-     VALUES (?, ?, ?, ?, ?)`,
-    [projectId || null, userId, subject, message, kind]
+    `INSERT INTO tickets (project_id, created_by, subject, message, kind, display_code)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [projectId || null, userId, subject, message, kind, displayCode]
   );
   return result.insertId;
 }
@@ -70,7 +82,7 @@ export async function addReply({ ticketId, userId, message }) {
 export async function getTicketWithReplies(ticketId) {
   const [[ticketRows], [replyRows]] = await Promise.all([
     pool.query(
-      `SELECT t.*, u.full_name AS author_name, p.title AS project_title,
+      `SELECT t.*, u.full_name AS author_name, u.role AS author_role, p.title AS project_title,
               p.assigned_admin_id, p.assigned_editor_id
        FROM tickets t
        LEFT JOIN users u ON u.id = t.created_by
@@ -79,7 +91,7 @@ export async function getTicketWithReplies(ticketId) {
       [ticketId]
     ),
     pool.query(
-      `SELECT tr.*, u.full_name AS author_name
+      `SELECT tr.*, u.full_name AS author_name, u.role AS author_role
        FROM ticket_replies tr
        LEFT JOIN users u ON u.id = tr.user_id
        WHERE tr.ticket_id = ?

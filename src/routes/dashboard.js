@@ -45,9 +45,16 @@ import {
   listPendingOffersForAdmin,
   MIN_OFFER_EXPIRATION_HOURS,
   acceptCounterOffer,
-  declineCounterOffer
+  declineCounterOffer,
+  updateOfferContractText
 } from '../services/offerService.js';
-import { getContractDetailsByTicket, saveContractDetails } from '../services/contractService.js';
+import {
+  getContractDetailsByTicket,
+  saveContractDetails,
+  generateDraftForContract,
+  applyClientSignature,
+  applyAdminSignature
+} from '../services/contractService.js';
 import { isValidCNP } from '../utils/validators.js';
 
 const router = Router();
@@ -432,7 +439,7 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
     const feedback = req.session.ticketFeedback || {};
     delete req.session.ticketFeedback;
     res.render('pages/ticket-detail', {
-      title: `Ticket ${ticket.subject}`,
+      title: `Ticket ${ticket.display_code} – ${ticket.subject}`,
       description: 'Comunicare rapida cu echipa de proiect.',
       ticket,
       replies,
@@ -869,26 +876,30 @@ router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
       return res.redirect(`/cont/tichete/${ticketId}`);
     }
     const sanitizedCnp = normalizedCnp ? normalizedCnp.replace(/\D/g, '') : null;
+    const clientData = {
+      fullName: payload.fullName.trim(),
+      idType: payload.idType.trim(),
+      idSeries: payload.idSeries.trim(),
+      idNumber: payload.idNumber.trim(),
+      cnp: sanitizedCnp,
+      address: payload.address.trim()
+    };
+    const draft = await generateDraftForContract({ offer, clientData });
     await saveContractDetails({
       ticketId,
       offerId: offer.id,
       userId: user.id,
-      data: {
-        fullName: payload.fullName.trim(),
-        idType: payload.idType.trim(),
-        idSeries: payload.idSeries.trim(),
-        idNumber: payload.idNumber.trim(),
-        cnp: sanitizedCnp,
-        address: payload.address.trim()
-      }
+      data: clientData,
+      draft
     });
+    await updateOfferContractText(offer.id, draft);
     await addReply({
       ticketId,
       userId: user.id,
       message: 'Datele personale pentru contract au fost completate.'
     });
     req.session.ticketFeedback = {
-      success: 'Datele pentru contract au fost salvate in siguranta. Consultantul va continua cu semnarea.'
+      success: 'Datele pentru contract au fost salvate si draftul contractului a fost generat.'
     };
     res.redirect(`/cont/tichete/${ticketId}`);
   } catch (error) {
@@ -899,6 +910,127 @@ router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
     next(error);
   }
 });
+
+router.post('/cont/tichete/:id/contract/semnatura-client', async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    const { ticket } = await getTicketWithReplies(ticketId);
+    if (!ticket || ticket.kind !== 'contract') {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost gasit.'
+      });
+    }
+    const user = req.session.user;
+    if (user.role !== 'client' || ticket.created_by !== user.id) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restrictionat',
+        description: 'Nu aveti acces la acest ticket.'
+      });
+    }
+    const offer = await getOfferByTicketId(ticketId);
+    if (!offer || offer.status !== 'accepted') {
+      req.session.ticketFeedback = { error: 'Oferta trebuie acceptata pentru a semna contractul.' };
+      return res.redirect(`/cont/tichete/${ticketId}`);
+    }
+    const schema = z.object({ signatureData: z.string().min(20) });
+    const data = schema.parse(req.body);
+    let clientDraft;
+    try {
+      clientDraft = await applyClientSignature({ ticketId, signatureData: data.signatureData, offer });
+    } catch (signatureError) {
+      if (signatureError.message === 'INVALID_CONTRACT_STAGE') {
+        req.session.ticketFeedback = {
+          error: 'Contractul nu poate fi semnat in acest stadiu.'
+        };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
+      throw signatureError;
+    }
+    if (clientDraft) {
+      await updateOfferContractText(offer.id, clientDraft);
+    }
+    await addReply({
+      ticketId,
+      userId: user.id,
+      message: 'Beneficiarul a semnat contractul electronic.'
+    });
+    req.session.ticketFeedback = {
+      success: 'Semnatura a fost aplicata. Contractul asteapta aprobarea administratorului.'
+    };
+    res.redirect(`/cont/tichete/${ticketId}`);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.ticketFeedback = { error: 'Semnatura electronica este necesara pentru a continua.' };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
+    next(error);
+  }
+});
+
+router.post(
+  '/cont/tichete/:id/contract/semnatura-admin',
+  ensureRole('admin', 'superadmin'),
+  async (req, res, next) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const { ticket } = await getTicketWithReplies(ticketId);
+      if (!ticket || ticket.kind !== 'contract') {
+        return res.status(404).render('pages/404', {
+          title: 'Ticket inexistent',
+          description: 'Ticketul solicitat nu a fost gasit.'
+        });
+      }
+      const user = req.session.user;
+      if (
+        user.role === 'admin' &&
+        ticket.project_id &&
+        ticket.assigned_admin_id &&
+        ticket.assigned_admin_id !== user.id
+      ) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti responsabil de acest ticket.'
+        });
+      }
+      const offer = await getOfferByTicketId(ticketId);
+      if (!offer || offer.status !== 'accepted') {
+        req.session.ticketFeedback = { error: 'Oferta trebuie sa fie acceptata pentru a finaliza contractul.' };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
+      const schema = z.object({ signatureData: z.string().min(20) });
+      const data = schema.parse(req.body);
+      let draftUpdate;
+      try {
+        draftUpdate = await applyAdminSignature({ ticketId, signatureData: data.signatureData, offer });
+      } catch (signatureError) {
+        if (signatureError.message === 'INVALID_CONTRACT_STAGE') {
+          req.session.ticketFeedback = {
+            error: 'Semnatura beneficiarului este necesara inainte de a finaliza contractul.'
+          };
+          return res.redirect(`/cont/tichete/${ticketId}`);
+        }
+        throw signatureError;
+      }
+      await updateOfferContractText(offer.id, draftUpdate.draft);
+      await addReply({
+        ticketId,
+        userId: user.id,
+        message: 'Administratorul a semnat contractul electronic.'
+      });
+      req.session.ticketFeedback = {
+        success: `Contractul a fost finalizat. Numar: ${draftUpdate.contractNumber}.`
+      };
+      res.redirect(`/cont/tichete/${ticketId}`);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        req.session.ticketFeedback = { error: 'Deseneaza semnatura pentru a o aplica pe contract.' };
+        return res.redirect(`/cont/tichete/${req.params.id}`);
+      }
+      next(error);
+    }
+  }
+);
 
 router.post('/cont/tichete/:id/status', ensureRole('admin', 'superadmin'), async (req, res, next) => {
   try {

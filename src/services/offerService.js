@@ -167,6 +167,10 @@ export async function acceptCounterOffer(offerId) {
   return getOfferById(offerId);
 }
 
+export async function updateOfferContractText(offerId, contractText) {
+  await pool.query(`UPDATE offers SET contract_text = ? WHERE id = ?`, [contractText, offerId]);
+}
+
 export async function declineCounterOffer(offerId) {
   const offer = await getOfferById(offerId);
   if (!offer || offer.status !== 'counter_submitted') {
@@ -182,7 +186,7 @@ export async function declineCounterOffer(offerId) {
 export async function listOffersForUser(user) {
   if (user.role === 'client') {
     const [rows] = await pool.query(
-      `SELECT o.*, t.status AS ticket_status
+      `SELECT o.*, t.status AS ticket_status, t.display_code AS ticket_display_code
        FROM offers o
        LEFT JOIN tickets t ON t.id = o.ticket_id
        WHERE o.user_id = ?
@@ -194,7 +198,7 @@ export async function listOffersForUser(user) {
 
   if (user.role === 'admin') {
     const [rows] = await pool.query(
-      `SELECT o.*, t.status AS ticket_status, u.full_name AS client_name_full
+      `SELECT o.*, t.status AS ticket_status, t.display_code AS ticket_display_code, u.full_name AS client_name_full
        FROM offers o
        LEFT JOIN tickets t ON t.id = o.ticket_id
        LEFT JOIN users u ON u.id = o.user_id
@@ -207,7 +211,7 @@ export async function listOffersForUser(user) {
   }
 
   const [rows] = await pool.query(
-    `SELECT o.*, t.status AS ticket_status, u.full_name AS client_name_full
+    `SELECT o.*, t.status AS ticket_status, t.display_code AS ticket_display_code, u.full_name AS client_name_full
      FROM offers o
      LEFT JOIN tickets t ON t.id = o.ticket_id
      LEFT JOIN users u ON u.id = o.user_id
@@ -219,9 +223,10 @@ export async function listOffersForUser(user) {
 export async function listPendingOffersForAdmin(adminId) {
   if (!adminId) {
     const [rows] = await pool.query(
-      `SELECT o.*, u.full_name AS client_name_full
+      `SELECT o.*, u.full_name AS client_name_full, t.display_code AS ticket_display_code
        FROM offers o
        LEFT JOIN users u ON u.id = o.user_id
+       LEFT JOIN tickets t ON t.id = o.ticket_id
        WHERE o.status IN ('pending', 'counter_submitted')
        ORDER BY o.created_at DESC`
     );
@@ -229,7 +234,7 @@ export async function listPendingOffersForAdmin(adminId) {
   }
 
   const [rows] = await pool.query(
-    `SELECT o.*, u.full_name AS client_name_full
+    `SELECT o.*, u.full_name AS client_name_full, t.display_code AS ticket_display_code
      FROM offers o
      LEFT JOIN tickets t ON t.id = o.ticket_id
      LEFT JOIN projects p ON p.id = t.project_id

@@ -50,18 +50,21 @@ app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(morgan('combined'));
-app.use(express.static(path.join(__dirname, '../public')));
-app.use(sessionMiddleware);
-app.use(csrf());
-app.use(injectUser);
-
 app.use((req, res, next) => {
-  const proto = req.headers['x-forwarded-proto'];
-  if (getSecurityState().enforce_https && proto && proto !== 'https') {
+  if (!getSecurityState().enforce_https) {
+    return next();
+  }
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const isSecure = forwardedProto ? forwardedProto === 'https' : req.secure;
+  if (!isSecure && req.headers.host) {
     return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
   }
   return next();
 });
+app.use(express.static(path.join(__dirname, '../public')));
+app.use(sessionMiddleware);
+app.use(csrf());
+app.use(injectUser);
 
 app.use('/', publicRoutes);
 app.use('/', authRoutes);

@@ -116,28 +116,31 @@ export async function getTicketWithReplies(ticketId) {
   return { ticket, replies: replyRows };
 }
 
-export async function getTicketTimelineEntries(ticketId, { limit = 10, offset = 0, includeInternal = false } = {}) {
+export async function getTicketTimelineEntries(
+  ticketId,
+  { limit = 10, offset = 0, includeInternal = false } = {}
+) {
   const safeLimit = Math.max(1, Number(limit));
   const safeOffset = Math.max(0, Number(offset));
   const visibilityClause = includeInternal ? "IN (?, ?)" : "= ?";
   const visibilityParams = includeInternal ? ['public', 'internal'] : ['public'];
   const [rows] = await pool.query(
-    `SELECT entry_type, entry_id, message, created_at, author_name, author_role
+    `SELECT entry_type, entry_id, message, created_at, author_name, author_role, author_id
      FROM (
        SELECT 'ticket' AS entry_type, t.id AS entry_id, t.message, t.created_at,
-              u.full_name AS author_name, u.role AS author_role
+              u.full_name AS author_name, u.role AS author_role, t.created_by AS author_id
        FROM tickets t
        LEFT JOIN users u ON u.id = t.created_by
        WHERE t.id = ?
        UNION ALL
        SELECT 'reply' AS entry_type, tr.id AS entry_id, tr.message, tr.created_at,
-              u.full_name AS author_name, u.role AS author_role
+              u.full_name AS author_name, u.role AS author_role, tr.user_id AS author_id
        FROM ticket_replies tr
        LEFT JOIN users u ON u.id = tr.user_id
        WHERE tr.ticket_id = ?
        UNION ALL
        SELECT 'log' AS entry_type, tal.id AS entry_id, tal.message, tal.created_at,
-              tal.author_name AS author_name, tal.author_role AS author_role
+              tal.author_name AS author_name, tal.author_role AS author_role, tal.created_by AS author_id
        FROM ticket_activity_logs tal
        WHERE tal.ticket_id = ? AND tal.visibility ${visibilityClause}
      ) AS timeline
@@ -147,6 +150,32 @@ export async function getTicketTimelineEntries(ticketId, { limit = 10, offset = 
   );
 
   return rows;
+}
+
+export async function getTicketTimelineLastReadAt(ticketId, userId) {
+  if (!ticketId || !userId) {
+    return null;
+  }
+  const [rows] = await pool.query(
+    `SELECT last_read_at
+       FROM ticket_timeline_reads
+      WHERE ticket_id = ? AND user_id = ?
+      LIMIT 1`,
+    [ticketId, userId]
+  );
+  return rows[0]?.last_read_at || null;
+}
+
+export async function markTicketTimelineAsRead(ticketId, userId) {
+  if (!ticketId || !userId) {
+    return;
+  }
+  await pool.query(
+    `INSERT INTO ticket_timeline_reads (ticket_id, user_id, last_read_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON DUPLICATE KEY UPDATE last_read_at = VALUES(last_read_at)`,
+    [ticketId, userId]
+  );
 }
 
 export async function addTicketLog({ ticketId, message, visibility = 'internal', actor = null }) {

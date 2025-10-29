@@ -425,12 +425,15 @@ export async function getAdminProjectHighlights(adminId) {
   };
 }
 
-export async function getProjectTimelineEntries(projectId, { limit = 10, offset = 0, includeInternal = false } = {}) {
+export async function getProjectTimelineEntries(
+  projectId,
+  { limit = 10, offset = 0, includeInternal = false } = {}
+) {
   const safeLimit = Math.max(1, Number(limit));
   const safeOffset = Math.max(0, Number(offset));
   const visibilityClause = includeInternal ? "IN ('public','internal')" : "= 'public'";
   const [rows] = await pool.query(
-    `SELECT id, entry_type, status, message, visibility, created_at, created_by, author_name, author_role
+    `SELECT id, entry_type, status, message, visibility, created_at, created_by AS author_id, author_name, author_role
        FROM project_timeline_entries
        WHERE project_id = ? AND visibility ${visibilityClause}
        ORDER BY created_at DESC, id DESC
@@ -438,6 +441,32 @@ export async function getProjectTimelineEntries(projectId, { limit = 10, offset 
     [projectId, safeLimit, safeOffset]
   );
   return rows;
+}
+
+export async function getProjectTimelineLastReadAt(projectId, userId) {
+  if (!projectId || !userId) {
+    return null;
+  }
+  const [rows] = await pool.query(
+    `SELECT last_read_at
+       FROM project_timeline_reads
+      WHERE project_id = ? AND user_id = ?
+      LIMIT 1`,
+    [projectId, userId]
+  );
+  return rows[0]?.last_read_at || null;
+}
+
+export async function markProjectTimelineAsRead(projectId, userId) {
+  if (!projectId || !userId) {
+    return;
+  }
+  await pool.query(
+    `INSERT INTO project_timeline_reads (project_id, user_id, last_read_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON DUPLICATE KEY UPDATE last_read_at = VALUES(last_read_at)`,
+    [projectId, userId]
+  );
 }
 
 export async function addProjectComment({ projectId, message, actor, visibility = 'public', connection = null }) {

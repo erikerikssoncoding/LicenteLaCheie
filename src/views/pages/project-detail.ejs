@@ -243,12 +243,19 @@
               <% timelineEntries.forEach((entry) => { %>
               <% const entryType = entry.entry_type; %>
               <% const statusInfoEntry = entry.status ? projectStatusMap[entry.status] : null; %>
-              <div class="timeline-item" data-entry-type="<%= entryType %>" data-entry-id="<%= entry.id %>">
+              <div
+                class="timeline-item <%= entry.is_unread ? 'timeline-item--unread' : '' %>"
+                data-entry-type="<%= entryType %>"
+                data-entry-id="<%= entry.id %>"
+              >
                 <div class="timeline-content <%= entryType === 'status' ? 'timeline-content--status' : '' %>">
                   <div class="d-flex align-items-center gap-2 mb-2">
                     <h3 class="h6 mb-0">
                       <%= entryType === 'status' ? 'Actualizare status' : 'Mesaj' %>
                     </h3>
+                    <% if (entry.is_unread) { %>
+                    <span class="badge bg-success text-uppercase">Nou</span>
+                    <% } %>
                     <% if (entryType === 'status' && statusInfoEntry) { %>
                     <span class="badge bg-info text-dark text-uppercase"><%= statusInfoEntry.label %></span>
                     <% } %>
@@ -649,6 +656,9 @@
       item.className = 'timeline-item';
       item.setAttribute('data-entry-type', entry.entry_type);
       item.setAttribute('data-entry-id', entry.id);
+      if (entry.is_unread) {
+        item.classList.add('timeline-item--unread');
+      }
 
       const content = document.createElement('div');
       content.className = 'timeline-content';
@@ -663,6 +673,12 @@
       heading.className = 'h6 mb-0';
       heading.textContent = entry.entry_type === 'status' ? 'Actualizare status' : 'Mesaj';
       header.appendChild(heading);
+      if (entry.is_unread) {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-success text-uppercase';
+        badge.textContent = 'Nou';
+        header.appendChild(badge);
+      }
       if (entry.entry_type === 'status' && entry.status) {
         const badge = document.createElement('span');
         badge.className = 'badge bg-info text-dark text-uppercase';

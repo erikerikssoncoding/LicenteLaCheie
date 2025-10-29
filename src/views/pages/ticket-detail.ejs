@@ -468,10 +468,17 @@
       <% const entryType = entry.entry_type; %>
       <% const heading = entryType === 'ticket' ? 'Mesaj initial' : entryType === 'reply' ? 'Raspuns' : 'Notificare interna'; %>
       <% const metaPrefix = entryType === 'ticket' ? 'Creat de' : entryType === 'reply' ? 'Trimis de' : 'Inregistrat de'; %>
-      <div class="timeline-item" data-entry-type="<%= entryType %>" data-entry-id="<%= entry.entry_id %>">
+      <div
+        class="timeline-item <%= entry.is_unread ? 'timeline-item--unread' : '' %>"
+        data-entry-type="<%= entryType %>"
+        data-entry-id="<%= entry.entry_id %>"
+      >
         <div class="timeline-content <%= entryType === 'log' ? 'timeline-content--log' : '' %>">
           <div class="d-flex align-items-center gap-2 mb-2">
             <h2 class="h6 mb-0"><%= heading %></h2>
+            <% if (entry.is_unread) { %>
+            <span class="badge bg-success text-uppercase">Nou</span>
+            <% } %>
             <% if (entryType === 'log') { %>
             <span class="badge bg-warning text-dark text-uppercase">Intern</span>
             <% } %>
@@ -716,6 +723,9 @@
         item.className = 'timeline-item';
         item.setAttribute('data-entry-type', entryType);
         item.setAttribute('data-entry-id', entry.entry_id);
+        if (entry.is_unread) {
+          item.classList.add('timeline-item--unread');
+        }
 
         const content = document.createElement('div');
         content.className = 'timeline-content';
@@ -730,6 +740,12 @@
         title.className = 'h6 mb-0';
         title.textContent = entryType === 'ticket' ? 'Mesaj initial' : entryType === 'reply' ? 'Raspuns' : 'Notificare interna';
         headingWrapper.appendChild(title);
+        if (entry.is_unread) {
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-success text-uppercase';
+          badge.textContent = 'Nou';
+          headingWrapper.appendChild(badge);
+        }
         if (entryType === 'log') {
           const badge = document.createElement('span');
           badge.className = 'badge bg-warning text-dark text-uppercase';

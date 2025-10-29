@@ -90,6 +90,63 @@
       <% } %>
     </div>
 
+    <% if (['admin', 'superadmin'].includes(currentUser.role)) {
+         let extraEntries = [];
+         if (ticket.client_extra_data) {
+           try {
+             const parsedExtra = JSON.parse(ticket.client_extra_data);
+             if (parsedExtra && typeof parsedExtra === 'object' && !Array.isArray(parsedExtra)) {
+               extraEntries = Object.entries(parsedExtra);
+             } else {
+               extraEntries = [['raw', String(parsedExtra)]];
+             }
+           } catch (error) {
+             extraEntries = [['raw', ticket.client_extra_data]];
+           }
+         }
+    %>
+    <div class="glass-card mb-4">
+      <h2 class="h6 mb-3">Detalii tehnice despre utilizator</h2>
+      <dl class="row small mb-0">
+        <dt class="col-sm-5">Fingerprint generat</dt>
+        <dd class="col-sm-7 text-break">
+          <% if (ticket.client_fingerprint) { %>
+          <code><%= ticket.client_fingerprint %></code>
+          <% } else { %>
+          <span class="text-muted">Indisponibil</span>
+          <% } %>
+        </dd>
+        <dt class="col-sm-5">Adresă IP</dt>
+        <dd class="col-sm-7 text-break"><%= ticket.client_ip || 'Indisponibilă' %></dd>
+        <dt class="col-sm-5">Lanț X-Forwarded-For</dt>
+        <dd class="col-sm-7 text-break"><%= ticket.client_forwarded_for || 'Indisponibil' %></dd>
+        <dt class="col-sm-5">User Agent</dt>
+        <dd class="col-sm-7 text-break"><%= ticket.client_user_agent || 'Indisponibil' %></dd>
+        <dt class="col-sm-5">Accept-Language</dt>
+        <dd class="col-sm-7 text-break"><%= ticket.client_accept_language || 'Indisponibil' %></dd>
+        <dt class="col-sm-5">ID sesiune</dt>
+        <dd class="col-sm-7 text-break"><%= ticket.client_session_id || 'Indisponibil' %></dd>
+        <dt class="col-sm-5">Referer</dt>
+        <dd class="col-sm-7 text-break"><%= ticket.client_referer || 'Indisponibil' %></dd>
+        <dt class="col-sm-5">Client Hints</dt>
+        <dd class="col-sm-7 text-break"><%= ticket.client_client_hints || 'Indisponibil' %></dd>
+      </dl>
+      <% if (extraEntries.length) { %>
+      <hr class="my-3" />
+      <h3 class="h6 mb-2">Informații suplimentare</h3>
+      <ul class="list-unstyled small mb-0 text-break">
+        <% extraEntries.forEach(([key, value]) => {
+             const printableValue = Array.isArray(value)
+               ? value.join(', ')
+               : (typeof value === 'object' ? JSON.stringify(value) : String(value));
+        %>
+        <li><strong><%= key %>:</strong> <%= printableValue %></li>
+        <% }); %>
+      </ul>
+      <% } %>
+    </div>
+    <% } %>
+
     <% if (feedback && feedback.success) { %>
     <div class="alert alert-success"><%= feedback.success %></div>
     <% } %>

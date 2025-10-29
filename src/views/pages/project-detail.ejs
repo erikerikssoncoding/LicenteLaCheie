@@ -481,12 +481,24 @@
                       <div class="d-flex flex-column gap-2">
                         <div class="d-flex justify-content-between align-items-center gap-3">
                           <span class="fw-semibold text-break"><%= file.original_name %></span>
-                          <a
-                            class="btn btn-sm btn-outline-primary"
-                            href="/cont/proiecte/<%= project.id %>/fisiere/<%= file.id %>/descarca"
-                          >
-                            Descarcă
-                          </a>
+                          <div class="d-flex flex-wrap gap-2">
+                            <a
+                              class="btn btn-sm btn-outline-primary"
+                              href="/cont/proiecte/<%= project.id %>/fisiere/<%= file.id %>/descarca"
+                            >
+                              Descarcă
+                            </a>
+                            <% if (currentUser.role === 'superadmin') { %>
+                            <form
+                              action="/cont/proiecte/<%= project.id %>/fisiere/<%= file.id %>/sterge"
+                              method="post"
+                              class="d-inline"
+                            >
+                              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                              <button class="btn btn-sm btn-outline-danger" type="submit">Șterge</button>
+                            </form>
+                            <% } %>
+                          </div>
                         </div>
                         <small class="text-muted">
                           Încărcat de <%= file.uploader_name || 'Utilizator' %> (<%= roleLabelMap[file.uploader_role] || file.uploader_role %>)

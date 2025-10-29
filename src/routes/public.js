@@ -8,6 +8,7 @@ import {
 } from '../services/offerService.js';
 import { ensureClientAccount, updateUserProfile } from '../services/userService.js';
 import { createTicket } from '../services/ticketService.js';
+import { collectClientMetadata } from '../utils/requestMetadata.js';
 
 const router = Router();
 
@@ -92,12 +93,14 @@ router
           req.session.user.fullName = data.fullName;
           req.session.user.phone = data.phone;
         }
+        const clientMetadata = collectClientMetadata(req);
         await createTicket({
           projectId: null,
           userId: user.id,
           subject: `Solicitare contact - ${data.fullName}`,
           message: `Telefon: ${data.phone}\nEmail: ${user.email}\n\n${data.message}`,
-          kind: 'support'
+          kind: 'support',
+          clientMetadata
         });
         return res.render('pages/contact-success', {
           title: 'Ticket deschis cu succes',
@@ -178,6 +181,7 @@ router
         userId = ensured.userId;
         generatedPassword = ensured.generatedPassword;
       }
+      const clientMetadata = collectClientMetadata(req);
       const ticketId = await createTicket({
         projectId: null,
         userId,
@@ -185,7 +189,8 @@ router
         message: `Tip lucrare: ${payload.workType}\nProgram de studiu: ${payload.program}\nLivrare dorita: ${
           payload.deliveryDate
         }\nDetalii suplimentare: ${payload.notes || 'nespecificate'}`,
-        kind: 'offer'
+        kind: 'offer',
+        clientMetadata
       });
       const { offerCode } = await createOfferRequest({
         clientName: payload.clientName,

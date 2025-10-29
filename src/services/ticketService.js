@@ -13,12 +13,50 @@ async function generateUniqueTicketCode() {
   }
 }
 
-export async function createTicket({ projectId, userId, subject, message, kind = 'support' }) {
+export async function createTicket({
+  projectId,
+  userId,
+  subject,
+  message,
+  kind = 'support',
+  clientMetadata = {}
+}) {
   const displayCode = await generateUniqueTicketCode();
+  const {
+    fingerprint = null,
+    ipAddress = null,
+    forwardedFor = null,
+    userAgent = null,
+    acceptLanguage = null,
+    sessionId = null,
+    referer = null,
+    clientHints = null,
+    extraData = null
+  } = clientMetadata || {};
+  const serializedExtra = extraData ? JSON.stringify(extraData) : null;
   const [result] = await pool.query(
-    `INSERT INTO tickets (project_id, created_by, subject, message, kind, display_code)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [projectId || null, userId, subject, message, kind, displayCode]
+    `INSERT INTO tickets
+        (project_id, created_by, subject, message, kind, display_code,
+         client_fingerprint, client_ip, client_forwarded_for, client_user_agent,
+         client_accept_language, client_session_id, client_referer, client_client_hints, client_extra_data)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      projectId || null,
+      userId,
+      subject,
+      message,
+      kind,
+      displayCode,
+      fingerprint,
+      ipAddress,
+      forwardedFor,
+      userAgent,
+      acceptLanguage,
+      sessionId,
+      referer,
+      clientHints,
+      serializedExtra
+    ]
   );
   return result.insertId;
 }

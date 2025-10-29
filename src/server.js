@@ -6,12 +6,14 @@ import compression from 'compression';
 import morgan from 'morgan';
 import csrf from 'csurf';
 import dotenv from 'dotenv';
+import { promises as fs } from 'fs';
 import sessionMiddleware from './config/session.js';
 import publicRoutes from './routes/public.js';
 import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
 import { injectUser } from './middleware/auth.js';
 import { initializeSecurityState, getSecurityState } from './utils/securityState.js';
+import { PROJECT_UPLOAD_ROOT } from './utils/fileStorage.js';
 
 dotenv.config();
 
@@ -21,6 +23,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 await initializeSecurityState();
+await fs.mkdir(PROJECT_UPLOAD_ROOT, { recursive: true });
 
 const app = express();
 

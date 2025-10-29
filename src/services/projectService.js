@@ -206,6 +206,139 @@ export async function assignProject(projectId, { adminId, redactorId }) {
   );
 }
 
+export async function listProjectFiles(projectId) {
+  const [rows] = await pool.query(
+    `SELECT pf.id, pf.project_id, pf.uploader_id, pf.uploader_role, pf.origin, pf.original_name, pf.stored_name,
+            pf.mime_type, pf.file_size, pf.created_at, u.full_name AS uploader_name
+       FROM project_files pf
+       LEFT JOIN users u ON u.id = pf.uploader_id
+      WHERE pf.project_id = ? AND pf.is_deleted = 0
+      ORDER BY pf.created_at DESC, pf.id DESC`,
+    [projectId]
+  );
+  return rows;
+}
+
+export async function countProjectFilesByOrigin(projectId, origin) {
+  const [[result]] = await pool.query(
+    `SELECT COUNT(*) AS total
+       FROM project_files
+      WHERE project_id = ? AND origin = ? AND is_deleted = 0`,
+    [projectId, origin]
+  );
+  return Number(result?.total || 0);
+}
+
+export async function createProjectFile({
+  projectId,
+  uploaderId,
+  uploaderRole,
+  origin,
+  originalName,
+  storedName,
+  mimeType,
+  fileSize,
+  connection = null
+}) {
+  const executor = pickExecutor(connection);
+  const [result] = await executor.query(
+    `INSERT INTO project_files
+        (project_id, uploader_id, uploader_role, origin, original_name, stored_name, mime_type, file_size)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [projectId, uploaderId, uploaderRole, origin, originalName, storedName, mimeType, fileSize]
+  );
+  return result.insertId;
+}
+
+export async function getProjectFileById(fileId) {
+  const [rows] = await pool.query(
+    `SELECT pf.*, u.full_name AS uploader_name
+       FROM project_files pf
+       LEFT JOIN users u ON u.id = pf.uploader_id
+      WHERE pf.id = ? AND pf.is_deleted = 0`,
+    [fileId]
+  );
+  return rows[0] || null;
+}
+
+export async function softDeleteProjectFile(fileId, { actor } = {}) {
+  const file = await getProjectFileById(fileId);
+  await pool.query(
+    `UPDATE project_files
+        SET is_deleted = 1,
+            deleted_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?`,
+    [fileId]
+  );
+  if (actor && file) {
+    await addProjectTimelineEntry({
+      projectId: file.project_id,
+      entryType: 'log',
+      visibility: 'internal',
+      message: `${actor.fullName} (${actor.role}) a șters fișierul ${file.original_name}.`,
+      actor
+    });
+  }
+}
+
+export async function listDocumentRequests(projectId) {
+  const [rows] = await pool.query(
+    `SELECT r.id, r.project_id, r.requested_by, r.message, r.status, r.created_at, r.closed_at, r.closed_by,
+            ru.full_name AS requester_name, cu.full_name AS closed_by_name
+       FROM project_document_requests r
+       LEFT JOIN users ru ON ru.id = r.requested_by
+       LEFT JOIN users cu ON cu.id = r.closed_by
+      WHERE r.project_id = ?
+      ORDER BY r.created_at DESC, r.id DESC`,
+    [projectId]
+  );
+  return rows;
+}
+
+export async function createDocumentRequest({ projectId, requestedBy, message }) {
+  const sanitizedMessage = sanitizeText(message);
+  if (!sanitizedMessage) {
+    throw new Error('EMPTY_MESSAGE');
+  }
+  const [result] = await pool.query(
+    `INSERT INTO project_document_requests (project_id, requested_by, message)
+     VALUES (?, ?, ?)`,
+    [projectId, requestedBy, sanitizedMessage]
+  );
+  return result.insertId;
+}
+
+export async function closeDocumentRequest({ requestId, closedBy }) {
+  await pool.query(
+    `UPDATE project_document_requests
+        SET status = 'closed', closed_at = CURRENT_TIMESTAMP, closed_by = ?
+      WHERE id = ?`,
+    [closedBy || null, requestId]
+  );
+}
+
+export async function getDocumentRequestById(requestId) {
+  const [rows] = await pool.query(
+    `SELECT r.*, ru.full_name AS requester_name
+       FROM project_document_requests r
+       LEFT JOIN users ru ON ru.id = r.requested_by
+      WHERE r.id = ?`,
+    [requestId]
+  );
+  return rows[0] || null;
+}
+
+export async function hasOpenDocumentRequests(projectId) {
+  const [[result]] = await pool.query(
+    `SELECT COUNT(*) AS total
+       FROM project_document_requests
+      WHERE project_id = ? AND status = 'open'`,
+    [projectId]
+  );
+  return Number(result?.total || 0) > 0;
+}
+
 export async function getClientProjectHighlights(clientId) {
   const [[deadlineRows], [adminRows], [redactorRows]] = await Promise.all([
     pool.query(

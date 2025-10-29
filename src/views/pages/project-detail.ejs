@@ -11,6 +11,7 @@
         ? project.deadline.toISOString().slice(0, 10)
         : project.deadline
       : 'N/A'; %>
+    <% const roleLabelMap = { client: 'Client', redactor: 'Redactor', admin: 'Admin', superadmin: 'Superadmin' }; %>
     <% if (projectFeedback && projectFeedback.success) { %>
     <div class="alert alert-success mb-4" role="alert"><%= projectFeedback.success %></div>
     <% } %>
@@ -54,193 +55,537 @@
       </div>
     </div>
 
-    <div class="row g-4 mb-4">
-      <div class="col-lg-6">
-        <div class="card h-100 shadow-sm">
-          <div class="card-body">
-            <h2 class="h5 mb-3">Fazele proiectului</h2>
-            <ul class="list-group list-group-flush">
-              <% projectStatusFlow.forEach((status, index) => { %>
-              <% const isCurrent = safeFlowIndex === index; %>
-              <% const isCompleted = safeFlowIndex !== null && index < safeFlowIndex; %>
-              <li class="list-group-item">
-                <div class="d-flex flex-column">
-                  <div class="d-flex align-items-center gap-2">
-                    <% if (isCurrent) { %>
-                    <span class="badge bg-primary">Curent</span>
-                    <% } else if (isCompleted) { %>
-                    <span class="badge bg-success">Finalizat</span>
-                    <% } else { %>
-                    <span class="badge bg-secondary">In asteptare</span>
-                    <% } %>
-                    <span class="fw-semibold"><%= status.label %></span>
-                  </div>
-                  <% if (status.clientMessage) { %>
-                  <span class="small text-muted mt-1"><%= status.clientMessage %></span>
-                  <% } %>
-                </div>
-              </li>
-              <% }); %>
-            </ul>
+    <ul class="nav nav-tabs nav-tabs-bordered mb-4" data-project-tabs>
+      <li class="nav-item">
+        <button class="nav-link <%= activeTab === 'detalii' ? 'active' : '' %>" type="button" data-tab-target="detalii">
+          Detalii
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link <%= activeTab === 'timeline' ? 'active' : '' %>" type="button" data-tab-target="timeline">
+          Timeline
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link <%= activeTab === 'fisiere' ? 'active' : '' %>" type="button" data-tab-target="fisiere">
+          Fișiere
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content" data-project-tab-content>
+      <div
+        class="tab-pane fade <%= activeTab === 'detalii' ? 'show active' : '' %>"
+        id="tab-detalii"
+        role="tabpanel"
+        data-tab-panel="detalii"
+      >
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="card h-100 shadow-sm">
+              <div class="card-body">
+                <h2 class="h5 mb-3">Fazele proiectului</h2>
+                <ul class="list-group list-group-flush">
+                  <% projectStatusFlow.forEach((status, index) => { %>
+                  <% const isCurrent = safeFlowIndex === index; %>
+                  <% const isCompleted = safeFlowIndex !== null && index < safeFlowIndex; %>
+                  <li class="list-group-item">
+                    <div class="d-flex flex-column">
+                      <div class="d-flex align-items-center gap-2">
+                        <% if (isCurrent) { %>
+                        <span class="badge bg-primary">Curent</span>
+                        <% } else if (isCompleted) { %>
+                        <span class="badge bg-success">Finalizat</span>
+                        <% } else { %>
+                        <span class="badge bg-secondary">În așteptare</span>
+                        <% } %>
+                        <span class="fw-semibold"><%= status.label %></span>
+                      </div>
+                      <% if (status.clientMessage) { %>
+                      <span class="small text-muted mt-1"><%= status.clientMessage %></span>
+                      <% } %>
+                    </div>
+                  </li>
+                  <% }); %>
+                </ul>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      <div class="col-lg-6">
-        <div class="card h-100 shadow-sm">
-          <div class="card-body">
-            <h2 class="h5 mb-3">Descriere proiect</h2>
-            <div class="bg-body-tertiary rounded-3 p-3" style="white-space: pre-wrap;">
-              <%= project.description %>
+          <div class="col-lg-6">
+            <div class="card h-100 shadow-sm">
+              <div class="card-body">
+                <h2 class="h5 mb-3">Descriere proiect</h2>
+                <div class="bg-body-tertiary rounded-3 p-3" style="white-space: pre-wrap;">
+                  <%= project.description %>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
-    <div class="card shadow-sm mb-4">
-      <div class="card-body">
-        <h2 class="h5 mb-3">Alocare echipa</h2>
-        <form action="/cont/proiecte/<%= project.id %>/alocare" method="post" class="row g-3">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <div class="col-md-6">
-            <label class="form-label" for="adminId">Admin responsabil</label>
-            <select class="form-select" id="adminId" name="adminId">
-              <option value="">-- selecteaza --</option>
-              <% team
-                .filter((member) => member.role === 'admin' || member.role === 'superadmin')
-                .forEach((member) => { %>
-              <option value="<%= member.id %>" <%= project.assigned_admin_id === member.id ? 'selected' : '' %>>
-                <%= member.full_name %> (<%= member.email %>)
-              </option>
-              <% }); %>
-            </select>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="redactorId">Redactor asignat</label>
-            <select class="form-select" id="redactorId" name="redactorId">
-              <option value="">-- selecteaza --</option>
-              <% team.filter((member) => member.role === 'redactor').forEach((member) => { %>
-              <option value="<%= member.id %>" <%= project.assigned_editor_id === member.id ? 'selected' : '' %>>
-                <%= member.full_name %> (<%= member.email %>)
-              </option>
-              <% }); %>
-            </select>
-          </div>
-          <div class="col-12 text-end">
-            <button class="btn btn-outline-primary" type="submit">Actualizeaza echipa</button>
-          </div>
-        </form>
-      </div>
-    </div>
-    <% } %>
-
-    <% const canAdvance = ['admin', 'superadmin', 'redactor'].includes(currentUser.role) && nextStatus; %>
-    <% const canRevert = currentUser.role === 'superadmin' && previousStatus; %>
-    <% if (canAdvance || canRevert) { %>
-    <div class="card shadow-sm mb-4">
-      <div class="card-body">
-        <h2 class="h5 mb-3">Gestionare etape</h2>
-        <% if (canAdvance) { %>
-        <form action="/cont/proiecte/<%= project.id %>/status" method="post" class="vstack gap-2 mb-4">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <input type="hidden" name="action" value="advance" />
-          <label class="form-label" for="advanceNotes">Note pentru etapa urmatoare <span class="text-muted">(optional)</span></label>
-          <textarea
-            class="form-control"
-            id="advanceNotes"
-            name="notes"
-            rows="2"
-            placeholder="Mesaj pentru echipa in momentul avansarii"
-          ></textarea>
-          <button class="btn btn-primary align-self-start" type="submit">
-            Treci la etapa urmatoare: <%= nextStatusInfo?.label || nextStatus %>
-          </button>
-          <p class="small text-muted mb-0">
-            Actiunea este ireversibila pentru rolurile obisnuite. Doar superadministratorii pot reveni la etapa anterioara.
-          </p>
-        </form>
-        <% } %>
-        <% if (canRevert) { %>
-        <form action="/cont/proiecte/<%= project.id %>/status" method="post" class="d-inline">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <input type="hidden" name="action" value="previous" />
-          <button class="btn btn-outline-danger" type="submit">
-            Revino la etapa anterioara: <%= previousStatusInfo?.label || previousStatus %>
-          </button>
-        </form>
-        <% } %>
-      </div>
-    </div>
-    <% } %>
-
-    <div class="card shadow-sm mb-4">
-      <div class="card-body">
-        <h2 class="h5 mb-3">Timeline proiect</h2>
-        <% if (['admin', 'superadmin', 'redactor', 'client'].includes(currentUser.role)) { %>
-        <form action="/cont/proiecte/<%= project.id %>/mesaj" method="post" class="vstack gap-3 mb-4">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <div>
-            <label class="form-label" for="projectMessage">Scrie un mesaj</label>
-            <textarea class="form-control" id="projectMessage" name="message" rows="3" required></textarea>
-          </div>
-          <button class="btn btn-gradient align-self-end" type="submit">Trimite mesaj</button>
-        </form>
-        <% } %>
-        <div
-          class="timeline"
-          data-project-timeline
-          data-project-id="<%= project.id %>"
-          data-offset="<%= timelineEntries.length %>"
-          data-limit="<%= timelinePageSize %>"
-        >
-          <% timelineEntries.forEach((entry) => { %>
-          <% const entryType = entry.entry_type; %>
-          <% const statusInfoEntry = entry.status ? projectStatusMap[entry.status] : null; %>
-          <div class="timeline-item" data-entry-type="<%= entryType %>" data-entry-id="<%= entry.id %>">
-            <div class="timeline-content <%= entryType === 'status' ? 'timeline-content--status' : '' %>">
-              <div class="d-flex align-items-center gap-2 mb-2">
-                <h3 class="h6 mb-0">
-                  <%= entryType === 'status' ? 'Actualizare status' : 'Mesaj' %>
-                </h3>
-                <% if (entryType === 'status' && statusInfoEntry) { %>
-                <span class="badge bg-info text-dark text-uppercase"><%= statusInfoEntry.label %></span>
-                <% } %>
-                <% if (entry.visibility === 'internal') { %>
-                <span class="badge bg-warning text-dark text-uppercase">Intern</span>
+        <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Alocare echipă</h2>
+            <form action="/cont/proiecte/<%= project.id %>/alocare" method="post" class="row g-3">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <div class="col-md-6">
+                <label class="form-label" for="adminId">Admin responsabil</label>
+                <select class="form-select" id="adminId" name="adminId">
+                  <option value="">-- selectează --</option>
+                  <% team
+                    .filter((member) => member.role === 'admin' || member.role === 'superadmin')
+                    .forEach((member) => { %>
+                  <option value="<%= member.id %>" <%= project.assigned_admin_id === member.id ? 'selected' : '' %>>
+                    <%= member.full_name %> (<%= roleLabelMap[member.role] || member.role %> · <%= member.email %>)
+                  </option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="redactorId">Redactor asignat</label>
+                <select class="form-select" id="redactorId" name="redactorId">
+                  <option value="">-- selectează --</option>
+                  <% const hierarchy = { client: 1, redactor: 2, admin: 3, superadmin: 4 }; %>
+                  <% team
+                    .filter((member) => ['redactor', 'admin', 'superadmin'].includes(member.role))
+                    .forEach((member) => {
+                      const isDisabled =
+                        currentUser.role === 'admin' && (hierarchy[member.role] || 0) >= (hierarchy[currentUser.role] || 0);
+                  %>
+                  <option
+                    value="<%= member.id %>"
+                    <%= project.assigned_editor_id === member.id ? 'selected' : '' %>
+                    <%= isDisabled ? 'disabled' : '' %>
+                  >
+                    <%= member.full_name %> (<%= roleLabelMap[member.role] || member.role %> · <%= member.email %>)
+                  </option>
+                  <% }); %>
+                </select>
+                <% if (currentUser.role === 'admin') { %>
+                <small class="text-muted d-block mt-1">Poți aloca doar membri cu grad inferior.</small>
                 <% } %>
               </div>
-              <p class="mb-2 <%= entryType === 'status' ? '' : '' %>">
-                <% const lines = String(entry.message || '').split('\n'); %>
-                <% lines.forEach((line, index) => { %>
-                <%= line %><% if (index < lines.length - 1) { %><br /><% } %>
-                <% }); %>
-              </p>
-              <small class="text-muted d-block">
-                <% const authorName = entry.author_name || (entryType === 'status' ? 'Sistem' : 'Utilizator necunoscut'); %>
-                <% const authorRole = entry.author_role ? entry.author_role : entryType === 'status' ? 'system' : null; %>
-                <% const formattedDate = entry.created_at
-                  ? (entry.created_at.toISOString
-                      ? entry.created_at.toISOString().replace('T', ' ').slice(0, 16)
-                      : entry.created_at)
-                  : null; %>
-                <%= entryType === 'status' ? 'Actualizat de' : 'Mesaj de' %>
-                <%= authorRole && authorRole !== 'client' ? `${authorName} (${authorRole})` : authorName %>
-                <% if (formattedDate) { %> • <%= formattedDate %><% } %>
-              </small>
-            </div>
+              <div class="col-12 text-end">
+                <button class="btn btn-outline-primary" type="submit">Actualizează echipa</button>
+              </div>
+            </form>
           </div>
-          <% }); %>
-        </div>
-        <% if (hasMoreTimeline) { %>
-        <div class="text-center mt-3">
-          <button class="btn btn-outline-primary" type="button" data-project-timeline-load>Vezi mai mult</button>
         </div>
         <% } %>
+
+        <% const canAdvance = ['admin', 'superadmin', 'redactor'].includes(currentUser.role) && nextStatus; %>
+        <% const canRevert = currentUser.role === 'superadmin' && previousStatus; %>
+        <% if (canAdvance || canRevert) { %>
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Gestionare etape</h2>
+            <% if (canAdvance) { %>
+            <form action="/cont/proiecte/<%= project.id %>/status" method="post" class="vstack gap-2 mb-4">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="hidden" name="action" value="advance" />
+              <label class="form-label" for="advanceNotes">
+                Note pentru etapa următoare <span class="text-muted">(opțional)</span>
+              </label>
+              <textarea
+                class="form-control"
+                id="advanceNotes"
+                name="notes"
+                rows="2"
+                placeholder="Mesaj pentru echipă în momentul avansării"
+              ></textarea>
+              <button class="btn btn-primary align-self-start" type="submit">
+                Treci la etapa următoare: <%= nextStatusInfo?.label || nextStatus %>
+              </button>
+              <p class="small text-muted mb-0">
+                Acțiunea este ireversibilă pentru rolurile obișnuite. Doar superadministratorii pot reveni la etapa anterioară.
+              </p>
+            </form>
+            <% } %>
+            <% if (canRevert) { %>
+            <form action="/cont/proiecte/<%= project.id %>/status" method="post" class="d-inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="hidden" name="action" value="previous" />
+              <button class="btn btn-outline-danger" type="submit">
+                Revino la etapa anterioară: <%= previousStatusInfo?.label || previousStatus %>
+              </button>
+            </form>
+            <% } %>
+          </div>
+        </div>
+        <% } %>
+      </div>
+
+      <div
+        class="tab-pane fade <%= activeTab === 'timeline' ? 'show active' : '' %>"
+        id="tab-timeline"
+        role="tabpanel"
+        data-tab-panel="timeline"
+      >
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Timeline proiect</h2>
+            <% if (['admin', 'superadmin', 'redactor', 'client'].includes(currentUser.role)) { %>
+            <form action="/cont/proiecte/<%= project.id %>/mesaj" method="post" class="vstack gap-3 mb-4">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <div>
+                <label class="form-label" for="projectMessage">Scrie un mesaj</label>
+                <textarea class="form-control" id="projectMessage" name="message" rows="3" required></textarea>
+              </div>
+              <button class="btn btn-gradient align-self-end" type="submit">Trimite mesaj</button>
+            </form>
+            <% } %>
+            <div
+              class="timeline"
+              data-project-timeline
+              data-project-id="<%= project.id %>"
+              data-offset="<%= timelineEntries.length %>"
+              data-limit="<%= timelinePageSize %>"
+            >
+              <% timelineEntries.forEach((entry) => { %>
+              <% const entryType = entry.entry_type; %>
+              <% const statusInfoEntry = entry.status ? projectStatusMap[entry.status] : null; %>
+              <div class="timeline-item" data-entry-type="<%= entryType %>" data-entry-id="<%= entry.id %>">
+                <div class="timeline-content <%= entryType === 'status' ? 'timeline-content--status' : '' %>">
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <h3 class="h6 mb-0">
+                      <%= entryType === 'status' ? 'Actualizare status' : 'Mesaj' %>
+                    </h3>
+                    <% if (entryType === 'status' && statusInfoEntry) { %>
+                    <span class="badge bg-info text-dark text-uppercase"><%= statusInfoEntry.label %></span>
+                    <% } %>
+                    <% if (entry.visibility === 'internal') { %>
+                    <span class="badge bg-warning text-dark text-uppercase">Intern</span>
+                    <% } %>
+                  </div>
+                  <p class="mb-2">
+                    <% const lines = String(entry.message || '').split('\n'); %>
+                    <% lines.forEach((line, index) => { %>
+                    <%= line %><% if (index < lines.length - 1) { %><br /><% } %>
+                    <% }); %>
+                  </p>
+                  <small class="text-muted d-block">
+                    <% const authorName = entry.author_name || (entryType === 'status' ? 'Sistem' : 'Utilizator necunoscut'); %>
+                    <% const authorRole = entry.author_role ? entry.author_role : entryType === 'status' ? 'system' : null; %>
+                    <% const formattedDate = entry.created_at
+                      ? (entry.created_at.toISOString
+                          ? entry.created_at.toISOString().replace('T', ' ').slice(0, 16)
+                          : entry.created_at)
+                      : null; %>
+                    <%= entryType === 'status' ? 'Actualizat de' : 'Mesaj de' %>
+                    <%= authorRole && authorRole !== 'client' ? `${authorName} (${authorRole})` : authorName %>
+                    <% if (formattedDate) { %> • <%= formattedDate %><% } %>
+                  </small>
+                </div>
+              </div>
+              <% }); %>
+            </div>
+            <% if (hasMoreTimeline) { %>
+            <div class="text-center mt-3">
+              <button class="btn btn-outline-primary" type="button" data-project-timeline-load>Vezi mai mult</button>
+            </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="tab-pane fade <%= activeTab === 'fisiere' ? 'show active' : '' %>"
+        id="tab-fisiere"
+        role="tabpanel"
+        data-tab-panel="fisiere"
+      >
+        <div class="vstack gap-4">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h2 class="h5 mb-3">Solicitări de documentație</h2>
+              <% const closedRequests = documentRequests.filter((request) => request.status === 'closed'); %>
+              <% if (!openDocumentRequests.length && !closedRequests.length) { %>
+              <p class="text-muted mb-0">Nu există solicitări de documentație înregistrate.</p>
+              <% } else { %>
+              <% if (openDocumentRequests.length) { %>
+              <div class="vstack gap-3 mb-3">
+                <% openDocumentRequests.forEach((request) => { %>
+                <div
+                  class="border border-warning-subtle bg-warning-subtle bg-opacity-25 rounded-3 p-3"
+                  id="request-<%= request.id %>"
+                >
+                  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3">
+                    <div>
+                      <p class="mb-2 fw-semibold">Documentație solicitată</p>
+                      <p class="mb-2"><%= request.message %></p>
+                      <% const createdAt = request.created_at
+                        ? (request.created_at.toISOString
+                            ? request.created_at.toISOString().replace('T', ' ').slice(0, 16)
+                            : request.created_at)
+                        : null; %>
+                      <small class="text-muted d-block">
+                        Solicitare trimisă de <%= request.requester_name || 'Echipa' %>
+                        <% if (createdAt) { %> • <%= createdAt %><% } %>
+                      </small>
+                    </div>
+                    <% if (['admin', 'superadmin', 'redactor'].includes(currentUser.role)) { %>
+                    <form
+                      method="post"
+                      action="/cont/proiecte/<%= project.id %>/solicitare-documentatie/<%= request.id %>/inchide"
+                      class="ms-lg-auto"
+                    >
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                      <button class="btn btn-outline-success btn-sm" type="submit">Marchează drept rezolvat</button>
+                    </form>
+                    <% } %>
+                  </div>
+                </div>
+                <% }); %>
+              </div>
+              <% } else { %>
+              <p class="text-muted mb-3">Nu există solicitări active în acest moment.</p>
+              <% } %>
+              <% if (closedRequests.length) { %>
+              <div class="vstack gap-3">
+                <% closedRequests.forEach((request) => { %>
+                <% const createdAt = request.created_at
+                  ? (request.created_at.toISOString
+                      ? request.created_at.toISOString().replace('T', ' ').slice(0, 16)
+                      : request.created_at)
+                  : null; %>
+                <% const closedAt = request.closed_at
+                  ? (request.closed_at.toISOString
+                      ? request.closed_at.toISOString().replace('T', ' ').slice(0, 16)
+                      : request.closed_at)
+                  : null; %>
+                <div class="border rounded-3 p-3 bg-body-tertiary">
+                  <p class="mb-2"><%= request.message %></p>
+                  <small class="text-muted d-block">
+                    Solicitare inițiată de <%= request.requester_name || 'Echipa' %>
+                    <% if (createdAt) { %> • <%= createdAt %><% } %>
+                    <% if (closedAt) { %> • Rezolvată de <%= request.closed_by_name || 'Echipa' %> la <%= closedAt %><% } %>
+                  </small>
+                </div>
+                <% }); %>
+              </div>
+              <% } %>
+              <% } %>
+              <% if (['admin', 'superadmin', 'redactor'].includes(currentUser.role)) { %>
+              <hr class="my-4" />
+              <h3 class="h6">Solicită documentație suplimentară</h3>
+              <form
+                action="/cont/proiecte/<%= project.id %>/solicitare-documentatie"
+                method="post"
+                class="vstack gap-3"
+              >
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <textarea
+                  class="form-control"
+                  name="message"
+                  rows="3"
+                  placeholder="Descrie ce informații suplimentare sunt necesare"
+                  required
+                ></textarea>
+                <button class="btn btn-outline-primary align-self-start" type="submit">
+                  Trimite solicitarea către client
+                </button>
+              </form>
+              <% } %>
+            </div>
+          </div>
+
+          <% if (currentUser.role === 'client') { %>
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h2 class="h5 mb-3">Încarcă documentație</h2>
+              <% if (canClientUpload) { %>
+              <p class="text-muted">
+                Poți încărca până la <strong><%= clientFileLimit %></strong> fișiere (maxim 5 MB per fișier).
+                Mai poți încărca <strong><%= clientUploadsRemaining %></strong> fișiere.
+              </p>
+              <form
+                action="/cont/proiecte/<%= project.id %>/fisiere"
+                method="post"
+                enctype="multipart/form-data"
+                class="vstack gap-3"
+              >
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <input
+                  class="form-control"
+                  type="file"
+                  name="files"
+                  accept=".pdf,.docx,.jpg,.jpeg,.png"
+                  multiple
+                  <%= clientUploadsRemaining === 0 ? 'disabled' : '' %>
+                  required
+                />
+                <small class="text-muted">Formate acceptate: PDF, DOCX, JPG, PNG.</small>
+                <button class="btn btn-primary align-self-start" type="submit" <%= clientUploadsRemaining === 0 ? 'disabled' : '' %>>
+                  Încarcă fișiere
+                </button>
+              </form>
+              <% } else { %>
+              <div class="alert alert-warning mb-0" role="alert">
+                Încărcarea documentației este disponibilă atunci când proiectul se află în „Așteptare Documentație”
+                sau când echipa solicită materiale suplimentare.
+              </div>
+              <% } %>
+            </div>
+          </div>
+          <% } %>
+
+          <% if (['admin', 'superadmin', 'redactor'].includes(currentUser.role)) { %>
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h2 class="h5 mb-3">Încarcă fișiere pentru client</h2>
+              <p class="text-muted">
+                Poți încărca până la <strong><%= staffFileLimit %></strong> fișiere (maxim 30 MB per fișier). Mai sunt disponibile
+                <strong><%= staffUploadsRemaining %></strong> sloturi.
+              </p>
+              <form
+                action="/cont/proiecte/<%= project.id %>/fisiere"
+                method="post"
+                enctype="multipart/form-data"
+                class="vstack gap-3"
+              >
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <input
+                  class="form-control"
+                  type="file"
+                  name="files"
+                  accept=".pdf,.docx,.jpg,.jpeg,.png"
+                  multiple
+                  <%= staffUploadsRemaining === 0 ? 'disabled' : '' %>
+                  required
+                />
+                <small class="text-muted">Formate acceptate: PDF, DOCX, JPG, PNG.</small>
+                <button class="btn btn-outline-primary align-self-start" type="submit" <%= staffUploadsRemaining === 0 ? 'disabled' : '' %>>
+                  Încarcă fișiere
+                </button>
+              </form>
+            </div>
+          </div>
+          <% } %>
+
+          <div class="row g-4">
+            <div class="col-lg-6">
+              <div class="card shadow-sm h-100">
+                <div class="card-body">
+                  <h2 class="h5 mb-3">Fișiere încărcate de client</h2>
+                  <% if (!clientFiles.length) { %>
+                  <p class="text-muted mb-0">Clientul nu a încărcat documente până acum.</p>
+                  <% } else { %>
+                  <ul class="list-group list-group-flush">
+                    <% clientFiles.forEach((file) => { %>
+                    <% const uploadedAt = file.created_at
+                      ? (file.created_at.toISOString
+                          ? file.created_at.toISOString().replace('T', ' ').slice(0, 16)
+                          : file.created_at)
+                      : null; %>
+                    <% const sizeLabel = (Number(file.file_size || 0) / (1024 * 1024)).toFixed(2); %>
+                    <li class="list-group-item">
+                      <div class="d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                          <span class="fw-semibold text-break"><%= file.original_name %></span>
+                          <a
+                            class="btn btn-sm btn-outline-primary"
+                            href="/cont/proiecte/<%= project.id %>/fisiere/<%= file.id %>/descarca"
+                          >
+                            Descarcă
+                          </a>
+                        </div>
+                        <small class="text-muted">
+                          Încărcat de <%= file.uploader_name || 'Utilizator' %> (<%= roleLabelMap[file.uploader_role] || file.uploader_role %>)
+                          • <%= sizeLabel %> MB
+                          <% if (uploadedAt) { %> • <%= uploadedAt %><% } %>
+                        </small>
+                      </div>
+                    </li>
+                    <% }); %>
+                  </ul>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="card shadow-sm h-100">
+                <div class="card-body">
+                  <h2 class="h5 mb-3">Fișiere încărcate de echipă</h2>
+                  <% if (!staffFiles.length) { %>
+                  <p class="text-muted mb-0">Încă nu au fost urcate fișiere de către echipă.</p>
+                  <% } else { %>
+                  <ul class="list-group list-group-flush">
+                    <% staffFiles.forEach((file) => { %>
+                    <% const uploadedAt = file.created_at
+                      ? (file.created_at.toISOString
+                          ? file.created_at.toISOString().replace('T', ' ').slice(0, 16)
+                          : file.created_at)
+                      : null; %>
+                    <% const sizeLabel = (Number(file.file_size || 0) / (1024 * 1024)).toFixed(2); %>
+                    <li class="list-group-item">
+                      <div class="d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                          <span class="fw-semibold text-break"><%= file.original_name %></span>
+                          <a
+                            class="btn btn-sm btn-outline-primary"
+                            href="/cont/proiecte/<%= project.id %>/fisiere/<%= file.id %>/descarca"
+                          >
+                            Descarcă
+                          </a>
+                        </div>
+                        <small class="text-muted">
+                          Încărcat de <%= file.uploader_name || 'Echipă' %> (<%= roleLabelMap[file.uploader_role] || file.uploader_role %>)
+                          • <%= sizeLabel %> MB
+                          <% if (uploadedAt) { %> • <%= uploadedAt %><% } %>
+                        </small>
+                      </div>
+                    </li>
+                    <% }); %>
+                  </ul>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </section>
+<script>
+  (function () {
+    const tabButtons = document.querySelectorAll('[data-tab-target]');
+    const tabPanels = document.querySelectorAll('[data-tab-panel]');
+    if (!tabButtons.length || !tabPanels.length) {
+      return;
+    }
+    const allowedTabs = new Set(['detalii', 'timeline', 'fisiere']);
+    function activateTab(target) {
+      const resolvedTarget = allowedTabs.has(target) ? target : 'detalii';
+      tabButtons.forEach((button) => {
+        const isActive = button.getAttribute('data-tab-target') === resolvedTarget;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+      tabPanels.forEach((panel) => {
+        const isActive = panel.getAttribute('data-tab-panel') === resolvedTarget;
+        panel.classList.toggle('show', isActive);
+        panel.classList.toggle('active', isActive);
+      });
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', resolvedTarget);
+        window.history.replaceState(null, '', url);
+      } catch (error) {
+        // Ignorăm erorile de actualizare a URL-ului în caz de medii nepermise.
+      }
+    }
+    const initialTab = '<%= activeTab %>';
+    activateTab(initialTab);
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.getAttribute('data-tab-target');
+        activateTab(target);
+      });
+    });
+  })();
+</script>
 <script>
   const statusDictionary = <%- JSON.stringify(projectStatusMap) %>;
   (function () {

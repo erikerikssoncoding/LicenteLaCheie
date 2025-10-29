@@ -138,7 +138,7 @@ Sesiunile sunt stocate in MySQL, parolele sunt hash-uite cu bcryptjs (cost 12), 
 
 ## Cum adaug un redactor, client sau admin?
 
-- Autentifica-te ca admin/superadmin si acceseaza modulul **Administrare utilizatori** din panoul de control.
+- Autentifica-te ca admin/superadmin si acceseaza modulul **Gestionare utilizatori** din panoul de control.
 - Completeaza formularul de creare cont: nume, email, telefon si rol (`client`, `redactor`, `admin` sau `superadmin` — ultimul doar pentru superadmini). Parola temporara se genereaza automat si este afisata dupa salvare.
 - Pentru clientii existenti poti filtra dupa rol/status, iar conturile pot fi activate/dezactivate sau li se poate schimba rolul.
 

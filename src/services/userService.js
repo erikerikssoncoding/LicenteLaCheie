@@ -152,6 +152,12 @@ export async function updateUserRole({ actor, userId, role }) {
     throw new Error('PROTECTED_USER');
   }
   const allowedRoles = ['client', 'redactor', 'admin', 'superadmin'];
+  const roleHierarchy = {
+    client: 1,
+    redactor: 2,
+    admin: 3,
+    superadmin: 4
+  };
   if (!allowedRoles.includes(role)) {
     throw new Error('INVALID_ROLE');
   }
@@ -168,8 +174,14 @@ export async function updateUserRole({ actor, userId, role }) {
   if (target.id === PROTECTED_USER_ID) {
     throw new Error('PROTECTED_USER');
   }
-  if (actor.role !== 'superadmin') {
-    if (target.role === 'superadmin' || role === 'superadmin') {
+  if (actor.id !== PROTECTED_USER_ID) {
+    const actorLevel = roleHierarchy[actor.role] || 0;
+    const targetCurrentLevel = roleHierarchy[target.role] || 0;
+    const desiredLevel = roleHierarchy[role] || 0;
+    if (targetCurrentLevel >= actorLevel) {
+      throw new Error('INSUFFICIENT_PRIVILEGES');
+    }
+    if (desiredLevel >= actorLevel) {
       throw new Error('INSUFFICIENT_PRIVILEGES');
     }
   }

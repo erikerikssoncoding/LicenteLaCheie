@@ -2,6 +2,18 @@ import pool from '../config/db.js';
 import { encryptObject, decryptObject } from '../utils/encryption.js';
 import { nanoid } from 'nanoid';
 
+const CONTRACT_DOWNLOAD_TTL_MS = 10 * 60 * 1000;
+const contractDownloadTokens = new Map();
+
+function purgeExpiredTokens() {
+  const now = Date.now();
+  for (const [token, entry] of contractDownloadTokens.entries()) {
+    if (entry.expiresAt <= now) {
+      contractDownloadTokens.delete(token);
+    }
+  }
+}
+
 function escapeHtml(value) {
   if (value === null || value === undefined) {
     return '';
@@ -213,5 +225,29 @@ export async function applyAdminSignature({ ticketId, signatureData, offer }) {
     [signatureData, signedAt, contractNumber, signedAt, draft, ticketId]
   );
   return { draft, contractNumber, contractDate: signedAt };
+}
+
+export function createContractDownloadToken({ ticketId, userId }) {
+  purgeExpiredTokens();
+  const token = nanoid(48);
+  const expiresAt = Date.now() + CONTRACT_DOWNLOAD_TTL_MS;
+  contractDownloadTokens.set(token, { ticketId, userId, expiresAt });
+  return { token, expiresAt };
+}
+
+export function consumeContractDownloadToken({ token, ticketId, userId }) {
+  purgeExpiredTokens();
+  const entry = contractDownloadTokens.get(token);
+  if (!entry) {
+    return null;
+  }
+  contractDownloadTokens.delete(token);
+  if (entry.ticketId !== ticketId || entry.userId !== userId) {
+    return null;
+  }
+  if (entry.expiresAt <= Date.now()) {
+    return null;
+  }
+  return entry;
 }
 

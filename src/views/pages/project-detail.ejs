@@ -242,18 +242,20 @@
             >
               <% timelineEntries.forEach((entry) => { %>
               <% const entryType = entry.entry_type; %>
+              <% const entryTypeLabel =
+                entryType === 'status' ? 'Actualizare status' : entryType === 'log' ? 'Activitate' : 'Mesaj'; %>
               <% const statusInfoEntry = entry.status ? projectStatusMap[entry.status] : null; %>
               <div class="timeline-item" data-entry-type="<%= entryType %>" data-entry-id="<%= entry.id %>">
                 <div class="timeline-content <%= entryType === 'status' ? 'timeline-content--status' : '' %>">
                   <div class="d-flex align-items-center gap-2 mb-2">
-                    <h3 class="h6 mb-0">
-                      <%= entryType === 'status' ? 'Actualizare status' : 'Mesaj' %>
-                    </h3>
+                    <h3 class="h6 mb-0"><%= entryTypeLabel %></h3>
                     <% if (entryType === 'status' && statusInfoEntry) { %>
                     <span class="badge bg-info text-dark text-uppercase"><%= statusInfoEntry.label %></span>
                     <% } %>
                     <% if (entry.visibility === 'internal') { %>
                     <span class="badge bg-warning text-dark text-uppercase">Intern</span>
+                    <% } else if (entry.visibility === 'admin') { %>
+                    <span class="badge bg-danger-subtle text-danger-emphasis text-uppercase">Admin</span>
                     <% } %>
                   </div>
                   <p class="mb-2">
@@ -270,8 +272,14 @@
                           ? entry.created_at.toISOString().replace('T', ' ').slice(0, 16)
                           : entry.created_at)
                       : null; %>
-                    <%= entryType === 'status' ? 'Actualizat de' : 'Mesaj de' %>
+                    <% const metaPrefix = entryType === 'status' ? 'Actualizat de' : entryType === 'log' ? 'Notificat de' : 'Mesaj de'; %>
+                    <%= metaPrefix %>
                     <%= authorRole && authorRole !== 'client' ? `${authorName} (${authorRole})` : authorName %>
+                    <% if (entry.visibility === 'internal') { %>
+                    • Vizibil echipei interne
+                    <% } else if (entry.visibility === 'admin') { %>
+                    • Vizibil doar administratorilor
+                    <% } %>
                     <% if (formattedDate) { %> • <%= formattedDate %><% } %>
                   </small>
                 </div>
@@ -661,7 +669,13 @@
       header.className = 'd-flex align-items-center gap-2 mb-2';
       const heading = document.createElement('h3');
       heading.className = 'h6 mb-0';
-      heading.textContent = entry.entry_type === 'status' ? 'Actualizare status' : 'Mesaj';
+      const entryTypeLabel =
+        entry.entry_type === 'status'
+          ? 'Actualizare status'
+          : entry.entry_type === 'log'
+            ? 'Activitate'
+            : 'Mesaj';
+      heading.textContent = entryTypeLabel;
       header.appendChild(heading);
       if (entry.entry_type === 'status' && entry.status) {
         const badge = document.createElement('span');
@@ -673,6 +687,11 @@
         const badge = document.createElement('span');
         badge.className = 'badge bg-warning text-dark text-uppercase';
         badge.textContent = 'Intern';
+        header.appendChild(badge);
+      } else if (entry.visibility === 'admin') {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-danger-subtle text-danger-emphasis text-uppercase';
+        badge.textContent = 'Admin';
         header.appendChild(badge);
       }
       content.appendChild(header);
@@ -691,10 +710,13 @@
       const meta = document.createElement('small');
       meta.className = 'text-muted d-block';
       const author = formatName(entry.author_name, entry.author_role);
-      const prefix = entry.entry_type === 'status' ? 'Actualizat de' : 'Mesaj de';
+      const prefix =
+        entry.entry_type === 'status' ? 'Actualizat de' : entry.entry_type === 'log' ? 'Notificat de' : 'Mesaj de';
       let metaText = `${prefix} ${author}`;
       if (entry.visibility === 'internal') {
         metaText += ' • Vizibil echipei interne';
+      } else if (entry.visibility === 'admin') {
+        metaText += ' • Vizibil doar administratorilor';
       }
       const formatted = formatDate(entry.created_at);
       if (formatted) {

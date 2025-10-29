@@ -110,7 +110,7 @@
       <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
         <span class="badge bg-primary text-uppercase"><%= offerStatusLabels[offer.status] || offer.status %></span>
         <% if (offer.offer_amount) { %>
-        <span class="fw-semibold">Valoare propusa: <%= Number(offer.offer_amount).toFixed(2) %> EUR</span>
+        <span class="fw-semibold">Valoare propusa: <%= Number(offer.offer_amount).toFixed(2) %> RON</span>
         <% } else { %>
         <span class="fw-semibold text-muted">Valoarea este in curs de stabilire</span>
         <% } %>
@@ -124,7 +124,7 @@
         <% } %>
         <% if (offer.status === 'counter_submitted') { %>
         <dt class="col-sm-4">Contraoferta client</dt>
-        <dd class="col-sm-8"><%= Number(offer.counter_amount).toFixed(2) %> EUR</dd>
+        <dd class="col-sm-8"><%= Number(offer.counter_amount).toFixed(2) %> RON</dd>
         <% } %>
         <% if (offer.status === 'counter_pending' && counterExpires) { %>
         <dt class="col-sm-4">Contraoferta in asteptare</dt>
@@ -140,7 +140,7 @@
       <form action="/cont/tichete/<%= ticket.id %>/oferta/detalii" method="post" class="row g-3">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <div class="col-md-4">
-          <label class="form-label" for="offerAmount">Valoare oferta (EUR)</label>
+          <label class="form-label" for="offerAmount">Valoare oferta (RON)</label>
           <input class="form-control" type="number" step="0.01" min="0" id="offerAmount" name="amount" required />
         </div>
         <div class="col-md-4">
@@ -160,7 +160,7 @@
     <% } else { %>
     <div class="glass-card mb-4">
       <h3 class="h6 mb-3">Detalii oferta transmisa</h3>
-      <p class="mb-1">Valoare initiala: <strong><%= Number(offer.offer_amount).toFixed(2) %> EUR</strong></p>
+      <p class="mb-1">Valoare initiala: <strong><%= Number(offer.offer_amount).toFixed(2) %> RON</strong></p>
       <p class="mb-2">Valabila pana la: <strong><%= offerExpires %></strong></p>
       <% if (offer.notes) { %>
       <p class="mb-2">Mesaj catre client: <%= offer.notes %></p>
@@ -171,7 +171,7 @@
     <% if (offer.status === 'counter_submitted') { %>
     <div class="glass-card mb-4">
       <h3 class="h6 mb-3">Raspunde la contraoferta clientului</h3>
-      <p class="mb-3">Clientul propune <strong><%= Number(offer.counter_amount).toFixed(2) %> EUR</strong>.</p>
+      <p class="mb-3">Clientul propune <strong><%= Number(offer.counter_amount).toFixed(2) %> RON</strong>.</p>
       <div class="d-flex flex-column flex-sm-row gap-3">
         <form action="/cont/tichete/<%= ticket.id %>/oferta/contraoferta/accepta" method="post">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -219,7 +219,7 @@
       <form action="/cont/tichete/<%= ticket.id %>/oferta/contraoferta" method="post" class="d-flex flex-column flex-sm-row gap-3 align-items-sm-end">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <div class="flex-grow-1 w-100">
-          <label class="form-label" for="counterAmount">Propune valoare (EUR)</label>
+          <label class="form-label" for="counterAmount">Propune valoare (RON)</label>
           <input class="form-control" type="number" step="0.01" min="0" id="counterAmount" name="amount" required />
         </div>
         <button class="btn btn-outline-primary" type="submit">Trimite contraoferta</button>

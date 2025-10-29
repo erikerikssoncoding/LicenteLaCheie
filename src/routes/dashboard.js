@@ -58,6 +58,8 @@ import {
   consumeContractDownloadToken
 } from '../services/contractService.js';
 import { isValidCNP } from '../utils/validators.js';
+import { htmlToPlainText } from '../utils/htmlToPlainText.js';
+import { createPdfBufferFromText } from '../utils/pdf.js';
 
 const router = Router();
 
@@ -1072,6 +1074,12 @@ router.post(
         };
         return res.redirect(`/cont/tichete/${ticketId}`);
       }
+      if (contractDetails.contractStage !== 'completed') {
+        req.session.ticketFeedback = {
+          error: 'Contractul poate fi descarcat doar dupa semnarea de catre ambele parti.'
+        };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
       const { token } = createContractDownloadToken({ ticketId, userId: user.id });
       return res.redirect(
         `/cont/tichete/${ticketId}/contract/descarca?token=${encodeURIComponent(token)}`
@@ -1120,6 +1128,12 @@ router.get(
         };
         return res.redirect(`/cont/tichete/${ticketId}`);
       }
+      if (contractDetails.contractStage !== 'completed') {
+        req.session.ticketFeedback = {
+          error: 'Contractul poate fi descarcat doar dupa semnarea de catre ambele parti.'
+        };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
       const token = typeof req.query.token === 'string' ? req.query.token : null;
       if (!token) {
         req.session.ticketFeedback = {
@@ -1147,10 +1161,12 @@ router.get(
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
-      const fileName = `contract-${sanitizedIdentifier || ticketId}.html`;
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      const plainTextContract = htmlToPlainText(contractDetails.contractDraft);
+      const pdfBuffer = createPdfBufferFromText(plainTextContract);
+      const fileName = `contract-${sanitizedIdentifier || ticketId}.pdf`;
+      res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-      return res.send(contractDetails.contractDraft);
+      return res.send(pdfBuffer);
     } catch (error) {
       next(error);
     }

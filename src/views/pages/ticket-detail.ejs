@@ -288,7 +288,7 @@
       <div class="contract-preview">
         <%- contractDetails.contractDraft %>
       </div>
-      <% if (['client', 'admin', 'superadmin'].includes(currentUser.role)) { %>
+      <% if (['client', 'admin', 'superadmin'].includes(currentUser.role) && contractStage === 'completed') { %>
       <form
         action="/cont/tichete/<%= ticket.id %>/contract/descarca"
         method="post"
@@ -296,8 +296,10 @@
       >
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <button class="btn btn-outline-primary" type="submit">Descarca contractul</button>
-        <small class="text-muted">Link securizat, valabil 10 minute pentru utilizatorii autorizati.</small>
       </form>
+      <p class="text-muted small mt-2 mb-0">Contractul va fi descarcat in format PDF.</p>
+      <% } else if (['client', 'admin', 'superadmin'].includes(currentUser.role)) { %>
+      <p class="text-muted small mt-3 mb-0">Contractul va fi disponibil pentru descarcare dupa semnarea de catre ambele parti.</p>
       <% } %>
     </div>
     <% } %>

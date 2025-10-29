@@ -12,6 +12,7 @@
         : project.deadline
       : 'N/A'; %>
     <% const roleLabelMap = { client: 'Client', redactor: 'Redactor', admin: 'Admin', superadmin: 'Superadmin' }; %>
+    <% const roleHierarchy = { client: 1, redactor: 2, admin: 3, superadmin: 4 }; %>
     <% if (projectFeedback && projectFeedback.success) { %>
     <div class="alert alert-success mb-4" role="alert"><%= projectFeedback.success %></div>
     <% } %>
@@ -146,12 +147,12 @@
                 <label class="form-label" for="redactorId">Redactor asignat</label>
                 <select class="form-select" id="redactorId" name="redactorId">
                   <option value="">-- selectează --</option>
-                  <% const hierarchy = { client: 1, redactor: 2, admin: 3, superadmin: 4 }; %>
                   <% team
                     .filter((member) => ['redactor', 'admin', 'superadmin'].includes(member.role))
                     .forEach((member) => {
                       const isDisabled =
-                        currentUser.role === 'admin' && (hierarchy[member.role] || 0) >= (hierarchy[currentUser.role] || 0);
+                        currentUser.role === 'admin' &&
+                        (roleHierarchy[member.role] || 0) >= (roleHierarchy[currentUser.role] || 0);
                   %>
                   <option
                     value="<%= member.id %>"
@@ -515,16 +516,45 @@
                           : file.created_at)
                       : null; %>
                     <% const sizeLabel = (Number(file.file_size || 0) / (1024 * 1024)).toFixed(2); %>
+                    <% const canDeleteStaffFile = (() => {
+                      if (!['admin', 'superadmin', 'redactor'].includes(currentUser.role)) {
+                        return false;
+                      }
+                      if (file.origin !== 'staff') {
+                        return false;
+                      }
+                      if (file.uploader_id && currentUser.id === file.uploader_id) {
+                        return true;
+                      }
+                      if (['admin', 'superadmin'].includes(currentUser.role)) {
+                        const actorLevel = roleHierarchy[currentUser.role] || 0;
+                        const uploaderLevel = roleHierarchy[file.uploader_role] || 0;
+                        return uploaderLevel > 0 && uploaderLevel <= actorLevel;
+                      }
+                      return false;
+                    })(); %>
                     <li class="list-group-item">
                       <div class="d-flex flex-column gap-2">
                         <div class="d-flex justify-content-between align-items-center gap-3">
                           <span class="fw-semibold text-break"><%= file.original_name %></span>
-                          <a
-                            class="btn btn-sm btn-outline-primary"
-                            href="/cont/proiecte/<%= project.id %>/fisiere/<%= file.id %>/descarca"
-                          >
-                            Descarcă
-                          </a>
+                          <div class="d-flex flex-wrap gap-2">
+                            <a
+                              class="btn btn-sm btn-outline-primary"
+                              href="/cont/proiecte/<%= project.id %>/fisiere/<%= file.id %>/descarca"
+                            >
+                              Descarcă
+                            </a>
+                            <% if (canDeleteStaffFile) { %>
+                            <form
+                              action="/cont/proiecte/<%= project.id %>/fisiere/<%= file.id %>/sterge"
+                              method="post"
+                              class="d-inline"
+                            >
+                              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                              <button class="btn btn-sm btn-outline-danger" type="submit">Șterge</button>
+                            </form>
+                            <% } %>
+                          </div>
                         </div>
                         <small class="text-muted">
                           Încărcat de <%= file.uploader_name || 'Echipă' %> (<%= roleLabelMap[file.uploader_role] || file.uploader_role %>)

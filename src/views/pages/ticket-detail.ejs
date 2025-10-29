@@ -71,7 +71,7 @@
         display: block;
       }
       .timeline-item--unread .timeline-content {
-        background-color: rgba(220, 53, 69, 0.08);
+        background-color: rgba(25, 135, 84, 0.12);
         border-radius: 0.75rem;
       }
     </style>
@@ -540,7 +540,7 @@
           <div class="d-flex align-items-center gap-2 mb-2">
             <h2 class="h6 mb-0"><%= heading %></h2>
             <% if (isUnread) { %>
-            <span class="badge bg-danger-subtle text-danger-emphasis text-uppercase">Nou</span>
+            <span class="badge bg-success-subtle text-success-emphasis text-uppercase" data-unread-badge>Nou</span>
             <% } %>
             <% if (entryType === 'log') { %>
             <span class="badge bg-warning text-dark text-uppercase">Intern</span>
@@ -746,6 +746,65 @@
       const ticketId = timeline.getAttribute('data-ticket-id');
       const limit = Number(timeline.getAttribute('data-limit') || '10');
       let offset = Number(timeline.getAttribute('data-offset') || '0');
+      const viewerId = <%- JSON.stringify(currentUser?.id || null) %>;
+      const storageKey = viewerId ? `ticketTimelineSeen:${viewerId}:${ticketId}` : null;
+
+      function loadSeenEntryIds() {
+        if (!storageKey || typeof window === 'undefined' || !window.localStorage) {
+          return new Set();
+        }
+        try {
+          const raw = window.localStorage.getItem(storageKey);
+          if (!raw) {
+            return new Set();
+          }
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) {
+            return new Set();
+          }
+          return new Set(parsed.map((value) => String(value)));
+        } catch (error) {
+          return new Set();
+        }
+      }
+
+      function persistSeenEntryIds(values) {
+        if (!storageKey || typeof window === 'undefined' || !window.localStorage) {
+          return;
+        }
+        try {
+          window.localStorage.setItem(storageKey, JSON.stringify(Array.from(values)));
+        } catch (error) {
+          /* noop */
+        }
+      }
+
+      function applyStoredReadState() {
+        const seenIds = loadSeenEntryIds();
+        let hasMutated = false;
+        const items = timeline.querySelectorAll('[data-entry-id]');
+        items.forEach((item) => {
+          const entryId = item.getAttribute('data-entry-id');
+          if (!entryId) {
+            return;
+          }
+          const entryIdString = String(entryId);
+          if (seenIds.has(entryIdString)) {
+            item.classList.remove('timeline-item--unread');
+            item.setAttribute('data-entry-unread', 'false');
+            const unreadBadge = item.querySelector('[data-unread-badge]');
+            if (unreadBadge) {
+              unreadBadge.remove();
+            }
+          } else {
+            seenIds.add(entryIdString);
+            hasMutated = true;
+          }
+        });
+        if (hasMutated) {
+          persistSeenEntryIds(seenIds);
+        }
+      }
 
       function formatTimelineNameClient(name, role) {
         if (!role || role === 'client') {
@@ -808,7 +867,8 @@
         headingWrapper.appendChild(title);
         if (entry.isUnread) {
           const badge = document.createElement('span');
-          badge.className = 'badge bg-danger-subtle text-danger-emphasis text-uppercase';
+          badge.className = 'badge bg-success-subtle text-success-emphasis text-uppercase';
+          badge.dataset.unreadBadge = 'true';
           badge.textContent = 'Nou';
           headingWrapper.appendChild(badge);
         }
@@ -845,6 +905,8 @@
         return item;
       }
 
+      applyStoredReadState();
+
       if (loadMoreButton) {
         loadMoreButton.addEventListener('click', async () => {
           loadMoreButton.disabled = true;
@@ -869,6 +931,7 @@
               data.entries.forEach((entry) => {
                 timeline.appendChild(renderTimelineEntry(entry));
               });
+              applyStoredReadState();
             }
 
             if (typeof data.nextOffset === 'number') {

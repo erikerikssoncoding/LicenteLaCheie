@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import pool from '../config/db.js';
 
+const TRUSTED_DEVICE_COOKIE_DOMAIN = process.env.APP_COOKIE_DOMAIN || null;
 export const TRUSTED_DEVICE_COOKIE_NAME = 'licentelacheie.trust';
 export const TRUSTED_DEVICE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30; // 30 zile
 const TRUSTED_DEVICE_EXPIRATION_DAYS = 30;
@@ -75,7 +76,8 @@ export function getTrustedDeviceCookieOptions() {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     maxAge: TRUSTED_DEVICE_MAX_AGE_MS,
-    path: '/'
+    path: '/',
+    ...(TRUSTED_DEVICE_COOKIE_DOMAIN ? { domain: TRUSTED_DEVICE_COOKIE_DOMAIN } : {})
   };
 }
 

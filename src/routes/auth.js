@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createClient, findUserByEmail, validatePassword } from '../services/userService.js';
 import { ensureAuthenticated } from '../middleware/auth.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
+import { getSessionCookieClearOptions, SESSION_COOKIE_NAME } from '../config/session.js';
 import {
   createTrustedDevice,
   getTrustedDeviceCookieClearOptions,
@@ -115,7 +116,7 @@ router.post('/deconectare', ensureAuthenticated, async (req, res, next) => {
       await revokeTrustedDeviceByToken(trustedToken);
     }
     req.session.destroy(() => {
-      res.clearCookie('licentelacheie.sid');
+      res.clearCookie(SESSION_COOKIE_NAME, getSessionCookieClearOptions());
       res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
       res.redirect('/');
     });

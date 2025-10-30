@@ -26,16 +26,34 @@ const sessionStore = new MySQLStore({
   }
 });
 
+const SESSION_COOKIE_DOMAIN = process.env.APP_COOKIE_DOMAIN || null;
+export const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'licentelacheie.sid';
+
+const BASE_SESSION_COOKIE_OPTIONS = Object.freeze({
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: process.env.NODE_ENV === 'production',
+  maxAge: 1000 * 60 * 60 * 24,
+  path: '/',
+  ...(SESSION_COOKIE_DOMAIN ? { domain: SESSION_COOKIE_DOMAIN } : {})
+});
+
+export function getSessionCookieOptions() {
+  return { ...BASE_SESSION_COOKIE_OPTIONS };
+}
+
+export function getSessionCookieClearOptions() {
+  const options = getSessionCookieOptions();
+  delete options.maxAge;
+  options.expires = new Date(0);
+  return options;
+}
+
 export default session({
   secret: process.env.SESSION_SECRET || 'schimbati-aceasta-cheie',
-  name: 'licentelacheie.sid',
+  name: SESSION_COOKIE_NAME,
   resave: false,
   saveUninitialized: false,
   store: sessionStore,
-  cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 1000 * 60 * 60 * 24
-  }
+  cookie: getSessionCookieOptions()
 });

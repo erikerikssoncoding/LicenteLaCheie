@@ -47,8 +47,30 @@ a:hover {
 }
 
 .premium-navbar .navbar-brand {
+  position: relative;
+  display: inline-block;
   font-size: 1.25rem;
   letter-spacing: -0.02em;
+  padding-right: 2.25rem;
+}
+
+.premium-navbar .navbar-brand .brand-title {
+  display: inline-block;
+}
+
+.premium-navbar .navbar-brand .brand-beta-badge {
+  position: absolute;
+  top: -0.5rem;
+  right: 0;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  background: rgba(124, 58, 237, 0.9);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.15rem 0.4rem;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+  text-transform: uppercase;
 }
 
 .navbar-light .navbar-toggler {

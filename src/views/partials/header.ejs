@@ -7,7 +7,8 @@
       class="navbar-brand fw-semibold brand-gradient"
       href="<%= !isAuthenticated || currentUser.role === 'client' ? '/' : '/cont' %>"
     >
-      Licente la Cheie
+      <span class="brand-title">Licente la Cheie</span>
+      <span class="brand-beta-badge">BETA</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Meniu">
       <span class="navbar-toggler-icon"></span>

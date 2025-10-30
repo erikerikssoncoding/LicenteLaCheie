@@ -17,6 +17,16 @@ body {
   color: var(--text-primary);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
 }
 
 a {
@@ -668,12 +678,154 @@ a:hover {
   padding: 1rem;
 }
 
-@media (max-width: 575.98px) {
-  .hero-stats {
-    gap: 1.5rem;
+@media (max-width: 767.98px) {
+  .hero-section {
+    padding: 4.5rem 0 3.5rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+  }
+
+  .hero-visual {
+    gap: 1.25rem;
+  }
+
+  .section-title {
+    font-size: clamp(1.9rem, 5vw, 2.25rem);
+  }
+
+  .section-subtitle {
+    font-size: 1rem;
   }
 
   .glass-card {
     padding: 1.5rem;
+  }
+
+  .card .card-body {
+    padding: 1.75rem;
+  }
+
+  .project-progress-summary {
+    padding: 1.25rem;
+  }
+
+  .project-progress-card,
+  .project-deadline-card {
+    padding: 1.25rem;
+  }
+
+  .timeline-grid {
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .ticket-preview .reply-item {
+    padding: 0.85rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .premium-navbar .navbar-brand {
+    font-size: 1.1rem;
+    padding-right: 1.75rem;
+  }
+
+  .premium-navbar .brand-beta-badge {
+    top: -0.35rem;
+  }
+
+  .navbar-nav {
+    gap: 0.25rem;
+  }
+
+  .navbar-nav .nav-link {
+    padding: 0.5rem 0;
+  }
+
+  .navbar-nav .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .hero-section {
+    text-align: center;
+  }
+
+  .hero-title {
+    font-size: clamp(2.1rem, 8vw, 2.6rem);
+  }
+
+  .hero-actions {
+    align-items: stretch !important;
+  }
+
+  .hero-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hero-actions .btn.btn-link {
+    padding: 0.75rem 0;
+  }
+
+  .hero-stats {
+    width: 100%;
+    justify-content: center;
+    gap: 1.5rem;
+  }
+
+  .hero-stats > div {
+    flex: 1 1 120px;
+    text-align: center;
+  }
+
+  .timeline-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-progress-summary {
+    padding: 1rem;
+  }
+
+  .project-progress-card,
+  .project-deadline-card {
+    padding: 1rem;
+  }
+
+  .project-progress-steps {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .project-tabs-wrapper {
+    margin: 0 -1rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .project-tabs-wrapper .nav-link {
+    font-size: 0.95rem;
+  }
+
+  .deadline-countdown {
+    align-items: center;
+    text-align: center;
+  }
+
+  .timeline {
+    padding-left: 1rem;
+  }
+
+  .timeline-item::before {
+    left: -0.8rem;
+  }
+
+  .ticket-preview .reply-item {
+    padding: 0.75rem;
+  }
+
+  .footer-modern .row > [class*='col']:not(:first-child) {
+    margin-top: 1.5rem;
   }
 }

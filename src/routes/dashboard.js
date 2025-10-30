@@ -449,6 +449,10 @@ router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, 
   }
 });
 
+router.get('/cont/securitate', ensureRole('superadmin'), (req, res) => {
+  res.redirect('/cont#securitate');
+});
+
 router.post('/cont/securitate', ensureRole('superadmin'), async (req, res, next) => {
   try {
     const schema = z.object({

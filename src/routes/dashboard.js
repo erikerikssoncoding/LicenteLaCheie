@@ -63,7 +63,9 @@ import {
   createManagedUser,
   updateUserRole,
   setUserActiveStatus,
-  PROTECTED_USER_ID
+  PROTECTED_USER_ID,
+  ROLE_HIERARCHY,
+  forceChangeUserPassword
 } from '../services/userService.js';
 import { listSecuritySettings, updateSecuritySetting } from '../services/securityService.js';
 import {
@@ -122,7 +124,6 @@ const CLIENT_MAX_FILE_SIZE = 5 * 1024 * 1024;
 const STAFF_MAX_FILE_SIZE = 30 * 1024 * 1024;
 const ALLOWED_PROJECT_FILE_EXTENSIONS = new Set(['.pdf', '.docx', '.jpg', '.jpeg', '.png']);
 const DOCS_VALIDATED_FLOW_INDEX = PROJECT_FLOW_STATUSES.findIndex((status) => status.id === 'docs_validated');
-const ROLE_HIERARCHY = { client: 1, redactor: 2, admin: 3, superadmin: 4 };
 
 const projectFileStorage = multer.diskStorage({
   destination: async (req, file, cb) => {
@@ -400,6 +401,21 @@ router.get('/cont', async (req, res, next) => {
   }
 });
 
+router.get('/cont/proiecte', requireActiveLicense(), async (req, res, next) => {
+  try {
+    const user = req.session.user;
+    const projects = await listProjectsForUser(user);
+    res.render('pages/project-list', {
+      title: 'Proiecte',
+      description: 'Vizualizeaza proiectele alocate si acceseaza rapid detaliile fiecaruia.',
+      projects,
+      projectStatusMap: buildProjectStatusDictionary()
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, res, next) => {
   try {
     const filters = {
@@ -422,7 +438,8 @@ router.get('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, r
       filters,
       flashMessage: flash.success || null,
       errorMessage: flash.error || null,
-      generatedCredentials: flash.credentials || null
+      generatedCredentials: flash.credentials || null,
+      roleHierarchy: ROLE_HIERARCHY
     });
   } catch (error) {
     next(error);
@@ -638,6 +655,47 @@ router.post('/cont/utilizatori/:id/status', ensureRole('admin', 'superadmin'), a
     }
     if (error.message === 'INSUFFICIENT_PRIVILEGES') {
       req.session.flash = { error: 'Nu aveti permisiuni pentru a modifica acest utilizator.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'USER_NOT_FOUND') {
+      req.session.flash = { error: 'Utilizatorul selectat nu exista.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/utilizatori/:id/parola', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.id);
+    if (Number.isNaN(targetId)) {
+      req.session.flash = { error: 'Utilizator invalid.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    const schema = z.object({ newPassword: z.string().min(8) });
+    const { newPassword } = schema.parse(req.body);
+    await forceChangeUserPassword({
+      actor: req.session.user,
+      userId: targetId,
+      newPassword
+    });
+    req.session.flash = { success: 'Parola utilizatorului a fost actualizata.' };
+    return res.redirect('/cont/utilizatori');
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.flash = { error: 'Parola noua trebuie sa aiba cel putin 8 caractere.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'PROTECTED_USER') {
+      req.session.flash = { error: 'Parola acestui utilizator nu poate fi schimbata.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'SELF_MODIFICATION') {
+      req.session.flash = { error: 'Nu iti poti schimba parola din aceasta sectiune.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'INSUFFICIENT_PRIVILEGES') {
+      req.session.flash = { error: 'Nu aveti permisiuni pentru a modifica parola acestui utilizator.' };
       return res.redirect('/cont/utilizatori');
     }
     if (error.message === 'USER_NOT_FOUND') {
@@ -2490,7 +2548,18 @@ router
           description: 'Nu sunteti responsabil de acest proiect.'
         });
       }
-      const desiredRedactorId = data.redactorId ? Number(data.redactorId) : null;
+      const desiredAdminId =
+        typeof data.adminId === 'string'
+          ? data.adminId.trim().length
+            ? Number(data.adminId)
+            : null
+          : undefined;
+      const desiredRedactorId =
+        typeof data.redactorId === 'string'
+          ? data.redactorId.trim().length
+            ? Number(data.redactorId)
+            : null
+          : undefined;
       if (desiredRedactorId) {
         const redactorUser = await getUserById(desiredRedactorId);
         if (!redactorUser || !['redactor', 'admin', 'superadmin'].includes(redactorUser.role)) {
@@ -2513,7 +2582,7 @@ router
         }
       }
       await assignProject(Number(req.params.id), {
-        adminId: data.adminId ? Number(data.adminId) : null,
+        adminId: desiredAdminId,
         redactorId: desiredRedactorId
       });
       res.redirect(`/cont/proiecte/${project.id}`);

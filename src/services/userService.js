@@ -2,6 +2,13 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import pool from '../config/db.js';
 
+export const ROLE_HIERARCHY = {
+  client: 1,
+  redactor: 2,
+  admin: 3,
+  superadmin: 4
+};
+
 export async function findUserByEmail(email) {
   const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
   return rows[0] || null;
@@ -152,12 +159,6 @@ export async function updateUserRole({ actor, userId, role }) {
     throw new Error('PROTECTED_USER');
   }
   const allowedRoles = ['client', 'redactor', 'admin', 'superadmin'];
-  const roleHierarchy = {
-    client: 1,
-    redactor: 2,
-    admin: 3,
-    superadmin: 4
-  };
   if (!allowedRoles.includes(role)) {
     throw new Error('INVALID_ROLE');
   }
@@ -175,9 +176,9 @@ export async function updateUserRole({ actor, userId, role }) {
     throw new Error('PROTECTED_USER');
   }
   if (actor.id !== PROTECTED_USER_ID) {
-    const actorLevel = roleHierarchy[actor.role] || 0;
-    const targetCurrentLevel = roleHierarchy[target.role] || 0;
-    const desiredLevel = roleHierarchy[role] || 0;
+    const actorLevel = ROLE_HIERARCHY[actor.role] || 0;
+    const targetCurrentLevel = ROLE_HIERARCHY[target.role] || 0;
+    const desiredLevel = ROLE_HIERARCHY[role] || 0;
     if (targetCurrentLevel >= actorLevel) {
       throw new Error('INSUFFICIENT_PRIVILEGES');
     }
@@ -186,6 +187,35 @@ export async function updateUserRole({ actor, userId, role }) {
     }
   }
   await pool.query(`UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [role, userId]);
+}
+
+export async function forceChangeUserPassword({ actor, userId, newPassword }) {
+  if (!actor) {
+    throw new Error('UNAUTHORIZED');
+  }
+  if (userId === PROTECTED_USER_ID) {
+    throw new Error('PROTECTED_USER');
+  }
+  if (actor.id === userId) {
+    throw new Error('SELF_MODIFICATION');
+  }
+  const target = await getUserById(userId);
+  if (!target) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  if (actor.role !== 'superadmin' && target.role === 'superadmin') {
+    throw new Error('INSUFFICIENT_PRIVILEGES');
+  }
+  const actorLevel = ROLE_HIERARCHY[actor.role] || 0;
+  const targetLevel = ROLE_HIERARCHY[target.role] || 0;
+  if (targetLevel >= actorLevel) {
+    throw new Error('INSUFFICIENT_PRIVILEGES');
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await pool.query(
+    `UPDATE users SET password_hash = ?, must_reset_password = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [passwordHash, userId]
+  );
 }
 
 export async function setUserActiveStatus({ actor, userId, isActive }) {

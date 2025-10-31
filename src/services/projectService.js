@@ -160,11 +160,12 @@ export async function listProjectsForUser(user) {
 
   if (user.role === 'redactor') {
     const [rows] = await pool.query(
-      `SELECT p.*, uc.full_name AS client_name
+      `SELECT p.*, uc.full_name AS client_name, uc.email AS client_email, ua.full_name AS assigned_admin_name
        FROM projects p
        LEFT JOIN users uc ON uc.id = p.client_id
-       WHERE p.assigned_editor_id = ?
-       ORDER BY p.created_at DESC`,
+       LEFT JOIN users ua ON ua.id = p.assigned_admin_id
+        WHERE p.assigned_editor_id = ?
+        ORDER BY p.created_at DESC`,
       [user.id]
     );
     return rows;
@@ -172,19 +173,20 @@ export async function listProjectsForUser(user) {
 
   if (user.role === 'admin') {
     const [rows] = await pool.query(
-      `SELECT p.*, uc.full_name AS client_name, ue.full_name AS assigned_redactor_name
+      `SELECT p.*, uc.full_name AS client_name, uc.email AS client_email, ua.full_name AS assigned_admin_name, ue.full_name AS assigned_redactor_name
        FROM projects p
        LEFT JOIN users uc ON uc.id = p.client_id
+       LEFT JOIN users ua ON ua.id = p.assigned_admin_id
        LEFT JOIN users ue ON ue.id = p.assigned_editor_id
-       WHERE p.assigned_admin_id = ?
-       ORDER BY p.created_at DESC`,
+        WHERE p.assigned_admin_id = ?
+        ORDER BY p.created_at DESC`,
       [user.id]
     );
     return rows;
   }
 
   const [rows] = await pool.query(
-    `SELECT p.*, uc.full_name AS client_name, ua.full_name AS assigned_admin_name, ue.full_name AS assigned_redactor_name
+    `SELECT p.*, uc.full_name AS client_name, uc.email AS client_email, ua.full_name AS assigned_admin_name, ue.full_name AS assigned_redactor_name
      FROM projects p
      LEFT JOIN users uc ON uc.id = p.client_id
      LEFT JOIN users ua ON ua.id = p.assigned_admin_id
@@ -254,12 +256,23 @@ export async function getProjectById(projectId) {
 }
 
 export async function assignProject(projectId, { adminId, redactorId }) {
-  await pool.query(
-    `UPDATE projects
-     SET assigned_admin_id = ?, assigned_editor_id = ?, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-    [adminId || null, redactorId || null, projectId]
-  );
+  const updates = [];
+  const params = [];
+  if (adminId !== undefined) {
+    updates.push('assigned_admin_id = ?');
+    params.push(adminId);
+  }
+  if (redactorId !== undefined) {
+    updates.push('assigned_editor_id = ?');
+    params.push(redactorId);
+  }
+  if (!updates.length) {
+    return;
+  }
+  updates.push('updated_at = CURRENT_TIMESTAMP');
+  params.push(projectId);
+  const setClause = updates.join(', ');
+  await pool.query(`UPDATE projects SET ${setClause} WHERE id = ?`, params);
 }
 
 export async function listProjectFiles(projectId) {

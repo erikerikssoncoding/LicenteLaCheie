@@ -1,0 +1,104 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container">
+    <% const isClient = currentUser.role === 'client'; %>
+    <% const isRedactor = currentUser.role === 'redactor'; %>
+    <% const isManager = ['admin', 'superadmin'].includes(currentUser.role); %>
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+      <div>
+        <h1 class="h3 mb-1">Proiecte</h1>
+        <p class="text-muted mb-0">
+          <%= isClient
+            ? 'Acceseaza detaliile proiectelor tale si urmareste stadiul fiecarei livrari.'
+            : isRedactor
+            ? 'Consulta proiectele asignate si termenele stabilite cu clientii.'
+            : 'Gestioneaza proiectele din portofoliu si coordoneaza echipa implicata.'
+          %>
+        </p>
+      </div>
+      <% if (isManager) { %>
+      <a class="btn btn-outline-primary" href="/cont/proiecte/creeaza">Creeaza proiect</a>
+      <% } %>
+    </div>
+
+    <% if (projects.length === 0) { %>
+    <div class="alert alert-info mb-0">
+      <%= isClient
+        ? 'Momentan nu exista proiecte active asociate contului tau.'
+        : isRedactor
+        ? 'Nu ai proiecte asignate in acest moment.'
+        : 'Nu exista proiecte in portofoliul tau momentan.'
+      %>
+    </div>
+    <% } else { %>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Proiect</th>
+                <th>Status</th>
+                <% if (!isClient) { %>
+                <th>Client</th>
+                <% } %>
+                <th>Echipa</th>
+                <th>Deadline</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% projects.forEach((project) => { %>
+              <tr>
+                <td>
+                  <div class="fw-semibold"><%= project.title %></div>
+                  <div class="small text-muted"><%= project.project_code || '' %></div>
+                </td>
+                <td>
+                  <% const statusMeta = projectStatusMap[project.status] || null; %>
+                  <span class="badge bg-info text-dark text-uppercase">
+                    <%= statusMeta ? statusMeta.label : project.status %>
+                  </span>
+                </td>
+                <% if (!isClient) { %>
+                <td>
+                  <div class="fw-semibold"><%= project.client_name || 'Client nealocat' %></div>
+                  <% if (project.client_email) { %>
+                  <div class="small text-muted"><%= project.client_email %></div>
+                  <% } %>
+                </td>
+                <% } %>
+                <td class="small">
+                  <% if (isClient) { %>
+                  <div><strong>Manager:</strong> <%= project.assigned_admin_name || 'Nealocat' %></div>
+                  <div><strong>Redactor:</strong> <%= project.assigned_redactor_name || 'Nealocat' %></div>
+                  <% } else if (isRedactor) { %>
+                  <div><strong>Manager:</strong> <%= project.assigned_admin_name || 'Nealocat' %></div>
+                  <% } else { %>
+                  <div><strong>Manager:</strong> <%= project.assigned_admin_name || 'Nealocat' %></div>
+                  <div><strong>Redactor:</strong> <%= project.assigned_redactor_name || 'Nealocat' %></div>
+                  <% } %>
+                </td>
+                <td>
+                  <%= project.deadline
+                    ? project.deadline.toISOString
+                      ? project.deadline.toISOString().slice(0, 10)
+                      : project.deadline
+                    : 'N/A'
+                  %>
+                </td>
+                <td class="text-end">
+                  <a class="btn btn-sm btn-outline-primary" href="/cont/proiecte/<%= project.id %>">Deschide</a>
+                </td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <% } %>
+  </div>
+</section>
+<%- include('../partials/footer') %>

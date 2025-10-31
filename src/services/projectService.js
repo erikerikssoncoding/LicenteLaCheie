@@ -178,9 +178,9 @@ export async function listProjectsForUser(user) {
        LEFT JOIN users uc ON uc.id = p.client_id
        LEFT JOIN users ua ON ua.id = p.assigned_admin_id
        LEFT JOIN users ue ON ue.id = p.assigned_editor_id
-        WHERE p.assigned_admin_id = ?
+        WHERE p.assigned_admin_id = ? OR p.assigned_editor_id = ?
         ORDER BY p.created_at DESC`,
-      [user.id]
+      [user.id, user.id]
     );
     return rows;
   }

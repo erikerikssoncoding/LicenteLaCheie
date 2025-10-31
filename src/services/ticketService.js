@@ -100,9 +100,9 @@ export async function listTicketsForUser(user) {
        LEFT JOIN users u ON u.id = t.created_by
        LEFT JOIN projects p ON p.id = t.project_id
        LEFT JOIN tickets merged ON merged.id = t.merged_into_ticket_id
-       WHERE p.assigned_admin_id = ? OR t.project_id IS NULL
+       WHERE p.assigned_admin_id = ? OR p.assigned_editor_id = ? OR t.project_id IS NULL
        ORDER BY t.created_at DESC`,
-      [user.id]
+      [user.id, user.id]
     );
     return rows;
   }

@@ -91,6 +91,7 @@
                     <th class="text-end">Actiuni</th>
                   </tr>
                 </thead>
+                <% const roleLabelMap = { client: 'Client', redactor: 'Redactor', admin: 'Admin', superadmin: 'Superadmin' }; %>
                 <tbody>
                   <% if (users.length === 0) { %>
                   <tr>
@@ -105,42 +106,29 @@
                     </td>
                     <td><%= user.email %></td>
                     <td>
-                      <form action="/cont/utilizatori/<%= user.id %>/rol" method="post" class="d-flex align-items-center gap-2">
-                        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                        <select
-                          class="form-select form-select-sm"
-                          name="role"
-                          <%= user.id === currentUser.id || user.is_protected ? 'disabled' : '' %>
-                        >
-                          <option value="client" <%= user.role === 'client' ? 'selected' : '' %>>Client</option>
-                          <option value="redactor" <%= user.role === 'redactor' ? 'selected' : '' %>>Redactor</option>
-                          <option value="admin" <%= user.role === 'admin' ? 'selected' : '' %>>Admin</option>
-                          <option value="superadmin" <%= user.role === 'superadmin' ? 'selected' : '' %>>Superadmin</option>
-                        </select>
-                        <button
-                          class="btn btn-sm btn-outline-secondary"
-                          type="submit"
-                          <%= user.id === currentUser.id || user.is_protected ? 'disabled' : '' %>
-                        >
-                          Salveaza
-                        </button>
-                      </form>
+                      <span class="badge bg-light text-dark border"><%= roleLabelMap[user.role] || user.role.toUpperCase() %></span>
                     </td>
                     <td>
                       <span class="badge <%= user.is_active ? 'bg-success' : 'bg-secondary' %>"><%= user.is_active ? 'Activ' : 'Inactiv' %></span>
+                      <% if (user.must_reset_password) { %>
+                      <span class="badge bg-info text-dark ms-1">Resetare obligatorie</span>
+                      <% } %>
                       <% if (user.is_protected) { %>
                       <span class="badge bg-warning text-dark ms-1">Protejat</span>
                       <% } %>
                     </td>
                     <td class="text-end">
-                      <% const hierarchy = roleHierarchy || {}; %>
-                      <% const actorLevel = hierarchy[currentUser.role] || 0; %>
-                      <% const targetLevel = hierarchy[user.role] || 0; %>
-                      <% const canManagePassword =
-                        actorLevel > targetLevel && user.id !== currentUser.id && !user.is_protected; %>
-                      <div class="d-flex flex-column gap-2 align-items-end">
+                      <div class="d-flex flex-column flex-sm-row justify-content-end gap-2">
+                        <a
+                          class="btn btn-sm btn-outline-primary <%= user.id === currentUser.id || user.is_protected ? 'disabled' : '' %>"
+                          href="<%= user.id === currentUser.id || user.is_protected ? '#' : `/cont/utilizatori/${user.id}` %>"
+                          aria-disabled="<%= user.id === currentUser.id || user.is_protected ? 'true' : 'false' %>"
+                        >
+                          Editeaza
+                        </a>
                         <form action="/cont/utilizatori/<%= user.id %>/status" method="post" class="d-inline">
                           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                          <input type="hidden" name="returnTo" value="/cont/utilizatori" />
                           <input type="hidden" name="isActive" value="<%= user.is_active ? '0' : '1' %>" />
                           <button
                             class="btn btn-sm <%= user.is_active ? 'btn-outline-danger' : 'btn-outline-success' %>"
@@ -148,24 +136,6 @@
                             <%= user.id === currentUser.id || user.is_protected ? 'disabled' : '' %>
                           >
                             <%= user.is_active ? 'Dezactiveaza' : 'Activeaza' %>
-                          </button>
-                        </form>
-                        <form
-                          action="/cont/utilizatori/<%= user.id %>/parola"
-                          method="post"
-                          class="d-inline-flex align-items-center gap-2"
-                        >
-                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                          <input
-                            class="form-control form-control-sm"
-                            type="password"
-                            name="newPassword"
-                            placeholder="Parola noua"
-                            minlength="8"
-                            <%= canManagePassword ? '' : 'disabled' %>
-                          />
-                          <button class="btn btn-sm btn-outline-primary" type="submit" <%= canManagePassword ? '' : 'disabled' %>>
-                            Seteaza parola
                           </button>
                         </form>
                       </div>

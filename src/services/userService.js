@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import pool from '../config/db.js';
+import { listTrustedDevicesForUser } from './trustedDeviceService.js';
 
 export const ROLE_HIERARCHY = {
   client: 1,
@@ -236,4 +237,115 @@ export async function setUserActiveStatus({ actor, userId, isActive }) {
     throw new Error('INSUFFICIENT_PRIVILEGES');
   }
   await pool.query(`UPDATE users SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [isActive ? 1 : 0, userId]);
+}
+
+export async function getManagedUserProfile({ actor, userId }) {
+  if (!actor) {
+    throw new Error('UNAUTHORIZED');
+  }
+  const targetId = Number(userId);
+  if (Number.isNaN(targetId)) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  const target = await getUserById(targetId);
+  if (!target) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  const isProtected = target.id === PROTECTED_USER_ID;
+  if (isProtected && actor.id !== PROTECTED_USER_ID) {
+    throw new Error('PROTECTED_USER');
+  }
+  const actorLevel = ROLE_HIERARCHY[actor.role] || 0;
+  const targetLevel = ROLE_HIERARCHY[target.role] || 0;
+  if (actor.id !== PROTECTED_USER_ID && actor.id !== target.id && targetLevel > actorLevel) {
+    throw new Error('INSUFFICIENT_PRIVILEGES');
+  }
+  const trustedDevices = await listTrustedDevicesForUser(target.id);
+  const lastActiveDevice = trustedDevices.find((device) => device.lastUsedAt) || trustedDevices[0] || null;
+  return {
+    user: {
+      id: target.id,
+      fullName: target.full_name,
+      email: target.email,
+      phone: target.phone,
+      role: target.role,
+      isActive: Boolean(target.is_active),
+      mustResetPassword: Boolean(target.must_reset_password),
+      createdAt: target.created_at,
+      updatedAt: target.updated_at,
+      isProtected
+    },
+    trustedDevices,
+    securitySummary: {
+      lastKnownIp: lastActiveDevice ? lastActiveDevice.ipAddress : null,
+      lastKnownUserAgent: lastActiveDevice ? lastActiveDevice.userAgent : null,
+      lastKnownFingerprint: lastActiveDevice ? lastActiveDevice.fingerprint : null,
+      lastActivityAt: lastActiveDevice ? lastActiveDevice.lastUsedAt : null,
+      deviceCount: trustedDevices.length
+    }
+  };
+}
+
+export async function updateManagedUserDetails({
+  actor,
+  userId,
+  fullName,
+  email,
+  phone,
+  role,
+  mustResetPassword,
+  isActive
+}) {
+  if (!actor) {
+    throw new Error('UNAUTHORIZED');
+  }
+  const targetId = Number(userId);
+  if (Number.isNaN(targetId)) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  if (targetId === PROTECTED_USER_ID && actor.id !== PROTECTED_USER_ID) {
+    throw new Error('PROTECTED_USER');
+  }
+  if (actor.id === targetId) {
+    throw new Error('SELF_MODIFICATION');
+  }
+  const target = await getUserById(targetId);
+  if (!target) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  const allowedRoles = ['client', 'redactor', 'admin', 'superadmin'];
+  if (!allowedRoles.includes(role)) {
+    throw new Error('INVALID_ROLE');
+  }
+  const normalizedEmail = email.toLowerCase();
+  const existing = await findUserByEmail(normalizedEmail);
+  if (existing && existing.id !== targetId) {
+    throw new Error('EMAIL_EXISTS');
+  }
+  const actorLevel = ROLE_HIERARCHY[actor.role] || 0;
+  const targetLevel = ROLE_HIERARCHY[target.role] || 0;
+  const desiredLevel = ROLE_HIERARCHY[role] || 0;
+  const canManageTarget =
+    actor.id === PROTECTED_USER_ID || (actor.role === 'superadmin' ? targetLevel <= actorLevel : targetLevel < actorLevel);
+  const canAssignRole =
+    actor.id === PROTECTED_USER_ID || (actor.role === 'superadmin' ? desiredLevel <= actorLevel : desiredLevel < actorLevel);
+  if (!canManageTarget || !canAssignRole) {
+    throw new Error('INSUFFICIENT_PRIVILEGES');
+  }
+  const nextStatus = typeof isActive === 'boolean' ? (isActive ? 1 : 0) : target.is_active;
+  const nextMustReset =
+    typeof mustResetPassword === 'boolean' ? (mustResetPassword ? 1 : 0) : target.must_reset_password;
+  await pool.query(
+    `UPDATE users
+     SET full_name = ?,
+         email = ?,
+         phone = ?,
+         role = ?,
+         must_reset_password = ?,
+         is_active = ?,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [fullName, normalizedEmail, phone || null, role, nextMustReset, nextStatus, targetId]
+  );
+  return true;
 }

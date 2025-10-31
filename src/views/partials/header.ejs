@@ -48,3 +48,11 @@
     </div>
   </div>
 </nav>
+<% if (currentUser && currentUser.role === 'admin' && licenseState?.isExpired) { %>
+<div class="bg-warning-subtle border-bottom border-warning-subtle">
+  <div class="container py-2 small text-warning-emphasis d-flex flex-column flex-lg-row align-items-lg-center gap-2">
+    <span class="fw-semibold">Licenta platformei a expirat.</span>
+    <span class="text-muted">Unele functii au fost dezactivate pana la reinnoire. Contacteaza un superadmin pentru reactivare.</span>
+  </div>
+</div>
+<% } %>

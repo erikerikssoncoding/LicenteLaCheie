@@ -13,6 +13,7 @@ import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
 import { injectUser } from './middleware/auth.js';
 import { initializeSecurityState, getSecurityState } from './utils/securityState.js';
+import { initializeLicenseState } from './utils/licenseState.js';
 import { PROJECT_UPLOAD_ROOT } from './utils/fileStorage.js';
 
 dotenv.config();
@@ -23,6 +24,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 await initializeSecurityState();
+await initializeLicenseState();
 await fs.mkdir(PROJECT_UPLOAD_ROOT, { recursive: true });
 
 const app = express();

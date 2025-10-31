@@ -1,5 +1,6 @@
 import { getUserById } from '../services/userService.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
+import { getLicenseState } from '../utils/licenseState.js';
 import {
   findTrustedDeviceByToken,
   getTrustedDeviceCookieClearOptions,
@@ -111,10 +112,15 @@ export async function injectUser(req, res, next) {
       }
     }
 
+    const licenseState = getLicenseState();
     res.locals.currentTrustedDeviceId = req.currentTrustedDeviceId || null;
     res.locals.currentUser = req.session?.user || null;
     res.locals.csrfToken = req.csrfToken ? req.csrfToken() : null;
     res.locals.request = req;
+    res.locals.licenseState = licenseState;
+    const restrictedRoles = new Set(['admin', 'redactor']);
+    const currentRole = req.session?.user?.role || null;
+    res.locals.isLicenseRestricted = Boolean(currentRole && licenseState.isExpired && restrictedRoles.has(currentRole));
     next();
   } catch (error) {
     next(error);

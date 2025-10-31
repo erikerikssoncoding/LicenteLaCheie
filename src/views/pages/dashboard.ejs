@@ -5,18 +5,53 @@
     <% const isClient = currentUser.role === 'client'; %>
     <% const isRedactor = currentUser.role === 'redactor'; %>
     <% const isManager = ['admin', 'superadmin'].includes(currentUser.role); %>
+    <% const licenseRestricted = Boolean(typeof isLicenseRestricted !== 'undefined' ? isLicenseRestricted : false); %>
+    <% const staffLinksDisabled = licenseRestricted && currentUser.role !== 'superadmin'; %>
     <% const projectStatusLabelsMap = Object.fromEntries(
       (projectStatuses || []).map((status) => [status.id, status.label])
     ); %>
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
       <div>
         <h1 class="h3">Bun venit, <%= currentUser.fullName %></h1>
-        <p class="text-muted mb-0">Rol: <span class="badge bg-secondary text-uppercase"><%= currentUser.role %></span></p>
+        <p class="text-muted mb-1">Rol: <span class="badge bg-secondary text-uppercase"><%= currentUser.role %></span></p>
+        <% if (currentUser.role === 'admin' && licenseState?.paidUntilDisplay) { %>
+        <p class="text-muted small mb-0">Licenta platita pana pe <span class="fw-semibold"><%= licenseState.paidUntilDisplay %></span></p>
+        <% } %>
       </div>
       <% if (isManager) { %>
-      <a class="btn btn-primary" href="/cont/proiecte/creeaza">Creaza proiect</a>
+      <a
+        class="btn btn-primary <%= staffLinksDisabled ? 'disabled' : '' %>"
+        href="<%= staffLinksDisabled ? '#' : '/cont/proiecte/creeaza' %>"
+        <%= staffLinksDisabled ? 'tabindex="-1" aria-disabled="true"' : '' %>
+      >
+        Creaza proiect
+      </a>
       <% } %>
     </div>
+
+    <% if (licenseRestricted) { %>
+    <div class="alert alert-warning d-flex flex-column flex-lg-row align-items-start gap-3 mb-4" role="alert">
+      <div>
+        <h2 class="h6 mb-1 text-warning-emphasis">Licenta platformei a expirat</h2>
+        <p class="mb-2 small text-muted">
+          Functionalitatile echipei sunt limitate pana la reinnoirea licentei. Contacteaza un superadmin pentru a reactiva accesul complet.
+        </p>
+        <ul class="mb-0 small ps-3">
+          <li>Nu poti accesa detaliile tichetelelor sau raspunde in conversatii.</li>
+          <li>Nu poti deschide proiectele alocate pentru a vedea timeline-ul sau fisierele.</li>
+          <li>Nu poti crea proiecte noi sau converti tichete in proiecte.</li>
+          <li>Actualizarea statusurilor proiectelor si tichetelelor este blocata.</li>
+          <li>Incarcarea si gestionarea fisierelor de proiect este dezactivata.</li>
+        </ul>
+      </div>
+      <% if (licenseState?.paidUntilDisplay) { %>
+      <div class="ms-lg-auto small text-muted">
+        <span class="d-block">Licenta a fost activa pana la</span>
+        <span class="fw-semibold text-dark"><%= licenseState.paidUntilDisplay %></span>
+      </div>
+      <% } %>
+    </div>
+    <% } %>
 
     <% if (isClient) { %>
     <div class="row g-4 mb-4">
@@ -145,9 +180,27 @@
         <p class="text-muted">Acceseaza rapid zonele dedicate supervizarii echipei si a clientilor.</p>
         <div class="d-flex flex-wrap gap-2">
           <a class="btn btn-outline-primary" href="/cont/utilizatori">Utilizatori</a>
-          <a class="btn btn-outline-primary" href="/cont/tichete">Tichete</a>
-          <a class="btn btn-outline-primary" href="/cont/proiecte/creeaza">Creaza proiect</a>
-          <a class="btn btn-outline-primary" href="/cont">Vizualizeaza proiectele active</a>
+          <a
+            class="btn btn-outline-primary <%= staffLinksDisabled ? 'disabled' : '' %>"
+            href="<%= staffLinksDisabled ? '#' : '/cont/tichete' %>"
+            <%= staffLinksDisabled ? 'tabindex="-1" aria-disabled="true"' : '' %>
+          >
+            Tichete
+          </a>
+          <a
+            class="btn btn-outline-primary <%= staffLinksDisabled ? 'disabled' : '' %>"
+            href="<%= staffLinksDisabled ? '#' : '/cont/proiecte/creeaza' %>"
+            <%= staffLinksDisabled ? 'tabindex="-1" aria-disabled="true"' : '' %>
+          >
+            Creaza proiect
+          </a>
+          <a
+            class="btn btn-outline-primary <%= staffLinksDisabled ? 'disabled' : '' %>"
+            href="<%= staffLinksDisabled ? '#' : '/cont' %>"
+            <%= staffLinksDisabled ? 'tabindex="-1" aria-disabled="true"' : '' %>
+          >
+            Vizualizeaza proiectele active
+          </a>
         </div>
       </div>
     </div>
@@ -168,6 +221,28 @@
           <% } %>
         </div>
         <div class="vstack gap-3">
+          <form method="post" action="/cont/securitate/licenta" class="border rounded-3 p-3 bg-body-tertiary">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <div class="row g-3 align-items-end">
+              <div class="col-lg-6">
+                <label class="form-label small text-uppercase text-muted" for="paidUntil">Licenta platita pana la</label>
+                <input
+                  type="date"
+                  class="form-control"
+                  id="paidUntil"
+                  name="paidUntil"
+                  value="<%= licenseState?.paidUntilISO || '' %>"
+                  min="2023-01-01"
+                />
+              </div>
+              <div class="col-lg-6 text-lg-end">
+                <button class="btn btn-outline-primary" type="submit">Actualizeaza licenta</button>
+                <p class="small text-muted mt-2 mb-0">
+                  Lasa campul necompletat si salveaza pentru a marca licenta ca neplatita.
+                </p>
+              </div>
+            </div>
+          </form>
           <% securitySettings.forEach((setting) => { %>
           <form method="post" action="/cont/securitate" class="border rounded-3 p-3 bg-body-tertiary">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -254,7 +329,15 @@
                       <% } %>
                     </td>
                     <td><%= project.deadline ? project.deadline.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline : 'N/A' %></td>
-                    <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="/cont/proiecte/<%= project.id %>">Detalii</a></td>
+                    <td class="text-end">
+                      <a
+                        class="btn btn-sm btn-outline-secondary <%= staffLinksDisabled ? 'disabled' : '' %>"
+                        href="<%= staffLinksDisabled ? '#' : `/cont/proiecte/${project.id}` %>"
+                        <%= staffLinksDisabled ? 'tabindex="-1" aria-disabled="true"' : '' %>
+                      >
+                        Detalii
+                      </a>
+                    </td>
                   </tr>
                   <% }) %>
                 </tbody>
@@ -276,7 +359,13 @@
               <li class="list-group-item">
                 <div class="fw-semibold"><%= ticket.subject %></div>
                 <div class="small text-muted">Cod: <%= ticket.display_code %> • Tip: <%= ticket.kind %> • Status: <%= ticket.status === 'rezolvat' && ticket.merged_into_ticket_id ? 'rezolvat (merged)' : ticket.status %></div>
-                <a class="btn btn-sm btn-link px-0" href="/cont/tichete/<%= ticket.id %>">Vezi ticket</a>
+                <a
+                  class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
+                  href="<%= licenseRestricted ? '#' : `/cont/tichete/${ticket.id}` %>"
+                  <%= licenseRestricted ? 'tabindex="-1" aria-disabled="true"' : '' %>
+                >
+                  Vezi ticket
+                </a>
               </li>
               <% }) %>
             </ul>
@@ -305,7 +394,13 @@
               <li class="list-group-item">
                 <div class="fw-semibold"><%= ticket.subject %></div>
                 <div class="small text-muted">Cod: <%= ticket.display_code %> • Status: <%= ticket.status === 'rezolvat' && ticket.merged_into_ticket_id ? 'rezolvat (merged)' : ticket.status %></div>
-                <a class="btn btn-sm btn-link px-0" href="/cont/tichete/<%= ticket.id %>">Gestioneaza</a>
+                <a
+                  class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
+                  href="<%= licenseRestricted ? '#' : `/cont/tichete/${ticket.id}` %>"
+                  <%= licenseRestricted ? 'tabindex="-1" aria-disabled="true"' : '' %>
+                >
+                  Gestioneaza
+                </a>
               </li>
               <% }) %>
             </ul>
@@ -322,7 +417,13 @@
               <li class="list-group-item">
                 <div class="fw-semibold"><%= offer.client_name_full || offer.client_name %></div>
                 <div class="small text-muted">Solicitare <%= offer.offer_code %> – Ticket <%= offer.ticket_display_code || 'N/A' %> – status <%= offer.status %></div>
-                <a class="btn btn-sm btn-link px-0" href="/cont/tichete/<%= offer.ticket_id %>">Deschide ticket</a>
+                <a
+                  class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
+                  href="<%= licenseRestricted ? '#' : `/cont/tichete/${offer.ticket_id}` %>"
+                  <%= licenseRestricted ? 'tabindex="-1" aria-disabled="true"' : '' %>
+                >
+                  Deschide ticket
+                </a>
               </li>
               <% }) %>
             </ul>

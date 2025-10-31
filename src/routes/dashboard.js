@@ -786,7 +786,7 @@ router.get('/cont/tichete/:id', requireActiveLicense(), async (req, res, next) =
         description: 'Ticketul nu este asociat proiectelor tale.'
       });
     }
-    if (user.role === 'admin' && ticket.project_id && ticket.assigned_admin_id && ticket.assigned_admin_id !== user.id) {
+    if (user.role === 'admin' && ticket.project_id && ticket.assigned_admin_id && ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
         description: 'Ticketul nu este gestionat de tine.'
@@ -862,7 +862,7 @@ router.get('/cont/tichete/:id/timeline', requireActiveLicense(), async (req, res
     ) {
       return res.status(403).json({ error: 'Ticketul nu este asociat proiectelor tale.' });
     }
-    if (user.role === 'admin' && ticket.project_id && ticket.assigned_admin_id && ticket.assigned_admin_id !== user.id) {
+    if (user.role === 'admin' && ticket.project_id && ticket.assigned_admin_id && ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id) {
       return res.status(403).json({ error: 'Ticketul nu este gestionat de tine.' });
     }
 
@@ -928,7 +928,7 @@ router.post('/cont/tichete/:id/raspuns', requireActiveLicense(), async (req, res
         description: 'Ticketul nu este asociat proiectelor tale.'
       });
     }
-    if (user.role === 'admin' && ticket.project_id && ticket.assigned_admin_id && ticket.assigned_admin_id !== user.id) {
+    if (user.role === 'admin' && ticket.project_id && ticket.assigned_admin_id && ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
         description: 'Ticketul nu este gestionat de tine.'
@@ -970,7 +970,7 @@ router.post(
         user.role === 'admin' &&
         ticket.project_id &&
         ticket.assigned_admin_id &&
-        ticket.assigned_admin_id !== user.id
+        ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id
       ) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
@@ -1187,7 +1187,7 @@ router.post(
       user.role === 'admin' &&
       ticket.project_id &&
       ticket.assigned_admin_id &&
-      ticket.assigned_admin_id !== user.id
+      ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id
     ) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
@@ -1238,7 +1238,7 @@ router.post(
       user.role === 'admin' &&
       ticket.project_id &&
       ticket.assigned_admin_id &&
-      ticket.assigned_admin_id !== user.id
+      ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id
     ) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
@@ -1289,7 +1289,7 @@ router.post(
       user.role === 'admin' &&
       ticket.project_id &&
       ticket.assigned_admin_id &&
-      ticket.assigned_admin_id !== user.id
+      ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id
     ) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
@@ -1415,7 +1415,7 @@ router.post(
       user.role === 'admin' &&
       ticket.project_id &&
       ticket.assigned_admin_id &&
-      ticket.assigned_admin_id !== user.id
+      ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id
     ) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
@@ -1571,7 +1571,7 @@ router.post(
         user.role === 'admin' &&
         ticket.project_id &&
         ticket.assigned_admin_id &&
-        ticket.assigned_admin_id !== user.id
+        ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id
       ) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
@@ -1636,7 +1636,7 @@ router.post(
         user.role === 'admin' &&
         ticket.project_id &&
         ticket.assigned_admin_id &&
-        ticket.assigned_admin_id !== user.id
+        ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id
       ) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
@@ -1701,7 +1701,7 @@ router.post(
         user.role === 'admin' &&
         ticket.project_id &&
         ticket.assigned_admin_id &&
-        ticket.assigned_admin_id !== user.id
+        ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id
       ) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
@@ -1755,7 +1755,7 @@ router.get(
         user.role === 'admin' &&
         ticket.project_id &&
         ticket.assigned_admin_id &&
-        ticket.assigned_admin_id !== user.id
+        ticket.assigned_admin_id !== user.id && ticket.assigned_editor_id !== user.id
       ) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
@@ -1882,7 +1882,7 @@ router
           description: 'Nu sunteti asignat pe acest proiect.'
         });
       }
-      if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+      if (user.role === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
           description: 'Nu sunteti responsabil de acest proiect.'
@@ -2095,7 +2095,7 @@ router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, nex
           description: 'Nu sunteti asignat pe acest proiect.'
         });
       }
-      if (userRole === 'admin' && project.assigned_admin_id !== user.id) {
+      if (userRole === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
         await cleanupFiles();
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
@@ -2214,7 +2214,7 @@ router.post(
           description: 'Nu sunteti asignat pe acest proiect.'
         });
       }
-      if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+      if (user.role === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
           description: 'Nu sunteti responsabil de acest proiect.'
@@ -2315,7 +2315,7 @@ router.post(
           description: 'Nu sunteti asignat pe acest proiect.'
         });
       }
-      if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+      if (user.role === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
           description: 'Nu sunteti responsabil de acest proiect.'
@@ -2374,7 +2374,7 @@ router.post(
           description: 'Nu sunteti asignat pe acest proiect.'
         });
       }
-      if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+      if (user.role === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
           description: 'Nu sunteti responsabil de acest proiect.'
@@ -2448,7 +2448,7 @@ router.get('/cont/proiecte/:id/fisiere/:fileId/descarca', async (req, res, next)
         description: 'Nu sunteti asignat pe acest proiect.'
       });
     }
-    if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+    if (user.role === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
         description: 'Nu sunteti responsabil de acest proiect.'
@@ -2542,7 +2542,7 @@ router
         });
       }
       const user = req.session.user;
-      if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+      if (user.role === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
           description: 'Nu sunteti responsabil de acest proiect.'
@@ -2614,7 +2614,7 @@ router.get('/cont/proiecte/:id', requireActiveLicense(), async (req, res, next) 
         description: 'Nu sunteti asignat pe acest proiect.'
       });
     }
-    if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+    if (user.role === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
         description: 'Nu sunteti responsabil de acest proiect.'
@@ -2745,7 +2745,7 @@ router.get('/cont/proiecte/:id/timeline', requireActiveLicense(), async (req, re
     if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
       return res.status(403).json({ error: 'Nu sunteti asignat pe acest proiect.' });
     }
-    if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+    if (user.role === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
       return res.status(403).json({ error: 'Nu sunteti responsabil de acest proiect.' });
     }
 
@@ -2820,7 +2820,7 @@ router.post('/cont/proiecte/:id/mesaj', requireActiveLicense(), async (req, res,
         description: 'Nu sunteti asignat pe acest proiect.'
       });
     }
-    if (user.role === 'admin' && project.assigned_admin_id !== user.id) {
+    if (user.role === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
       return res.status(403).render('pages/403', {
         title: 'Acces restrictionat',
         description: 'Nu sunteti responsabil de acest proiect.'

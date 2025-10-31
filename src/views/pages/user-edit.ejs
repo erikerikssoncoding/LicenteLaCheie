@@ -1,0 +1,220 @@
+<%- include('../partials/head', { title, description, request }) %>
+<%- include('../partials/header') %>
+<section class="py-5">
+  <div class="container">
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/cont/utilizatori">Utilizatori</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Editeaza</li>
+      </ol>
+    </nav>
+
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+      <div>
+        <h1 class="h3 mb-1">Editeaza utilizator</h1>
+        <p class="text-muted mb-0">Actualizeaza datele de profil si setarile de securitate pentru acest cont.</p>
+      </div>
+      <div class="text-lg-end">
+        <div class="d-flex flex-column align-items-lg-end">
+          <span class="badge <%= user.isActive ? 'bg-success' : 'bg-secondary' %> mb-1">
+            <%= user.isActive ? 'Cont activ' : 'Cont inactiv' %>
+          </span>
+          <span class="badge bg-light text-dark border"><%= roleLabels[user.role] || user.role.toUpperCase() %></span>
+        </div>
+      </div>
+    </div>
+
+    <% if (flashMessage) { %>
+    <div class="alert alert-success"><%= flashMessage %></div>
+    <% } %>
+    <% if (errorMessage) { %>
+    <div class="alert alert-danger"><%= errorMessage %></div>
+    <% } %>
+
+    <div class="row g-4">
+      <div class="col-lg-7">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Detalii cont</h2>
+            <form action="/cont/utilizatori/<%= user.id %>/detalii" method="post" class="vstack gap-3">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="hidden" name="returnTo" value="/cont/utilizatori/<%= user.id %>" />
+              <div>
+                <label class="form-label" for="userFullName">Nume complet</label>
+                <input
+                  class="form-control"
+                  id="userFullName"
+                  name="fullName"
+                  value="<%= user.fullName %>"
+                  required
+                  <%= canModifyProfile ? '' : 'disabled' %>
+                />
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="userEmail">Email</label>
+                  <input
+                    class="form-control"
+                    id="userEmail"
+                    type="email"
+                    name="email"
+                    value="<%= user.email %>"
+                    required
+                    <%= canModifyProfile ? '' : 'disabled' %>
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="userPhone">Telefon</label>
+                  <input
+                    class="form-control"
+                    id="userPhone"
+                    name="phone"
+                    value="<%= user.phone || '' %>"
+                    <%= canModifyProfile ? '' : 'disabled' %>
+                  />
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="userRole">Rol</label>
+                  <select class="form-select" id="userRole" name="role" <%= canModifyRole ? '' : 'disabled' %>>
+                    <% roleOptions.forEach((role) => { %>
+                    <option value="<%= role %>" <%= user.role === role ? 'selected' : '' %>><%= roleLabels[role] %></option>
+                    <% }) %>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="userStatus">Status</label>
+                  <select class="form-select" id="userStatus" name="isActive" <%= canModifyStatus ? '' : 'disabled' %>>
+                    <option value="1" <%= user.isActive ? 'selected' : '' %>>Activ</option>
+                    <option value="0" <%= !user.isActive ? 'selected' : '' %>>Inactiv</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-check form-switch">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  role="switch"
+                  id="userMustResetPassword"
+                  name="mustResetPassword"
+                  value="1"
+                  <%= user.mustResetPassword ? 'checked' : '' %>
+                  <%= canModifyStatus ? '' : 'disabled' %>
+                />
+                <label class="form-check-label" for="userMustResetPassword">Solicita resetarea parolei la urmatoarea autentificare</label>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-primary" type="submit" <%= canModifyProfile ? '' : 'disabled' %>>Salveaza modificarile</button>
+                <a class="btn btn-outline-secondary" href="/cont/utilizatori">Renunta</a>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mt-4">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Resetare parola</h2>
+            <p class="text-muted small">Stabileste o parola temporara pe care utilizatorul o va schimba la urmatoarea autentificare.</p>
+            <form action="/cont/utilizatori/<%= user.id %>/parola" method="post" class="row g-3 align-items-end">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="hidden" name="returnTo" value="/cont/utilizatori/<%= user.id %>" />
+              <div class="col-md-8">
+                <label class="form-label" for="userNewPassword">Parola noua</label>
+                <input
+                  class="form-control"
+                  id="userNewPassword"
+                  type="password"
+                  name="newPassword"
+                  minlength="8"
+                  placeholder="Minim 8 caractere"
+                  <%= canResetPassword ? '' : 'disabled' %>
+                />
+              </div>
+              <div class="col-md-4 d-grid">
+                <button class="btn btn-outline-primary" type="submit" <%= canResetPassword ? '' : 'disabled' %>>Seteaza parola</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Securitate si activitate</h2>
+            <% const formatDate = (value) => (value ? new Date(value).toLocaleString('ro-RO') : 'Indisponibil'); %>
+            <dl class="row mb-0 g-3">
+              <dt class="col-sm-5">Ultima activitate</dt>
+              <dd class="col-sm-7"><%= securitySummary.lastActivityAt ? formatDate(securitySummary.lastActivityAt) : 'Indisponibil' %></dd>
+              <dt class="col-sm-5">IP recent</dt>
+              <dd class="col-sm-7"><%= securitySummary.lastKnownIp || 'Indisponibil' %></dd>
+              <dt class="col-sm-5">Browser agent</dt>
+              <dd class="col-sm-7"><%= securitySummary.lastKnownUserAgent || 'Indisponibil' %></dd>
+              <dt class="col-sm-5">Device fingerprint</dt>
+              <dd class="col-sm-7"><%= securitySummary.lastKnownFingerprint || 'Indisponibil' %></dd>
+              <dt class="col-sm-5">Dispozitive de incredere</dt>
+              <dd class="col-sm-7"><%= securitySummary.deviceCount %></dd>
+              <dt class="col-sm-5">Creat la</dt>
+              <dd class="col-sm-7"><%= user.createdAt ? formatDate(user.createdAt) : 'Indisponibil' %></dd>
+              <dt class="col-sm-5">Ultima actualizare</dt>
+              <dd class="col-sm-7"><%= user.updatedAt ? formatDate(user.updatedAt) : 'Indisponibil' %></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mt-4">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Dispozitive de incredere</h2>
+            <% const truncate = (value, length = 120) => {
+              if (!value) return '';
+              const stringValue = String(value);
+              return stringValue.length > length ? `${stringValue.slice(0, length)}…` : stringValue;
+            }; %>
+            <% if (!trustedDevices.length) { %>
+            <p class="text-muted mb-0">Nu au fost inregistrate dispozitive de incredere pentru acest cont.</p>
+            <% } else { %>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Dispozitiv</th>
+                    <th>Ultima utilizare</th>
+                    <th>IP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% trustedDevices.forEach((device) => { %>
+                  <tr>
+                    <td>
+                      <div class="fw-semibold"><%= device.label || 'Fara eticheta' %></div>
+                      <div class="text-muted small text-break">Agent: <%= truncate(device.userAgent, 140) || 'N/A' %></div>
+                      <% if (device.fingerprint) { %>
+                      <div class="text-muted small text-break">Fingerprint: <%= truncate(device.fingerprint, 160) %></div>
+                      <% } %>
+                      <% if (device.clientHints) { %>
+                      <div class="text-muted small text-break">Client hints: <%= truncate(device.clientHints, 160) %></div>
+                      <% } %>
+                    </td>
+                    <td>
+                      <div><%= device.lastUsedAt ? formatDate(device.lastUsedAt) : 'Indisponibil' %></div>
+                      <div class="text-muted small">Creat: <%= device.createdAt ? formatDate(device.createdAt) : 'Indisponibil' %></div>
+                    </td>
+                    <td>
+                      <div><%= device.ipAddress || 'N/A' %></div>
+                      <% if (device.acceptLanguage) { %>
+                      <div class="text-muted small">Limbi: <%= truncate(device.acceptLanguage, 60) %></div>
+                      <% } %>
+                    </td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<%- include('../partials/footer') %>

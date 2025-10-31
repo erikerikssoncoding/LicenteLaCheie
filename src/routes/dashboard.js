@@ -65,7 +65,9 @@ import {
   setUserActiveStatus,
   PROTECTED_USER_ID,
   ROLE_HIERARCHY,
-  forceChangeUserPassword
+  forceChangeUserPassword,
+  getManagedUserProfile,
+  updateManagedUserDetails
 } from '../services/userService.js';
 import { listSecuritySettings, updateSecuritySetting } from '../services/securityService.js';
 import {
@@ -124,6 +126,21 @@ const CLIENT_MAX_FILE_SIZE = 5 * 1024 * 1024;
 const STAFF_MAX_FILE_SIZE = 30 * 1024 * 1024;
 const ALLOWED_PROJECT_FILE_EXTENSIONS = new Set(['.pdf', '.docx', '.jpg', '.jpeg', '.png']);
 const DOCS_VALIDATED_FLOW_INDEX = PROJECT_FLOW_STATUSES.findIndex((status) => status.id === 'docs_validated');
+
+function resolveUserManagementRedirect(returnTo, fallback = '/cont/utilizatori') {
+  if (typeof returnTo !== 'string' || !returnTo.startsWith('/')) {
+    return fallback;
+  }
+  try {
+    const parsed = new URL(returnTo, 'http://localhost');
+    if (!parsed.pathname.startsWith('/cont/')) {
+      return fallback;
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch (error) {
+    return fallback;
+  }
+}
 
 const projectFileStorage = multer.diskStorage({
   destination: async (req, file, cb) => {
@@ -446,6 +463,77 @@ router.get('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, r
   }
 });
 
+router.get('/cont/utilizatori/:id', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.id);
+    if (Number.isNaN(targetId)) {
+      req.session.flash = { error: 'Utilizator invalid.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    const { user, trustedDevices, securitySummary } = await getManagedUserProfile({
+      actor: req.session.user,
+      userId: targetId
+    });
+    const flash = req.session.flash || {};
+    delete req.session.flash;
+    const roleLabels = {
+      client: 'Client',
+      redactor: 'Redactor',
+      admin: 'Admin',
+      superadmin: 'Superadmin'
+    };
+    const actor = req.session.user;
+    const actorLevel = ROLE_HIERARCHY[actor.role] || 0;
+    const targetLevel = ROLE_HIERARCHY[user.role] || 0;
+    const isSelf = user.id === actor.id;
+    const canManageTarget =
+      !isSelf &&
+      (actor.id === PROTECTED_USER_ID
+        ? true
+        : actor.role === 'superadmin'
+        ? targetLevel <= actorLevel
+        : targetLevel < actorLevel);
+    const availableRoles = ['client', 'redactor', 'admin', 'superadmin'].filter((role) => {
+      if (actor.id === PROTECTED_USER_ID) {
+        return true;
+      }
+      if (actor.role === 'superadmin') {
+        return (ROLE_HIERARCHY[role] || 0) <= actorLevel;
+      }
+      return (ROLE_HIERARCHY[role] || 0) < actorLevel;
+    });
+    if (!availableRoles.includes(user.role)) {
+      availableRoles.push(user.role);
+    }
+    availableRoles.sort((a, b) => (ROLE_HIERARCHY[a] || 0) - (ROLE_HIERARCHY[b] || 0));
+    res.render('pages/user-edit', {
+      title: `Editeaza ${user.fullName}`,
+      description: `Administreaza setarile contului pentru ${user.email}.`,
+      user,
+      trustedDevices,
+      securitySummary,
+      flashMessage: flash.success || null,
+      errorMessage: flash.error || null,
+      canModifyProfile: canManageTarget,
+      canModifyRole: canManageTarget,
+      canModifyStatus: canManageTarget,
+      canResetPassword: canManageTarget,
+      roleOptions: availableRoles,
+      roleLabels
+    });
+  } catch (error) {
+    if (['USER_NOT_FOUND', 'PROTECTED_USER'].includes(error.message)) {
+      req.session.flash = { error: 'Utilizatorul selectat nu poate fi editat.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'INSUFFICIENT_PRIVILEGES') {
+      req.session.flash = { error: 'Nu aveti permisiuni pentru a gestiona acest utilizator.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    next(error);
+  }
+});
+
 router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, next) => {
   try {
     const filters = {
@@ -579,6 +667,76 @@ router.post('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, 
   }
 });
 
+router.post('/cont/utilizatori/:id/detalii', ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.id);
+    if (Number.isNaN(targetId)) {
+      req.session.flash = { error: 'Utilizator invalid.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    const schema = z.object({
+      fullName: z.string().trim().min(3),
+      email: z.string().trim().email(),
+      phone: z
+        .string()
+        .optional()
+        .transform((value) => {
+          if (typeof value !== 'string') {
+            return null;
+          }
+          const trimmed = value.trim();
+          return trimmed.length ? trimmed : null;
+        }),
+      role: z.enum(['client', 'redactor', 'admin', 'superadmin']),
+      isActive: z.enum(['0', '1']).optional(),
+      mustResetPassword: z.enum(['1']).optional(),
+      returnTo: z.string().optional()
+    });
+    const data = schema.parse(req.body);
+    const redirectTo = resolveUserManagementRedirect(data.returnTo, `/cont/utilizatori/${targetId}`);
+    const hasStatusField = Object.prototype.hasOwnProperty.call(req.body, 'isActive');
+    const hasResetField = Object.prototype.hasOwnProperty.call(req.body, 'mustResetPassword');
+    await updateManagedUserDetails({
+      actor: req.session.user,
+      userId: targetId,
+      fullName: data.fullName,
+      email: data.email,
+      phone: data.phone,
+      role: data.role,
+      mustResetPassword: hasResetField ? data.mustResetPassword === '1' : undefined,
+      isActive: hasStatusField ? data.isActive === '1' : undefined
+    });
+    req.session.flash = { success: 'Profilul utilizatorului a fost actualizat.' };
+    return res.redirect(redirectTo);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.flash = { error: 'Completeaza corect toate campurile obligatorii.' };
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
+    }
+    if (error.message === 'EMAIL_EXISTS') {
+      req.session.flash = { error: 'Exista deja un cont cu aceasta adresa de email.' };
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
+    }
+    if (error.message === 'INSUFFICIENT_PRIVILEGES') {
+      req.session.flash = { error: 'Nu aveti permisiuni pentru a modifica acest utilizator.' };
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
+    }
+    if (error.message === 'PROTECTED_USER') {
+      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi modificat.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'SELF_MODIFICATION') {
+      req.session.flash = { error: 'Nu iti poti edita contul din aceasta sectiune.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'USER_NOT_FOUND') {
+      req.session.flash = { error: 'Utilizatorul selectat nu exista.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    next(error);
+  }
+});
+
 router.post('/cont/utilizatori/:id/rol', ensureRole('admin', 'superadmin'), async (req, res, next) => {
   try {
     const targetId = Number(req.params.id);
@@ -631,7 +789,7 @@ router.post('/cont/utilizatori/:id/status', ensureRole('admin', 'superadmin'), a
       req.session.flash = { error: 'Utilizator invalid.' };
       return res.redirect('/cont/utilizatori');
     }
-    if (targetId === PROTECTED_USER_ID) {
+    if (targetId === PROTECTED_USER_ID && req.session.user.id !== PROTECTED_USER_ID) {
       req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi dezactivat.' };
       return res.redirect('/cont/utilizatori');
     }
@@ -643,23 +801,24 @@ router.post('/cont/utilizatori/:id/status', ensureRole('admin', 'superadmin'), a
     const { isActive } = schema.parse(req.body);
     await setUserActiveStatus({ actor: req.session.user, userId: targetId, isActive: isActive === '1' });
     req.session.flash = { success: 'Statusul contului a fost actualizat.' };
-    res.redirect('/cont/utilizatori');
+    const redirectTo = resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori');
+    res.redirect(redirectTo);
   } catch (error) {
     if (error instanceof z.ZodError) {
       req.session.flash = { error: 'Solicitarea nu este valida.' };
-      return res.redirect('/cont/utilizatori');
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'PROTECTED_USER') {
       req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi dezactivat.' };
-      return res.redirect('/cont/utilizatori');
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'INSUFFICIENT_PRIVILEGES') {
       req.session.flash = { error: 'Nu aveti permisiuni pentru a modifica acest utilizator.' };
-      return res.redirect('/cont/utilizatori');
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'USER_NOT_FOUND') {
       req.session.flash = { error: 'Utilizatorul selectat nu exista.' };
-      return res.redirect('/cont/utilizatori');
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     next(error);
   }
@@ -680,15 +839,15 @@ router.post('/cont/utilizatori/:id/parola', ensureRole('admin', 'superadmin'), a
       newPassword
     });
     req.session.flash = { success: 'Parola utilizatorului a fost actualizata.' };
-    return res.redirect('/cont/utilizatori');
+    return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
   } catch (error) {
     if (error instanceof z.ZodError) {
       req.session.flash = { error: 'Parola noua trebuie sa aiba cel putin 8 caractere.' };
-      return res.redirect('/cont/utilizatori');
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'PROTECTED_USER') {
       req.session.flash = { error: 'Parola acestui utilizator nu poate fi schimbata.' };
-      return res.redirect('/cont/utilizatori');
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'SELF_MODIFICATION') {
       req.session.flash = { error: 'Nu iti poti schimba parola din aceasta sectiune.' };
@@ -696,11 +855,11 @@ router.post('/cont/utilizatori/:id/parola', ensureRole('admin', 'superadmin'), a
     }
     if (error.message === 'INSUFFICIENT_PRIVILEGES') {
       req.session.flash = { error: 'Nu aveti permisiuni pentru a modifica parola acestui utilizator.' };
-      return res.redirect('/cont/utilizatori');
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'USER_NOT_FOUND') {
       req.session.flash = { error: 'Utilizatorul selectat nu exista.' };
-      return res.redirect('/cont/utilizatori');
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     next(error);
   }

@@ -899,66 +899,66 @@ router.post(
   requireActiveLicense({ roles: ['admin'] }),
   async (req, res, next) => {
     try {
-    const ticketId = Number(req.params.id);
-    const { ticket } = await getTicketWithReplies(ticketId);
-    if (!ticket || ticket.kind !== 'offer') {
-      return res.status(404).render('pages/404', {
-        title: 'Ticket inexistent',
-        description: 'Ticketul solicitat nu a fost gasit.'
+      const ticketId = Number(req.params.id);
+      const { ticket } = await getTicketWithReplies(ticketId);
+      if (!ticket || ticket.kind !== 'offer') {
+        return res.status(404).render('pages/404', {
+          title: 'Ticket inexistent',
+          description: 'Ticketul solicitat nu a fost gasit.'
+        });
+      }
+      const user = req.session.user;
+      if (
+        user.role === 'admin' &&
+        ticket.project_id &&
+        ticket.assigned_admin_id &&
+        ticket.assigned_admin_id !== user.id
+      ) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti responsabil de acest ticket.'
+        });
+      }
+      const schema = z.object({
+        amount: z.string().min(1),
+        expiresInHours: z.string().optional(),
+        message: z.string().optional()
       });
-    }
-    const user = req.session.user;
-    if (
-      user.role === 'admin' &&
-      ticket.project_id &&
-      ticket.assigned_admin_id &&
-      ticket.assigned_admin_id !== user.id
-    ) {
-      return res.status(403).render('pages/403', {
-        title: 'Acces restrictionat',
-        description: 'Nu sunteti responsabil de acest ticket.'
+      const data = schema.parse(req.body);
+      const amount = Number(data.amount.replace(',', '.'));
+      if (Number.isNaN(amount) || amount <= 0) {
+        req.session.ticketFeedback = { error: 'Valoarea ofertei trebuie sa fie pozitiva.' };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
+      let expiresInHours = data.expiresInHours ? Number(data.expiresInHours) : MIN_OFFER_EXPIRATION_HOURS;
+      if (Number.isNaN(expiresInHours) || expiresInHours < MIN_OFFER_EXPIRATION_HOURS) {
+        expiresInHours = MIN_OFFER_EXPIRATION_HOURS;
+      }
+      const offer = await getOfferByTicketId(ticketId);
+      if (!offer) {
+        return res.status(404).render('pages/404', {
+          title: 'Oferta indisponibila',
+          description: 'Nu exista o oferta asociata acestui ticket.'
+        });
+      }
+      await attachOfferDetails(offer.id, {
+        amount,
+        expiresInHours,
+        notes: data.message,
+        program: offer.program,
+        topic: offer.topic,
+        deliveryDate: offer.delivery_date,
+        clientName: offer.client_name
       });
-    }
-    const schema = z.object({
-      amount: z.string().min(1),
-      expiresInHours: z.string().optional(),
-      message: z.string().optional()
-    });
-    const data = schema.parse(req.body);
-    const amount = Number(data.amount.replace(',', '.'));
-    if (Number.isNaN(amount) || amount <= 0) {
-      req.session.ticketFeedback = { error: 'Valoarea ofertei trebuie sa fie pozitiva.' };
+      if (data.message && data.message.trim().length > 0) {
+        await addReply({
+          ticketId,
+          userId: user.id,
+          message: `Oferta transmisa: ${amount.toFixed(2)} RON. ${data.message}`
+        });
+      }
+      req.session.ticketFeedback = { success: 'Oferta a fost transmisa clientului.' };
       return res.redirect(`/cont/tichete/${ticketId}`);
-    }
-    let expiresInHours = data.expiresInHours ? Number(data.expiresInHours) : MIN_OFFER_EXPIRATION_HOURS;
-    if (Number.isNaN(expiresInHours) || expiresInHours < MIN_OFFER_EXPIRATION_HOURS) {
-      expiresInHours = MIN_OFFER_EXPIRATION_HOURS;
-    }
-    const offer = await getOfferByTicketId(ticketId);
-    if (!offer) {
-      return res.status(404).render('pages/404', {
-        title: 'Oferta indisponibila',
-        description: 'Nu exista o oferta asociata acestui ticket.'
-      });
-    }
-    await attachOfferDetails(offer.id, {
-      amount,
-      expiresInHours,
-      notes: data.message,
-      program: offer.program,
-      topic: offer.topic,
-      deliveryDate: offer.delivery_date,
-      clientName: offer.client_name
-    });
-    if (data.message && data.message.trim().length > 0) {
-      await addReply({
-        ticketId: ticketId,
-        userId: user.id,
-        message: `Oferta transmisa: ${amount.toFixed(2)} RON. ${data.message}`
-      });
-    }
-    req.session.ticketFeedback = { success: 'Oferta a fost transmisa clientului.' };
-      res.redirect(`/cont/tichete/${ticketId}`);
     } catch (error) {
       if (error instanceof z.ZodError) {
         req.session.ticketFeedback = { error: 'Completeaza corect campurile ofertei.' };
@@ -1565,59 +1565,59 @@ router.post(
   requireActiveLicense({ roles: ['admin'] }),
   async (req, res, next) => {
     try {
-    const ticketId = Number(req.params.id);
-    const ticket = await getTicketById(ticketId);
-    if (!ticket || ticket.kind !== 'contract') {
-      return res.status(404).render('pages/404', {
-        title: 'Ticket inexistent',
-        description: 'Ticketul solicitat nu a fost gasit.'
-      });
-    }
-    const user = req.session.user;
-    if (
-      user.role === 'admin' &&
-      ticket.project_id &&
-      ticket.assigned_admin_id &&
-      ticket.assigned_admin_id !== user.id
-    ) {
-      return res.status(403).render('pages/403', {
-        title: 'Acces restrictionat',
-        description: 'Nu sunteti responsabil de acest ticket.'
-      });
-    }
-    const contractDetails = await getContractDetailsByTicket(ticketId);
-    if (!contractDetails || contractDetails.contractStage !== 'completed') {
-      req.session.ticketFeedback = {
-        error: 'Contractul trebuie semnat de ambele parti inainte de a crea proiectul.'
-      };
-      return res.redirect(`/cont/tichete/${ticketId}`);
-    }
-
-    try {
-      const { projectId, projectCode } = await createProjectFromTicket({
-        ticketId,
-        actor: user
-      });
-      req.session.projectFeedback = {
-        success: `Proiectul ${projectCode} a fost creat si este gata pentru organizarea etapelor.`
-      };
-      return res.redirect(`/cont/proiecte/${projectId}`);
-    } catch (error) {
-      const errorMessages = {
-        CONTRACT_NOT_COMPLETED: 'Contractul trebuie semnat de ambele parti.',
-        PROJECT_ALREADY_EXISTS: 'Exista deja un proiect creat pentru acest ticket.',
-        CLIENT_NOT_IDENTIFIED: 'Nu am putut identifica clientul pentru acest ticket.'
-      };
-      if (errorMessages[error.message]) {
-        req.session.ticketFeedback = { error: errorMessages[error.message] };
+      const ticketId = Number(req.params.id);
+      const ticket = await getTicketById(ticketId);
+      if (!ticket || ticket.kind !== 'contract') {
+        return res.status(404).render('pages/404', {
+          title: 'Ticket inexistent',
+          description: 'Ticketul solicitat nu a fost gasit.'
+        });
+      }
+      const user = req.session.user;
+      if (
+        user.role === 'admin' &&
+        ticket.project_id &&
+        ticket.assigned_admin_id &&
+        ticket.assigned_admin_id !== user.id
+      ) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti responsabil de acest ticket.'
+        });
+      }
+      const contractDetails = await getContractDetailsByTicket(ticketId);
+      if (!contractDetails || contractDetails.contractStage !== 'completed') {
+        req.session.ticketFeedback = {
+          error: 'Contractul trebuie semnat de ambele parti inainte de a crea proiectul.'
+        };
         return res.redirect(`/cont/tichete/${ticketId}`);
       }
-      throw error;
+
+      try {
+        const { projectId, projectCode } = await createProjectFromTicket({
+          ticketId,
+          actor: user
+        });
+        req.session.projectFeedback = {
+          success: `Proiectul ${projectCode} a fost creat si este gata pentru organizarea etapelor.`
+        };
+        return res.redirect(`/cont/proiecte/${projectId}`);
+      } catch (error) {
+        const errorMessages = {
+          CONTRACT_NOT_COMPLETED: 'Contractul trebuie semnat de ambele parti.',
+          PROJECT_ALREADY_EXISTS: 'Exista deja un proiect creat pentru acest ticket.',
+          CLIENT_NOT_IDENTIFIED: 'Nu am putut identifica clientul pentru acest ticket.'
+        };
+        if (errorMessages[error.message]) {
+          req.session.ticketFeedback = { error: errorMessages[error.message] };
+          return res.redirect(`/cont/tichete/${ticketId}`);
+        }
+        throw error;
+      }
+    } catch (error) {
+      next(error);
     }
-  } catch (error) {
-    next(error);
-  }
-);
+});
 
 router.post(
   '/cont/tichete/:id/contract/descarca',

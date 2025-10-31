@@ -2,6 +2,8 @@
 <%- include('../partials/header') %>
 <section class="py-5">
   <div class="container">
+    <% const licenseRestricted = Boolean(typeof isLicenseRestricted !== 'undefined' ? isLicenseRestricted : false); %>
+    <% const staffLinksDisabled = licenseRestricted && currentUser.role !== 'superadmin'; %>
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
       <div>
         <h1 class="h3 mb-1">Gestionare tichete</h1>
@@ -22,6 +24,12 @@
         <button class="btn btn-outline-primary" type="submit">Filtreaza</button>
       </form>
     </div>
+
+    <% if (licenseRestricted) { %>
+    <div class="alert alert-warning" role="alert">
+      Accesul la functiile de gestionare este limitat deoarece licenta platformei a expirat. Poti vizualiza tichetele, dar nu le poti deschide sau actualiza pana la reinnoirea licentei.
+    </div>
+    <% } %>
 
     <% const kindLabels = { support: 'Suport', offer: 'Oferta' }; %>
 
@@ -76,18 +84,24 @@
                   <% } else { %>
                   <form action="/cont/tichete/<%= ticket.id %>/status" method="post" class="d-flex align-items-center gap-2">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                    <select class="form-select form-select-sm" name="status">
+                    <select class="form-select form-select-sm" name="status" <%= staffLinksDisabled ? 'disabled' : '' %>>
                       <option value="deschis" <%= ticket.status === 'deschis' ? 'selected' : '' %>>Deschis</option>
                       <option value="in-analiza" <%= ticket.status === 'in-analiza' ? 'selected' : '' %>>In analiza</option>
                       <option value="rezolvat" <%= ticket.status === 'rezolvat' ? 'selected' : '' %>>Rezolvat</option>
                     </select>
-                    <button class="btn btn-sm btn-outline-secondary" type="submit">Actualizeaza</button>
+                    <button class="btn btn-sm btn-outline-secondary" type="submit" <%= staffLinksDisabled ? 'disabled' : '' %>>Actualizeaza</button>
                   </form>
                   <% } %>
                 </td>
                 <td><%= ticket.created_at.toISOString ? ticket.created_at.toISOString().slice(0,10) : ticket.created_at %></td>
                 <td class="text-end">
-                  <a class="btn btn-sm btn-outline-primary" href="/cont/tichete/<%= ticket.id %>">Vezi detalii</a>
+                  <a
+                    class="btn btn-sm btn-outline-primary <%= staffLinksDisabled ? 'disabled' : '' %>"
+                    href="<%= staffLinksDisabled ? '#' : `/cont/tichete/${ticket.id}` %>"
+                    <%= staffLinksDisabled ? 'tabindex="-1" aria-disabled="true"' : '' %>
+                  >
+                    Vezi detalii
+                  </a>
                 </td>
               </tr>
               <% }) %>

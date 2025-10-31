@@ -4,6 +4,7 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import { z } from 'zod';
 import { ensureAuthenticated, ensureRole } from '../middleware/auth.js';
+import { requireActiveLicense } from '../middleware/license.js';
 import {
   listProjectsForUser,
   updateProjectStatus,
@@ -73,6 +74,7 @@ import {
   TRUSTED_DEVICE_COOKIE_NAME
 } from '../services/trustedDeviceService.js';
 import { refreshSecurityState } from '../utils/securityState.js';
+import { getLicenseState, updateLicensePaidUntil } from '../utils/licenseState.js';
 import {
   PROJECT_STATUSES,
   PROJECT_FLOW_STATUSES,
@@ -345,7 +347,8 @@ router.get('/cont', async (req, res, next) => {
       pendingOffers: [],
       recentReplies: [],
       securitySettings: [],
-      securityFlash: null
+      securityFlash: null,
+      licenseState: getLicenseState()
     };
 
     if (user.role === 'client') {
@@ -479,6 +482,38 @@ router.post('/cont/securitate', ensureRole('superadmin'), async (req, res, next)
       req.session.securityFlash = {
         type: 'error',
         message: 'Setarea selectata nu exista.'
+      };
+      return res.redirect('/cont#securitate');
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/securitate/licenta', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const schema = z.object({
+      paidUntil: z
+        .string()
+        .trim()
+        .optional()
+        .transform((value) => (value && value.length ? value : null))
+        .refine(
+          (value) => value === null || /^\d{4}-\d{2}-\d{2}$/.test(value),
+          'Data invalida pentru licenta.'
+        )
+    });
+    const data = schema.parse(req.body);
+    await updateLicensePaidUntil(data.paidUntil);
+    req.session.securityFlash = {
+      type: 'success',
+      message: 'Data de expirare a licentei a fost actualizata.'
+    };
+    res.redirect('/cont#securitate');
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.securityFlash = {
+        type: 'error',
+        message: 'Completeaza o data valida in format AAAA-LL-ZZ.'
       };
       return res.redirect('/cont#securitate');
     }
@@ -670,7 +705,7 @@ router
     }
   });
 
-router.get('/cont/tichete/:id', async (req, res, next) => {
+router.get('/cont/tichete/:id', requireActiveLicense(), async (req, res, next) => {
   try {
     const ticketId = Number(req.params.id);
     const ticket = await getTicketById(ticketId);
@@ -749,7 +784,7 @@ router.get('/cont/tichete/:id', async (req, res, next) => {
   }
 });
 
-router.get('/cont/tichete/:id/timeline', async (req, res, next) => {
+router.get('/cont/tichete/:id/timeline', requireActiveLicense(), async (req, res, next) => {
   try {
     const ticketId = Number(req.params.id);
     const ticket = await getTicketById(ticketId);
@@ -809,7 +844,7 @@ router.get('/cont/tichete/:id/timeline', async (req, res, next) => {
   }
 });
 
-router.post('/cont/tichete/:id/raspuns', async (req, res, next) => {
+router.post('/cont/tichete/:id/raspuns', requireActiveLicense(), async (req, res, next) => {
   try {
     const schema = z.object({
       message: z.string().min(2)
@@ -858,8 +893,12 @@ router.post('/cont/tichete/:id/raspuns', async (req, res, next) => {
   }
 });
 
-router.post('/cont/tichete/:id/oferta/detalii', ensureRole('admin', 'superadmin'), async (req, res, next) => {
-  try {
+router.post(
+  '/cont/tichete/:id/oferta/detalii',
+  ensureRole('admin', 'superadmin'),
+  requireActiveLicense({ roles: ['admin'] }),
+  async (req, res, next) => {
+    try {
     const ticketId = Number(req.params.id);
     const { ticket } = await getTicketWithReplies(ticketId);
     if (!ticket || ticket.kind !== 'offer') {
@@ -919,23 +958,24 @@ router.post('/cont/tichete/:id/oferta/detalii', ensureRole('admin', 'superadmin'
       });
     }
     req.session.ticketFeedback = { success: 'Oferta a fost transmisa clientului.' };
-    res.redirect(`/cont/tichete/${ticketId}`);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      req.session.ticketFeedback = { error: 'Completeaza corect campurile ofertei.' };
-      return res.redirect(`/cont/tichete/${req.params.id}`);
+      res.redirect(`/cont/tichete/${ticketId}`);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        req.session.ticketFeedback = { error: 'Completeaza corect campurile ofertei.' };
+        return res.redirect(`/cont/tichete/${req.params.id}`);
+      }
+      if (error.message === 'OFFER_LOCKED') {
+        req.session.ticketFeedback = { error: 'Oferta a fost deja transmisa si nu mai poate fi modificata.' };
+        return res.redirect(`/cont/tichete/${req.params.id}`);
+      }
+      if (error.message === 'OFFER_NOT_FOUND') {
+        req.session.ticketFeedback = { error: 'Oferta nu a fost gasita.' };
+        return res.redirect(`/cont/tichete/${req.params.id}`);
+      }
+      next(error);
     }
-    if (error.message === 'OFFER_LOCKED') {
-      req.session.ticketFeedback = { error: 'Oferta a fost deja transmisa si nu mai poate fi modificata.' };
-      return res.redirect(`/cont/tichete/${req.params.id}`);
-    }
-    if (error.message === 'OFFER_NOT_FOUND') {
-      req.session.ticketFeedback = { error: 'Oferta nu a fost gasita.' };
-      return res.redirect(`/cont/tichete/${req.params.id}`);
-    }
-    next(error);
   }
-});
+);
 
 router.post('/cont/tichete/:id/oferta/accepta', async (req, res, next) => {
   try {
@@ -1070,8 +1110,12 @@ router.post('/cont/tichete/:id/oferta/contraoferta', async (req, res, next) => {
   }
 });
 
-router.post('/cont/tichete/:id/oferta/contraoferta/accepta', ensureRole('admin', 'superadmin'), async (req, res, next) => {
-  try {
+router.post(
+  '/cont/tichete/:id/oferta/contraoferta/accepta',
+  ensureRole('admin', 'superadmin'),
+  requireActiveLicense({ roles: ['admin'] }),
+  async (req, res, next) => {
+    try {
     const ticketId = Number(req.params.id);
     const { ticket } = await getTicketWithReplies(ticketId);
     if (!ticket || ticket.kind !== 'offer') {
@@ -1106,18 +1150,23 @@ router.post('/cont/tichete/:id/oferta/contraoferta/accepta', ensureRole('admin',
     req.session.ticketFeedback = {
       success: 'Ai acceptat contraoferta clientului. Poti continua cu semnarea contractului.'
     };
-    res.redirect(`/cont/tichete/${ticketId}`);
-  } catch (error) {
-    if (error.message === 'INVALID_STATE' || error.message === 'MISSING_BASE_AMOUNT') {
-      req.session.ticketFeedback = { error: 'Nu exista o contraoferta valida pentru acest ticket.' };
-      return res.redirect(`/cont/tichete/${req.params.id}`);
+      res.redirect(`/cont/tichete/${ticketId}`);
+    } catch (error) {
+      if (error.message === 'INVALID_STATE' || error.message === 'MISSING_BASE_AMOUNT') {
+        req.session.ticketFeedback = { error: 'Nu exista o contraoferta valida pentru acest ticket.' };
+        return res.redirect(`/cont/tichete/${req.params.id}`);
+      }
+      next(error);
     }
-    next(error);
   }
-});
+);
 
-router.post('/cont/tichete/:id/oferta/contraoferta/refuza', ensureRole('admin', 'superadmin'), async (req, res, next) => {
-  try {
+router.post(
+  '/cont/tichete/:id/oferta/contraoferta/refuza',
+  ensureRole('admin', 'superadmin'),
+  requireActiveLicense({ roles: ['admin'] }),
+  async (req, res, next) => {
+    try {
     const ticketId = Number(req.params.id);
     const { ticket } = await getTicketWithReplies(ticketId);
     if (!ticket || ticket.kind !== 'offer') {
@@ -1152,18 +1201,23 @@ router.post('/cont/tichete/:id/oferta/contraoferta/refuza', ensureRole('admin', 
     req.session.ticketFeedback = {
       success: 'Ai refuzat contraoferta. Poti transmite o noua propunere din discutie.'
     };
-    res.redirect(`/cont/tichete/${ticketId}`);
-  } catch (error) {
-    if (error.message === 'INVALID_STATE') {
-      req.session.ticketFeedback = { error: 'Nu exista o contraoferta valida pentru acest ticket.' };
-      return res.redirect(`/cont/tichete/${req.params.id}`);
+      res.redirect(`/cont/tichete/${ticketId}`);
+    } catch (error) {
+      if (error.message === 'INVALID_STATE') {
+        req.session.ticketFeedback = { error: 'Nu exista o contraoferta valida pentru acest ticket.' };
+        return res.redirect(`/cont/tichete/${req.params.id}`);
+      }
+      next(error);
     }
-    next(error);
   }
-});
+);
 
-router.post('/cont/tichete/:id/oferta/contract', ensureRole('admin', 'superadmin'), async (req, res, next) => {
-  try {
+router.post(
+  '/cont/tichete/:id/oferta/contract',
+  ensureRole('admin', 'superadmin'),
+  requireActiveLicense({ roles: ['admin'] }),
+  async (req, res, next) => {
+    try {
     const ticketId = Number(req.params.id);
     const { ticket } = await getTicketWithReplies(ticketId);
     if (!ticket || (ticket.kind !== 'offer' && ticket.kind !== 'contract')) {
@@ -1198,11 +1252,12 @@ router.post('/cont/tichete/:id/oferta/contract', ensureRole('admin', 'superadmin
     req.session.ticketFeedback = {
       success: 'Ai activat etapa de semnare. Clientul poate completa acum datele pentru contract.'
     };
-    res.redirect(`/cont/tichete/${ticketId}`);
-  } catch (error) {
-    next(error);
+      res.redirect(`/cont/tichete/${ticketId}`);
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
   try {
@@ -1283,8 +1338,12 @@ router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
   }
 });
 
-router.post('/cont/tichete/:id/merge', ensureRole('admin', 'superadmin'), async (req, res, next) => {
-  try {
+router.post(
+  '/cont/tichete/:id/merge',
+  ensureRole('admin', 'superadmin'),
+  requireActiveLicense({ roles: ['admin'] }),
+  async (req, res, next) => {
+    try {
     const ticketId = Number(req.params.id);
     const { ticket } = await getTicketWithReplies(ticketId);
     if (!ticket) {
@@ -1373,9 +1432,10 @@ router.post('/cont/tichete/:id/merge', ensureRole('admin', 'superadmin'), async 
       req.session.ticketFeedback = { error: handledErrors.get(error.message) };
       return res.redirect(`/cont/tichete/${req.params.id}`);
     }
-    next(error);
+      next(error);
+    }
   }
-});
+);
 
 router.post('/cont/tichete/:id/contract/semnatura-client', async (req, res, next) => {
   try {
@@ -1437,6 +1497,7 @@ router.post('/cont/tichete/:id/contract/semnatura-client', async (req, res, next
 router.post(
   '/cont/tichete/:id/contract/semnatura-admin',
   ensureRole('admin', 'superadmin'),
+  requireActiveLicense({ roles: ['admin'] }),
   async (req, res, next) => {
     try {
       const ticketId = Number(req.params.id);
@@ -1498,8 +1559,12 @@ router.post(
   }
 );
 
-router.post('/cont/tichete/:id/proiect', ensureRole('admin', 'superadmin'), async (req, res, next) => {
-  try {
+router.post(
+  '/cont/tichete/:id/proiect',
+  ensureRole('admin', 'superadmin'),
+  requireActiveLicense({ roles: ['admin'] }),
+  async (req, res, next) => {
+    try {
     const ticketId = Number(req.params.id);
     const ticket = await getTicketById(ticketId);
     if (!ticket || ticket.kind !== 'contract') {
@@ -1552,7 +1617,7 @@ router.post('/cont/tichete/:id/proiect', ensureRole('admin', 'superadmin'), asyn
   } catch (error) {
     next(error);
   }
-});
+);
 
 router.post(
   '/cont/tichete/:id/contract/descarca',
@@ -1698,39 +1763,44 @@ router.get(
   }
 );
 
-router.post('/cont/tichete/:id/status', ensureRole('admin', 'superadmin'), async (req, res, next) => {
-  try {
-    const schema = z.object({ status: z.enum(['deschis', 'in-analiza', 'rezolvat']) });
-    const data = schema.parse(req.body);
-    const { ticket } = await getTicketWithReplies(Number(req.params.id));
-    if (!ticket) {
-      return res.status(404).render('pages/404', {
-        title: 'Ticket inexistent',
-        description: 'Ticketul solicitat nu a fost gasit.'
-      });
+router.post(
+  '/cont/tichete/:id/status',
+  ensureRole('admin', 'superadmin'),
+  requireActiveLicense({ roles: ['admin'] }),
+  async (req, res, next) => {
+    try {
+      const schema = z.object({ status: z.enum(['deschis', 'in-analiza', 'rezolvat']) });
+      const data = schema.parse(req.body);
+      const { ticket } = await getTicketWithReplies(Number(req.params.id));
+      if (!ticket) {
+        return res.status(404).render('pages/404', {
+          title: 'Ticket inexistent',
+          description: 'Ticketul solicitat nu a fost gasit.'
+        });
+      }
+      if (req.session.user.role === 'admin' && ticket.project_id && ticket.assigned_admin_id !== req.session.user.id) {
+        return res.status(403).render('pages/403', {
+          title: 'Acces restrictionat',
+          description: 'Nu sunteti responsabil de acest ticket.'
+        });
+      }
+      if (ticket.merged_into_ticket_id) {
+        req.session.ticketFeedback = {
+          error: 'Ticketul este fuzionat in altul si nu mai poate avea statusul modificat.'
+        };
+        return res.redirect(`/cont/tichete/${req.params.id}`);
+      }
+      await updateTicketStatus(ticket.id, data.status);
+      res.redirect(`/cont/tichete/${req.params.id}`);
+    } catch (error) {
+      next(error);
     }
-    if (req.session.user.role === 'admin' && ticket.project_id && ticket.assigned_admin_id !== req.session.user.id) {
-      return res.status(403).render('pages/403', {
-        title: 'Acces restrictionat',
-        description: 'Nu sunteti responsabil de acest ticket.'
-      });
-    }
-    if (ticket.merged_into_ticket_id) {
-      req.session.ticketFeedback = {
-        error: 'Ticketul este fuzionat in altul si nu mai poate avea statusul modificat.'
-      };
-      return res.redirect(`/cont/tichete/${req.params.id}`);
-    }
-    await updateTicketStatus(ticket.id, data.status);
-    res.redirect(`/cont/tichete/${req.params.id}`);
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 router
   .route('/cont/proiecte/:id/status')
-  .post(ensureRole('admin', 'superadmin', 'redactor'), async (req, res, next) => {
+  .post(ensureRole('admin', 'superadmin', 'redactor'), requireActiveLicense(), async (req, res, next) => {
     try {
       const schema = z.object({
         action: z.enum(['advance', 'previous', 'set']).default('advance'),
@@ -1844,7 +1914,7 @@ router
 
 router
   .route('/cont/proiecte/creeaza')
-  .get(ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  .get(ensureRole('admin', 'superadmin'), requireActiveLicense({ roles: ['admin'] }), async (req, res, next) => {
     try {
       const [clients, team] = await Promise.all([listClients(), listTeamMembers()]);
       res.render('pages/project-create', {
@@ -1857,7 +1927,7 @@ router
       next(error);
     }
   })
-  .post(ensureRole('admin', 'superadmin'), async (req, res, next) => {
+  .post(ensureRole('admin', 'superadmin'), requireActiveLicense({ roles: ['admin'] }), async (req, res, next) => {
     try {
       const schema = z.object({
         title: z.string().min(5),
@@ -1892,7 +1962,7 @@ router
     }
   });
 
-router.post('/cont/proiecte/:id/fisiere', (req, res, next) => {
+router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, next) => {
   projectFileUpload.array('files', STAFF_MAX_PROJECT_FILES)(req, res, async (err) => {
     const projectId = Number(req.params.id);
     const redirectToFiles = () => res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
@@ -2452,7 +2522,7 @@ router
     }
   });
 
-router.get('/cont/proiecte/:id', async (req, res, next) => {
+router.get('/cont/proiecte/:id', requireActiveLicense(), async (req, res, next) => {
   try {
     const projectId = Number(req.params.id);
     let project = await getProjectById(projectId);
@@ -2592,7 +2662,7 @@ router.get('/cont/proiecte/:id', async (req, res, next) => {
   }
 });
 
-router.get('/cont/proiecte/:id/timeline', async (req, res, next) => {
+router.get('/cont/proiecte/:id/timeline', requireActiveLicense(), async (req, res, next) => {
   try {
     const projectId = Number(req.params.id);
     const project = await getProjectById(projectId);
@@ -2652,7 +2722,7 @@ router.get('/cont/proiecte/:id/timeline', async (req, res, next) => {
   }
 });
 
-router.post('/cont/proiecte/:id/mesaj', async (req, res, next) => {
+router.post('/cont/proiecte/:id/mesaj', requireActiveLicense(), async (req, res, next) => {
   try {
     const schema = z.object({
       message: z.string().min(2)

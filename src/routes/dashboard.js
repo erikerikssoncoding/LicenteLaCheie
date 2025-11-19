@@ -127,6 +127,42 @@ const STAFF_MAX_FILE_SIZE = 30 * 1024 * 1024;
 const ALLOWED_PROJECT_FILE_EXTENSIONS = new Set(['.pdf', '.docx', '.jpg', '.jpeg', '.png']);
 const DOCS_VALIDATED_FLOW_INDEX = PROJECT_FLOW_STATUSES.findIndex((status) => status.id === 'docs_validated');
 
+function buildFieldErrorsFromZod(error) {
+  if (!(error instanceof z.ZodError)) {
+    return {};
+  }
+  return error.errors.reduce((acc, issue) => {
+    const fieldName = Array.isArray(issue.path) && issue.path.length ? issue.path[0] : null;
+    if (!fieldName || acc[fieldName]) {
+      return acc;
+    }
+    acc[fieldName] = issue.message;
+    return acc;
+  }, {});
+}
+
+const PROJECT_FORM_DEFAULTS = {
+  title: '',
+  description: '',
+  degreeLevel: '',
+  deadline: '',
+  clientId: '',
+  assignedAdminId: '',
+  assignedRedactorId: ''
+};
+
+async function renderProjectCreatePage(res, { formData = {}, formErrors = {} } = {}, status = 200) {
+  const [clients, team] = await Promise.all([listClients(), listTeamMembers()]);
+  return res.status(status).render('pages/project-create', {
+    title: 'Creaza proiect nou',
+    description: 'Inregistreaza o lucrare de licenta si aloca echipa.',
+    clients,
+    team,
+    formData: { ...PROJECT_FORM_DEFAULTS, ...formData },
+    formErrors
+  });
+}
+
 function resolveUserManagementRedirect(returnTo, fallback = '/cont/utilizatori') {
   if (typeof returnTo !== 'string' || !returnTo.startsWith('/')) {
     return fallback;
@@ -875,6 +911,7 @@ router
         description: 'Trimite o solicitare rapida catre echipa de redactori.',
         projects,
         error: null,
+        fieldErrors: {},
         formData: {
           projectId: '',
           subject: '',
@@ -888,9 +925,13 @@ router
   .post(async (req, res, next) => {
     try {
       const schema = z.object({
-        projectId: z.string().optional(),
-        subject: z.string().min(5),
-        message: z.string().min(10)
+        projectId: z
+          .string()
+          .optional()
+          .transform((value) => (typeof value === 'string' ? value.trim() : ''))
+          .refine((value) => !value || /^\d+$/.test(value), 'Selecteaza un proiect valid.'),
+        subject: z.string().trim().min(5, 'Subiectul trebuie sa contina cel putin 5 caractere.'),
+        message: z.string().trim().min(10, 'Mesajul trebuie sa aiba cel putin 10 caractere.')
       });
       const data = schema.parse(req.body);
       const projectId = data.projectId ? Number(data.projectId) : null;
@@ -905,12 +946,14 @@ router
       res.redirect('/cont');
     } catch (error) {
       if (error instanceof z.ZodError) {
+        const fieldErrors = buildFieldErrorsFromZod(error);
         const projects = await listProjectsForUser(req.session.user);
         return res.status(400).render('pages/ticket-create', {
           title: 'Deschide un ticket',
           description: 'Trimite o solicitare rapida catre echipa de redactori.',
           projects,
-          error: 'Completeaza corect toate campurile pentru a deschide ticketul.',
+          error: 'Corecteaza campurile marcate mai jos pentru a continua.',
+          fieldErrors,
           formData: {
             projectId: typeof req.body.projectId === 'string' ? req.body.projectId : '',
             subject: typeof req.body.subject === 'string' ? req.body.subject : '',
@@ -2133,48 +2176,104 @@ router
   .route('/cont/proiecte/creeaza')
   .get(ensureRole('admin', 'superadmin'), requireActiveLicense({ roles: ['admin'] }), async (req, res, next) => {
     try {
-      const [clients, team] = await Promise.all([listClients(), listTeamMembers()]);
-      res.render('pages/project-create', {
-        title: 'Creaza proiect nou',
-        description: 'Inregistreaza o lucrare de licenta si aloca echipa.',
-        clients,
-        team
-      });
+      await renderProjectCreatePage(res);
     } catch (error) {
       next(error);
     }
   })
   .post(ensureRole('admin', 'superadmin'), requireActiveLicense({ roles: ['admin'] }), async (req, res, next) => {
+    const fallbackFormData = {
+      title: typeof req.body.title === 'string' ? req.body.title : '',
+      description: typeof req.body.description === 'string' ? req.body.description : '',
+      degreeLevel: typeof req.body.degreeLevel === 'string' ? req.body.degreeLevel : '',
+      deadline: typeof req.body.deadline === 'string' ? req.body.deadline : '',
+      clientId: typeof req.body.clientId === 'string' ? req.body.clientId : '',
+      assignedAdminId: typeof req.body.assignedAdminId === 'string' ? req.body.assignedAdminId : '',
+      assignedRedactorId: typeof req.body.assignedRedactorId === 'string' ? req.body.assignedRedactorId : ''
+    };
     try {
       const schema = z.object({
-        title: z.string().min(5),
-        description: z.string().min(10),
-        degreeLevel: z.string().min(3),
-        deadline: z.string().min(4),
-        clientId: z.string(),
-        assignedAdminId: z.string().optional(),
-        assignedRedactorId: z.string().optional()
+        title: z.string().trim().min(5, 'Titlul trebuie sa aiba cel putin 5 caractere.'),
+        description: z.string().trim().min(10, 'Descrierea trebuie sa contina minimum 10 caractere.'),
+        degreeLevel: z.string().trim().min(3, 'Completeaza nivelul de studiu.'),
+        deadline: z
+          .string()
+          .trim()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, 'Selecteaza un deadline valid (format AAAA-LL-ZZ).'),
+        clientId: z.string().trim().regex(/^\d+$/u, 'Selecteaza un client valid.'),
+        assignedAdminId: z
+          .string()
+          .trim()
+          .optional()
+          .refine((value) => !value || /^\d+$/u.test(value), 'Selecteaza un administrator valid.'),
+        assignedRedactorId: z
+          .string()
+          .trim()
+          .optional()
+          .refine((value) => !value || /^\d+$/u.test(value), 'Selecteaza un redactor valid.')
       });
       const data = schema.parse(req.body);
       const user = req.session.user;
-      const assignedAdminId = data.assignedAdminId
-        ? Number(data.assignedAdminId)
+      const normalizedClientId = Number(data.clientId);
+      const normalizedAdminId = data.assignedAdminId ? Number(data.assignedAdminId) : null;
+      const normalizedRedactorId = data.assignedRedactorId ? Number(data.assignedRedactorId) : null;
+
+      const [client, adminUser, redactorUser] = await Promise.all([
+        getUserById(normalizedClientId),
+        normalizedAdminId ? getUserById(normalizedAdminId) : null,
+        normalizedRedactorId ? getUserById(normalizedRedactorId) : null
+      ]);
+
+      if (!client || client.role !== 'client') {
+        const fieldErrors = { clientId: 'Clientul selectat nu exista sau nu este activ.' };
+        return renderProjectCreatePage(res, { formData: fallbackFormData, formErrors: fieldErrors }, 400);
+      }
+
+      if (normalizedAdminId && (!adminUser || !['admin', 'superadmin'].includes(adminUser.role))) {
+        const fieldErrors = { assignedAdminId: 'Administratorul selectat nu este valid.' };
+        return renderProjectCreatePage(res, { formData: fallbackFormData, formErrors: fieldErrors }, 400);
+      }
+
+      if (normalizedRedactorId && (!redactorUser || redactorUser.role !== 'redactor')) {
+        const fieldErrors = { assignedRedactorId: 'Redactorul selectat nu este valid.' };
+        return renderProjectCreatePage(res, { formData: fallbackFormData, formErrors: fieldErrors }, 400);
+      }
+
+      const resolvedAdminId = normalizedAdminId
+        ? normalizedAdminId
         : user.role === 'admin'
         ? user.id
         : null;
+
       const { id: projectId } = await createProject({
         title: data.title,
         description: data.description,
         degreeLevel: data.degreeLevel,
         deadline: data.deadline,
-        clientId: Number(data.clientId),
-        assignedAdminId,
-        assignedRedactorId: data.assignedRedactorId ? Number(data.assignedRedactorId) : null,
+        clientId: normalizedClientId,
+        assignedAdminId: resolvedAdminId,
+        assignedRedactorId: normalizedRedactorId || null,
         actor: req.session.user,
         initialNote: 'Proiect creat manual din panoul de control.'
       });
       res.redirect(`/cont/proiecte/${projectId}`);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors = buildFieldErrorsFromZod(error);
+        return renderProjectCreatePage(res, { formData: fallbackFormData, formErrors: fieldErrors }, 400);
+      }
+      if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+        return renderProjectCreatePage(
+          res,
+          {
+            formData: fallbackFormData,
+            formErrors: {
+              general: 'Nu am putut salva proiectul deoarece unele selectii nu sunt valide. Verifica informatiile si reincearca.'
+            }
+          },
+          400
+        );
+      }
       next(error);
     }
   });

@@ -2,6 +2,17 @@
 <%- include('../partials/header') %>
 <section class="py-5">
   <div class="container">
+    <style>
+      .attention-ticket-scroll {
+        max-height: 320px;
+        overflow-y: auto;
+      }
+      @media (min-width: 992px) {
+        .attention-ticket-scroll {
+          max-height: 420px;
+        }
+      }
+    </style>
     <% const isClient = currentUser.role === 'client'; %>
     <% const isRedactor = currentUser.role === 'redactor'; %>
     <% const isManager = ['admin', 'superadmin'].includes(currentUser.role); %>
@@ -389,21 +400,23 @@
         <div class="card shadow-sm mt-4">
           <div class="card-body">
             <h2 class="h6 mb-3">Tichete ce necesita atentie</h2>
-            <ul class="list-group list-group-flush">
-              <% pendingSupportTickets.forEach((ticket) => { %>
-              <li class="list-group-item">
-                <div class="fw-semibold"><%= ticket.subject %></div>
-                <div class="small text-muted">Cod: <%= ticket.display_code %> • Status: <%= ticket.status === 'rezolvat' && ticket.merged_into_ticket_id ? 'rezolvat (merged)' : ticket.status %></div>
-                <a
-                  class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
-                  href="<%= licenseRestricted ? '#' : `/cont/tichete/${ticket.id}` %>"
-                  <%= licenseRestricted ? 'tabindex="-1" aria-disabled="true"' : '' %>
-                >
-                  Gestioneaza
-                </a>
-              </li>
-              <% }) %>
-            </ul>
+            <div class="attention-ticket-scroll">
+              <ul class="list-group list-group-flush mb-0">
+                <% pendingSupportTickets.forEach((ticket) => { %>
+                <li class="list-group-item">
+                  <div class="fw-semibold"><%= ticket.subject %></div>
+                  <div class="small text-muted">Cod: <%= ticket.display_code %> • Status: <%= ticket.status === 'rezolvat' && ticket.merged_into_ticket_id ? 'rezolvat (merged)' : ticket.status %></div>
+                  <a
+                    class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
+                    href="<%= licenseRestricted ? '#' : `/cont/tichete/${ticket.id}` %>"
+                    <%= licenseRestricted ? 'tabindex="-1" aria-disabled="true"' : '' %>
+                  >
+                    Gestioneaza
+                  </a>
+                </li>
+                <% }) %>
+              </ul>
+            </div>
           </div>
         </div>
         <% } %>

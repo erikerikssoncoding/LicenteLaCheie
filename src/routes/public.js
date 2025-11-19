@@ -226,86 +226,69 @@ router
   .get((req, res) => {
     res.render('pages/contact', CONTACT_PAGE_PROPS);
   })
-  .post((req, res, next) => {
-    contactAttachmentUpload.single('attachment')(req, res, async (uploadError) => {
-      const attachment = req.file || null;
-      if (uploadError) {
-        await cleanupContactAttachment(attachment);
-        return res.status(400).render('pages/contact', {
-          ...CONTACT_PAGE_PROPS,
-          error: mapContactUploadError(uploadError)
-        });
-      }
-      try {
-        const schema = z.object({
-          fullName: z.string().trim().min(3, 'Introdu un nume complet valid.'),
-          email: z
-            .string()
-            .trim()
-            .email('Introdu o adresă de email validă.')
-            .transform((value) => value.toLowerCase()),
-          phone: z
-            .string()
-            .trim()
-            .transform((value) => sanitizePhoneValue(value))
-            .regex(PHONE_PATTERN, 'Introdu un număr de telefon din România cu prefix valid.')
-            .refine((value) => !hasInvalidRepetition(value), 'Numărul de telefon nu poate avea toate cifrele identice.'),
-          message: z.string().trim().min(20, 'Mesajul trebuie să aibă cel puțin 20 de caractere.')
-        });
-        const data = schema.parse(req.body);
-        const currentUser = req.session?.user || null;
-        if (currentUser && (currentUser.fullName !== data.fullName || currentUser.phone !== data.phone)) {
-          await updateUserProfile(currentUser.id, { fullName: data.fullName, phone: data.phone });
+  .post(async (req, res, next) => {
+    try {
+      const schema = z.object({
+        fullName: z.string().min(3),
+        email: z.string().email(),
+        phone: z.string().min(6),
+        message: z.string().min(10)
+      });
+      const data = schema.parse(req.body);
+      const clientMetadata = collectClientMetadata(req);
+      if (req.session?.user) {
+        const user = req.session.user;
+        if (user.fullName !== data.fullName || user.phone !== data.phone) {
+          await updateUserProfile(user.id, { fullName: data.fullName, phone: data.phone });
           req.session.user.fullName = data.fullName;
           req.session.user.phone = data.phone;
         }
-        const clientMetadata = collectClientMetadata(req);
-        const submissionEmail = (currentUser?.email || data.email).toLowerCase();
-        const attachments = attachment ? [attachment] : [];
-        try {
-          await sendContactSubmissionEmails({
-            payload: {
-              fullName: data.fullName,
-              email: submissionEmail,
-              phone: data.phone,
-              message: data.message,
-              ipAddress: clientMetadata.ipAddress || null
-            },
-            attachments,
-            clientMetadata,
-            submissionEmail
-          });
-        } catch (mailError) {
-          console.error('Nu s-a putut trimite notificarea de contact:', mailError);
-        }
-        if (currentUser) {
-          const metadataLine = clientMetadata.ipAddress ? `IP client: ${clientMetadata.ipAddress}` : null;
-          const attachmentLine = attachment ? `Atașament transmis: ${attachment.originalname}` : null;
-          await createTicket({
-            projectId: null,
-            userId: currentUser.id,
-            subject: `Solicitare contact - ${data.fullName}`,
-            message: [`Telefon: ${data.phone}`, `Email: ${submissionEmail}`, '', data.message, attachmentLine, metadataLine]
-              .filter(Boolean)
-              .join('\n'),
-            kind: 'support',
-            clientMetadata
-          });
-          return res.render('pages/contact-success', {
-            title: 'Ticket deschis cu succes',
-            description: 'Am inregistrat solicitarea ta direct in cont. Echipa noastra iti va raspunde in cel mai scurt timp.'
-          });
-        }
-        await createContactRequest({
-          fullName: data.fullName,
-          email: submissionEmail,
-          phone: data.phone,
-          message: data.message,
-          ipAddress: clientMetadata.ipAddress
+        const { id: ticketId, displayCode } = await createTicket({
+          projectId: null,
+          userId: user.id,
+          subject: `Solicitare contact - ${data.fullName}`,
+          message: `Telefon: ${data.phone}\nEmail: ${user.email}\n\n${data.message}`,
+          kind: 'support',
+          clientMetadata
         });
         return res.render('pages/contact-success', {
-          title: 'Mesaj trimis cu succes',
-          description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.'
+          title: 'Ticket deschis cu succes',
+          description: 'Am inregistrat solicitarea ta direct in cont. Echipa noastra iti va raspunde in cel mai scurt timp.',
+          ticketId,
+          ticketDisplayCode: displayCode,
+          submissionEmail: user.email
+        });
+      }
+      const ensuredAccount = await ensureClientAccount({
+        fullName: data.fullName,
+        email: data.email,
+        phone: data.phone
+      });
+      const messageBody = `Telefon: ${data.phone}\nEmail: ${data.email}\n\n${data.message}`;
+      const { id: ticketId, displayCode } = await createTicket({
+        projectId: null,
+        userId: ensuredAccount.userId,
+        subject: `Solicitare contact - ${data.fullName}`,
+        message: messageBody,
+        kind: 'support',
+        clientMetadata
+      });
+      await createContactRequest(data);
+      return res.render('pages/contact-success', {
+        title: 'Mesaj trimis cu succes',
+        description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.',
+        generatedPassword: ensuredAccount.generatedPassword,
+        submissionEmail: data.email,
+        ticketId,
+        ticketDisplayCode: displayCode
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).render('pages/contact', {
+          title: 'Contact Licente la Cheie',
+          description:
+            'Scrie-ne pentru a afla cum te putem ajuta cu redactarea lucrarii de licenta sau a proiectului tau academic.',
+          error: 'Completeaza corect toate campurile pentru a trimite mesajul.'
         });
       } catch (error) {
         if (error instanceof z.ZodError) {
@@ -414,7 +397,7 @@ async function handleOfferSubmission(req, res) {
     attachmentSummary ? `Atașamente încărcate:\n${attachmentSummary}` : null,
     metadataLine
   ].filter(Boolean);
-  const ticketId = await createTicket({
+  const { id: ticketId } = await createTicket({
     projectId: null,
     userId,
     subject: `Solicitare oferta - ${payload.topic}`,

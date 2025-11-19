@@ -10,8 +10,19 @@
       <% if (currentUser) { %>
       <p class="mt-3">Ticketul dedicat a fost adăugat în secțiunea „Tichetele mele”.</p>
       <% } %>
-      <% if (!currentUser) { %>
-      <p class="mt-3">Ți-am trimis și un email de confirmare. Verifică și folderul de spam sau promoții.</p>
+      <% if (ticketDisplayCode || ticketId) { %>
+      <p class="mt-3">
+        Cod ticket: <strong><%= ticketDisplayCode || `#${ticketId}` %></strong> – îl poți urmări din contul tău Licențe la Cheie.
+      </p>
+      <% } %>
+      <% if (generatedPassword) { %>
+      <div class="alert alert-success mt-4">
+        <p class="mb-1">Ți-am creat automat un cont pentru a urmări discuția.</p>
+        <p class="mb-0">Email: <strong><%= submissionEmail %></strong> | Parolă temporară: <strong><%= generatedPassword %></strong></p>
+        <small class="text-muted">Autentifică-te și schimbă parola din secțiunea „Cont”.</small>
+      </div>
+      <% } else if (!currentUser && submissionEmail) { %>
+      <p class="mt-3">Ți-am trimis confirmarea la <strong><%= submissionEmail %></strong>.</p>
       <% } %>
       <a class="btn btn-gradient mt-4" href="/">Întoarce-te la pagina principală</a>
     </div>

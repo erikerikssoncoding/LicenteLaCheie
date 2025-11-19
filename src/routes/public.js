@@ -184,6 +184,7 @@ router
         message: z.string().min(10)
       });
       const data = schema.parse(req.body);
+      const clientMetadata = collectClientMetadata(req);
       if (req.session?.user) {
         const user = req.session.user;
         if (user.fullName !== data.fullName || user.phone !== data.phone) {
@@ -191,8 +192,7 @@ router
           req.session.user.fullName = data.fullName;
           req.session.user.phone = data.phone;
         }
-        const clientMetadata = collectClientMetadata(req);
-        await createTicket({
+        const { id: ticketId, displayCode } = await createTicket({
           projectId: null,
           userId: user.id,
           subject: `Solicitare contact - ${data.fullName}`,
@@ -202,13 +202,34 @@ router
         });
         return res.render('pages/contact-success', {
           title: 'Ticket deschis cu succes',
-          description: 'Am inregistrat solicitarea ta direct in cont. Echipa noastra iti va raspunde in cel mai scurt timp.'
+          description: 'Am inregistrat solicitarea ta direct in cont. Echipa noastra iti va raspunde in cel mai scurt timp.',
+          ticketId,
+          ticketDisplayCode: displayCode,
+          submissionEmail: user.email
         });
       }
+      const ensuredAccount = await ensureClientAccount({
+        fullName: data.fullName,
+        email: data.email,
+        phone: data.phone
+      });
+      const messageBody = `Telefon: ${data.phone}\nEmail: ${data.email}\n\n${data.message}`;
+      const { id: ticketId, displayCode } = await createTicket({
+        projectId: null,
+        userId: ensuredAccount.userId,
+        subject: `Solicitare contact - ${data.fullName}`,
+        message: messageBody,
+        kind: 'support',
+        clientMetadata
+      });
       await createContactRequest(data);
       return res.render('pages/contact-success', {
         title: 'Mesaj trimis cu succes',
-        description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.'
+        description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.',
+        generatedPassword: ensuredAccount.generatedPassword,
+        submissionEmail: data.email,
+        ticketId,
+        ticketDisplayCode: displayCode
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -314,7 +335,7 @@ async function handleOfferSubmission(req, res) {
     attachmentSummary ? `Atașamente încărcate:\n${attachmentSummary}` : null,
     metadataLine
   ].filter(Boolean);
-  const ticketId = await createTicket({
+  const { id: ticketId } = await createTicket({
     projectId: null,
     userId,
     subject: `Solicitare oferta - ${payload.topic}`,

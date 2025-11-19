@@ -4,9 +4,18 @@
   <div class="container" style="max-width: 700px;">
     <div class="glass-card">
         <h1 class="h4">Deschide un ticket</h1>
-        <% if (error) { %>
+        <% const fieldLabels = { projectId: 'Proiect asociat', subject: 'Subiect', message: 'Mesaj' }; %>
+        <% const hasFieldErrors = fieldErrors && Object.keys(fieldErrors).length > 0; %>
+        <% if (error || hasFieldErrors) { %>
           <div class="alert alert-danger" role="alert">
-            <%= error %>
+            <p class="mb-1"><%= error || 'Verifica si corecteaza informatiile marcate mai jos.' %></p>
+            <% if (hasFieldErrors) { %>
+            <ul class="mb-0 ps-3">
+              <% Object.entries(fieldErrors).forEach(([key, message]) => { %>
+              <li><strong><%= fieldLabels[key] || key %>:</strong> <%= message %></li>
+              <% }) %>
+            </ul>
+            <% } %>
           </div>
         <% } %>
         <form action="/cont/tichete/creeaza" method="post" class="row g-3">
@@ -14,28 +23,37 @@
           <% if (projects.length > 0) { %>
           <div class="col-12">
             <label class="form-label" for="projectId">Proiect asociat</label>
-            <select class="form-select" id="projectId" name="projectId">
+            <select class="form-select <%= fieldErrors?.projectId ? 'is-invalid' : '' %>" id="projectId" name="projectId">
               <option value="" <%= !formData?.projectId ? 'selected' : '' %>>General</option>
               <% projects.forEach((project) => { %>
               <option value="<%= project.id %>" <%= Number(formData?.projectId) === project.id ? 'selected' : '' %>><%= project.title %></option>
               <% }) %>
             </select>
+            <% if (fieldErrors?.projectId) { %>
+            <div class="invalid-feedback"><%= fieldErrors.projectId %></div>
+            <% } %>
           </div>
           <% } %>
           <div class="col-12">
             <label class="form-label" for="subject">Subiect</label>
             <input
-              class="form-control"
+              class="form-control <%= fieldErrors?.subject ? 'is-invalid' : '' %>"
               type="text"
               id="subject"
               name="subject"
               value="<%= formData?.subject ?? '' %>"
               required
             />
+            <% if (fieldErrors?.subject) { %>
+            <div class="invalid-feedback"><%= fieldErrors.subject %></div>
+            <% } %>
           </div>
           <div class="col-12">
             <label class="form-label" for="message">Mesaj</label>
-            <textarea class="form-control" id="message" name="message" rows="5" required><%= formData?.message ?? '' %></textarea>
+            <textarea class="form-control <%= fieldErrors?.message ? 'is-invalid' : '' %>" id="message" name="message" rows="5" required><%= formData?.message ?? '' %></textarea>
+            <% if (fieldErrors?.message) { %>
+            <div class="invalid-feedback"><%= fieldErrors.message %></div>
+            <% } %>
           </div>
           <div class="col-12 text-end">
             <button class="btn btn-gradient" type="submit">Trimite ticketul</button>

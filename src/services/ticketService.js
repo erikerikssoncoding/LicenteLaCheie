@@ -62,7 +62,7 @@ export async function createTicket({
       serializedExtra
     ]
   );
-  return result.insertId;
+  return { id: result.insertId, displayCode };
 }
 
 export async function listTicketsForUser(user) {

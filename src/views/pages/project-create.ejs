@@ -10,53 +10,144 @@
           Nu exista clienti inregistrati. Invitati clientul sa isi creeze cont sau adaugati unul manual pentru a continua.
         </div>
         <% } %>
+        <% const hasErrors = formErrors && Object.keys(formErrors).length > 0; %>
+        <% const projectFieldLabels = {
+          title: 'Titlu proiect',
+          description: 'Descriere',
+          degreeLevel: 'Nivel de studiu',
+          deadline: 'Deadline',
+          clientId: 'Client',
+          assignedAdminId: 'Admin responsabil',
+          assignedRedactorId: 'Redactor asignat'
+        }; %>
+        <% if (hasErrors) { %>
+        <div class="alert alert-danger">
+          <p class="mb-1"><%= formErrors.general || 'Verifica informatiile introduse in formular.' %></p>
+          <% const specificErrors = Object.entries(formErrors).filter(([key]) => key !== 'general'); %>
+          <% if (specificErrors.length) { %>
+          <ul class="mb-0 ps-3">
+            <% specificErrors.forEach(([key, message]) => { %>
+            <li><strong><%= projectFieldLabels[key] || key %>:</strong> <%= message %></li>
+            <% }) %>
+          </ul>
+          <% } %>
+        </div>
+        <% } %>
         <form action="/cont/proiecte/creeaza" method="post" class="row g-3">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <div class="col-12">
             <label class="form-label" for="title">Titlu proiect</label>
-            <input class="form-control" type="text" id="title" name="title" required />
+            <input
+              class="form-control <%= formErrors?.title ? 'is-invalid' : '' %>"
+              type="text"
+              id="title"
+              name="title"
+              value="<%= formData?.title || '' %>"
+              required
+            />
+            <% if (formErrors?.title) { %>
+            <div class="invalid-feedback"><%= formErrors.title %></div>
+            <% } %>
           </div>
           <div class="col-12">
             <label class="form-label" for="description">Descriere</label>
-            <textarea class="form-control" id="description" name="description" rows="4" required></textarea>
+            <textarea
+              class="form-control <%= formErrors?.description ? 'is-invalid' : '' %>"
+              id="description"
+              name="description"
+              rows="4"
+              required
+            ><%= formData?.description || '' %></textarea>
+            <% if (formErrors?.description) { %>
+            <div class="invalid-feedback"><%= formErrors.description %></div>
+            <% } %>
           </div>
           <div class="col-md-6">
             <label class="form-label" for="degreeLevel">Nivel de studiu</label>
-            <input class="form-control" type="text" id="degreeLevel" name="degreeLevel" required />
+            <input
+              class="form-control <%= formErrors?.degreeLevel ? 'is-invalid' : '' %>"
+              type="text"
+              id="degreeLevel"
+              name="degreeLevel"
+              value="<%= formData?.degreeLevel || '' %>"
+              required
+            />
+            <% if (formErrors?.degreeLevel) { %>
+            <div class="invalid-feedback"><%= formErrors.degreeLevel %></div>
+            <% } %>
           </div>
           <div class="col-md-6">
             <label class="form-label" for="deadline">Deadline</label>
-            <input class="form-control" type="date" id="deadline" name="deadline" required />
+            <input
+              class="form-control <%= formErrors?.deadline ? 'is-invalid' : '' %>"
+              type="date"
+              id="deadline"
+              name="deadline"
+              value="<%= formData?.deadline || '' %>"
+              required
+            />
+            <% if (formErrors?.deadline) { %>
+            <div class="invalid-feedback"><%= formErrors.deadline %></div>
+            <% } %>
           </div>
           <div class="col-12">
             <label class="form-label" for="clientId">Client</label>
-            <select class="form-select" id="clientId" name="clientId" <%= clients.length === 0 ? 'disabled' : '' %> required>
+            <select
+              class="form-select <%= formErrors?.clientId ? 'is-invalid' : '' %>"
+              id="clientId"
+              name="clientId"
+              <%= clients.length === 0 ? 'disabled' : '' %>
+              required
+            >
               <% if (clients.length === 0) { %>
               <option value="">Adauga mai intai un client</option>
               <% } else { %>
               <% clients.forEach((client) => { %>
-              <option value="<%= client.id %>"><%= client.full_name %> (<%= client.email %>)</option>
+              <option value="<%= client.id %>" <%= String(formData?.clientId || '') === String(client.id) ? 'selected' : '' %>>
+                <%= client.full_name %> (<%= client.email %>)
+              </option>
               <% }) %>
               <% } %>
             </select>
+            <% if (formErrors?.clientId) { %>
+            <div class="invalid-feedback"><%= formErrors.clientId %></div>
+            <% } %>
           </div>
           <div class="col-md-6">
             <label class="form-label" for="assignedAdminId">Admin responsabil</label>
-            <select class="form-select" id="assignedAdminId" name="assignedAdminId">
+            <select
+              class="form-select <%= formErrors?.assignedAdminId ? 'is-invalid' : '' %>"
+              id="assignedAdminId"
+              name="assignedAdminId"
+            >
               <option value="">-- selecteaza --</option>
               <% team.filter(member => member.role === 'admin' || member.role === 'superadmin').forEach((member) => { %>
-              <option value="<%= member.id %>"><%= member.full_name %></option>
+              <option value="<%= member.id %>" <%= String(formData?.assignedAdminId || '') === String(member.id) ? 'selected' : '' %>>
+                <%= member.full_name %>
+              </option>
               <% }) %>
             </select>
+            <% if (formErrors?.assignedAdminId) { %>
+            <div class="invalid-feedback"><%= formErrors.assignedAdminId %></div>
+            <% } %>
           </div>
           <div class="col-md-6">
             <label class="form-label" for="assignedRedactorId">Redactor asignat</label>
-            <select class="form-select" id="assignedRedactorId" name="assignedRedactorId">
+            <select
+              class="form-select <%= formErrors?.assignedRedactorId ? 'is-invalid' : '' %>"
+              id="assignedRedactorId"
+              name="assignedRedactorId"
+            >
               <option value="">-- selecteaza --</option>
               <% team.filter(member => member.role === 'redactor').forEach((member) => { %>
-              <option value="<%= member.id %>"><%= member.full_name %></option>
+              <option value="<%= member.id %>" <%= String(formData?.assignedRedactorId || '') === String(member.id) ? 'selected' : '' %>>
+                <%= member.full_name %>
+              </option>
               <% }) %>
             </select>
+            <% if (formErrors?.assignedRedactorId) { %>
+            <div class="invalid-feedback"><%= formErrors.assignedRedactorId %></div>
+            <% } %>
           </div>
           <div class="col-12 text-end">
             <button class="btn btn-primary" type="submit" <%= clients.length === 0 ? 'disabled' : '' %>>Creaza proiectul</button>

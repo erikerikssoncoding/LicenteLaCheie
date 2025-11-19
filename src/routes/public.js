@@ -10,9 +10,9 @@ import {
 } from '../services/offerService.js';
 import { ensureClientAccount, updateUserProfile } from '../services/userService.js';
 import { createTicket } from '../services/ticketService.js';
-import { sendOfferSubmissionEmails } from '../services/mailService.js';
+import { sendContactSubmissionEmails, sendOfferSubmissionEmails } from '../services/mailService.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
-import { OFFER_ATTACHMENT_ROOT, buildStoredFileName } from '../utils/fileStorage.js';
+import { CONTACT_ATTACHMENT_ROOT, OFFER_ATTACHMENT_ROOT, buildStoredFileName } from '../utils/fileStorage.js';
 
 const router = Router();
 
@@ -34,6 +34,15 @@ const OFFER_ALLOWED_MIME_TYPES = new Set([
   'text/plain',
   'text/csv',
   'application/json',
+  'image/jpeg',
+  'image/png'
+]);
+const CONTACT_ATTACHMENT_MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+const CONTACT_ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
   'image/jpeg',
   'image/png'
 ]);
@@ -60,6 +69,23 @@ const offerAttachmentUpload = multer({
   limits: { fileSize: OFFER_ATTACHMENT_MAX_SIZE, files: OFFER_ATTACHMENT_MAX_FILES },
   fileFilter: (req, file, cb) => {
     if (OFFER_ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(null, true);
+    }
+    const error = new Error('UNSUPPORTED_FILE_TYPE');
+    return cb(error);
+  }
+});
+
+const contactAttachmentStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, CONTACT_ATTACHMENT_ROOT),
+  filename: (req, file, cb) => cb(null, buildStoredFileName(file.originalname))
+});
+
+const contactAttachmentUpload = multer({
+  storage: contactAttachmentStorage,
+  limits: { fileSize: CONTACT_ATTACHMENT_MAX_SIZE, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (CONTACT_ALLOWED_MIME_TYPES.has(file.mimetype)) {
       return cb(null, true);
     }
     const error = new Error('UNSUPPORTED_FILE_TYPE');
@@ -107,6 +133,13 @@ async function cleanupOfferFiles(files = []) {
   );
 }
 
+const cleanupContactAttachment = async (file) => {
+  if (!file?.path) {
+    return;
+  }
+  await fs.unlink(file.path).catch(() => null);
+};
+
 const formatAttachmentSummary = (files = []) => {
   if (!files.length) {
     return null;
@@ -132,7 +165,29 @@ const mapUploadError = (error) => {
   return 'Încărcarea fișierului a eșuat. Reîncearcă sau contactează-ne pentru ajutor.';
 };
 
-const sanitizePhoneValue = (value) => value.replace(/\s+/g, '');
+const mapContactUploadError = (error) => {
+  if (!error) {
+    return null;
+  }
+  if (error.code === 'LIMIT_FILE_SIZE') {
+    return 'Fișierul poate avea cel mult 5MB.';
+  }
+  if (error.code === 'LIMIT_FILE_COUNT' || error.code === 'LIMIT_UNEXPECTED_FILE') {
+    return 'Poți atașa un singur fișier la mesaj.';
+  }
+  if (error.message === 'UNSUPPORTED_FILE_TYPE') {
+    return 'Acceptăm doar fișiere PDF, DOC/DOCX, JPG, PNG sau TXT.';
+  }
+  return 'Încărcarea fișierului a eșuat. Reîncearcă sau contactează-ne pentru ajutor.';
+};
+
+const CONTACT_PAGE_PROPS = {
+  title: 'Contact Licente la Cheie',
+  description:
+    'Scrie-ne pentru a afla cum te putem ajuta cu redactarea lucrarii de licenta sau a proiectului tau academic.'
+};
+
+const sanitizePhoneValue = (value) => value.replace(/[\s().-]+/g, '');
 
 const hasInvalidRepetition = (value) => {
   const digits = value.replace(/\D/g, '').slice(-9);
@@ -169,11 +224,7 @@ router.get('/servicii', (req, res) => {
 router
   .route('/contact')
   .get((req, res) => {
-    res.render('pages/contact', {
-      title: 'Contact Licente la Cheie',
-      description:
-        'Scrie-ne pentru a afla cum te putem ajuta cu redactarea lucrarii de licenta sau a proiectului tau academic.'
-    });
+    res.render('pages/contact', CONTACT_PAGE_PROPS);
   })
   .post(async (req, res, next) => {
     try {
@@ -239,9 +290,20 @@ router
             'Scrie-ne pentru a afla cum te putem ajuta cu redactarea lucrarii de licenta sau a proiectului tau academic.',
           error: 'Completeaza corect toate campurile pentru a trimite mesajul.'
         });
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          const message =
+            error.errors?.[0]?.message || 'Completează corect toate câmpurile pentru a trimite mesajul.';
+          return res.status(400).render('pages/contact', {
+            ...CONTACT_PAGE_PROPS,
+            error: message
+          });
+        }
+        return next(error);
+      } finally {
+        await cleanupContactAttachment(attachment);
       }
-      next(error);
-    }
+    });
   });
 
 router

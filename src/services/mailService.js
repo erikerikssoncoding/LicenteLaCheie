@@ -405,3 +405,58 @@ export async function sendOfferSubmissionEmails({
     await sendRawMail({ to: submissionEmail, subject: 'Confirmare solicitare ofertă Licențe la Cheie', text: clientText, attachments: [] });
   }
 }
+
+export async function sendContactSubmissionEmails({ payload, attachments, clientMetadata, submissionEmail }) {
+  if (!isMailConfigured()) {
+    return;
+  }
+  const attachmentPayload = (attachments || []).map((file) => ({
+    filename: file.originalname,
+    contentType: file.mimetype,
+    path: file.path
+  }));
+  const adminRecipients = normalizeAddressList(MAIL_NOTIFICATIONS_TO) || [];
+  if (!adminRecipients.length) {
+    adminRecipients.push(extractAddress(MAIL_FROM));
+  }
+  const ipInfo = payload.ipAddress || clientMetadata?.ipAddress || 'nedisponibil';
+  const adminText = [
+    'Ai primit un mesaj nou prin formularul de contact:',
+    '',
+    `Nume: ${payload.fullName}`,
+    `Email: ${payload.email}`,
+    `Telefon: ${payload.phone}`,
+    `IP sursă: ${ipInfo}`,
+    '',
+    'Mesaj:',
+    payload.message,
+    '',
+    formatMetadata(clientMetadata) || 'Metadate suplimentare indisponibile'
+  ].join('\n');
+  await sendRawMail({
+    to: adminRecipients,
+    subject: `Mesaj nou din formularul de contact - ${payload.fullName}`,
+    text: adminText,
+    attachments: attachmentPayload
+  });
+
+  if (submissionEmail) {
+    const clientText = [
+      `Bună, ${payload.fullName}!`,
+      '',
+      'Îți confirmăm că am primit mesajul transmis prin formularul nostru de contact.',
+      'Un consultant Licențe la Cheie îți va răspunde în cel mai scurt timp la datele menționate.',
+      '',
+      'Dacă ai documente suplimentare, răspunde la acest email pentru a le atașa.',
+      '',
+      'Îți mulțumim!',
+      'Echipa Licențe la Cheie'
+    ].join('\n');
+    await sendRawMail({
+      to: submissionEmail,
+      subject: 'Confirmare mesaj de contact Licențe la Cheie',
+      text: clientText,
+      attachments: []
+    });
+  }
+}

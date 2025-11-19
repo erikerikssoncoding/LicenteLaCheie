@@ -1,39 +1,41 @@
 <%- include('../partials/head', { title, description, request }) %>
 <%- include('../partials/header') %>
-<section class="py-5">
-  <div class="container" style="max-width: 600px;">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h1 class="h4 mb-3">Creeaza-ti cont</h1>
-        <% if (typeof error !== 'undefined') { %>
-        <div class="alert alert-danger"><%= error %></div>
-        <% } %>
-        <form action="/inregistrare" method="post" class="row g-3">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <div class="col-12">
-            <label class="form-label" for="fullName">Nume complet</label>
-            <input class="form-control" type="text" id="fullName" name="fullName" required />
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="email">Email</label>
-            <input class="form-control" type="email" id="email" name="email" required />
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="phone">Telefon</label>
-            <input class="form-control" type="tel" id="phone" name="phone" required />
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="password">Parola</label>
-            <input class="form-control" type="password" id="password" name="password" required />
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="confirmPassword">Confirma parola</label>
-            <input class="form-control" type="password" id="confirmPassword" name="confirmPassword" required />
-          </div>
-          <div class="col-12 text-end">
-            <button class="btn btn-primary" type="submit">Creeaza cont</button>
-          </div>
-        </form>
+<section class="py-5 auth-section">
+  <div class="container">
+    <div class="row align-items-center justify-content-center g-4">
+      <div class="col-md-8 col-lg-6">
+        <div class="glass-card auth-card mx-auto">
+          <h1 class="h4 mb-3 text-center">Creează-ți contul</h1>
+          <% if (typeof error !== 'undefined') { %>
+          <div class="alert alert-danger"><%= error %></div>
+          <% } %>
+          <form action="/inregistrare" method="post" class="row g-3">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <div class="col-12">
+              <label class="form-label" for="fullName">Nume complet</label>
+              <input class="form-control" type="text" id="fullName" name="fullName" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="email">Email</label>
+              <input class="form-control" type="email" id="email" name="email" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="phone">Telefon</label>
+              <input class="form-control" type="tel" id="phone" name="phone" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="password">Parolă</label>
+              <input class="form-control" type="password" id="password" name="password" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="confirmPassword">Confirmă parola</label>
+              <input class="form-control" type="password" id="confirmPassword" name="confirmPassword" required />
+            </div>
+            <div class="col-12 text-end">
+              <button class="btn btn-primary" type="submit">Creează cont</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>

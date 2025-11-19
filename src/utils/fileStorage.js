@@ -7,6 +7,7 @@ const generateFileToken = customAlphabet(FILE_TOKEN_ALPHABET, 12);
 
 export const PROJECT_UPLOAD_ROOT = path.resolve(process.cwd(), 'uploads', 'projects');
 export const OFFER_ATTACHMENT_ROOT = path.resolve(process.cwd(), 'uploads', 'offer-attachments');
+export const CONTACT_ATTACHMENT_ROOT = path.resolve(process.cwd(), 'uploads', 'contact-attachments');
 
 export function sanitizeFileNamePart(value) {
   return value

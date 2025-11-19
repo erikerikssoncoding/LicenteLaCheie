@@ -108,21 +108,25 @@ const CONTRACT_BASE_STYLES = `
   strong {
     font-weight: 600;
   }
-  .page-number {
-    position: fixed;
-    bottom: 12mm;
-    left: 0;
-    right: 0;
-    text-align: center;
+`;
+
+const FOOTER_TEMPLATE = `
+<style>
+  .pdf-footer {
+    width: 100%;
+    margin: 0 auto;
+    padding-bottom: 8px;
     font-size: 10px;
+    font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
     color: #6c757d;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    text-align: center;
   }
-  .page-number::after {
-    content: 'Pagina ' counter(page) ' din ' counter(pages);
-  }
-`;
+</style>
+<div class="pdf-footer">
+  Pagina <span class="pageNumber"></span> din <span class="totalPages"></span>
+</div>`;
 
 async function getPuppeteer() {
   if (!puppeteerModulePromise) {
@@ -174,13 +178,12 @@ function buildHtmlDocument(content, { copyLabel } = {}) {
         ${CONTRACT_BASE_STYLES}
       </style>
     </head>
-    <body>
-      <div class="pdf-wrapper">
-        ${copyLabel ? `<div class="copy-label">${copyLabel}</div>` : ''}
-        ${content || ''}
-      </div>
-      <div class="page-number"></div>
-    </body>
+  <body>
+    <div class="pdf-wrapper">
+      ${copyLabel ? `<div class="copy-label">${copyLabel}</div>` : ''}
+      ${content || ''}
+    </div>
+  </body>
   </html>`;
 }
 
@@ -194,7 +197,14 @@ export async function createPdfBufferFromHtml(html, options = {}) {
     await page.setViewport(VIEWPORT);
     await page.setContent(buildHtmlDocument(String(html), options), { waitUntil: 'networkidle0' });
     await page.emulateMediaType('screen');
-    const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: PDF_MARGIN_MM });
+    const pdf = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: PDF_MARGIN_MM,
+      displayHeaderFooter: true,
+      headerTemplate: '<span></span>',
+      footerTemplate: FOOTER_TEMPLATE
+    });
     const buffer = Buffer.isBuffer(pdf) ? pdf : Buffer.from(pdf);
     return buffer;
   } finally {

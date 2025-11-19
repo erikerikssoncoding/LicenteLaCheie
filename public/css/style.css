@@ -927,11 +927,6 @@ a:hover {
   letter-spacing: 0.22em;
 }
 
-.footer-powered-mark {
-  height: 32px;
-  width: auto;
-}
-
 .footer-compliance {
   display: flex;
   flex-wrap: wrap;

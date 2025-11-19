@@ -13,6 +13,7 @@ import { createTicket } from '../services/ticketService.js';
 import { sendContactSubmissionEmails, sendOfferSubmissionEmails } from '../services/mailService.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
 import { CONTACT_ATTACHMENT_ROOT, OFFER_ATTACHMENT_ROOT, buildStoredFileName } from '../utils/fileStorage.js';
+import csrfProtection from '../middleware/csrfProtection.js';
 
 const router = Router();
 
@@ -123,6 +124,18 @@ const renderOfferPage = (res, extra = {}, status = 200) =>
     ...extra
   });
 
+const renderContactPage = (res, extra = {}, status = 200) =>
+  res.status(status).render('pages/contact', {
+    ...CONTACT_PAGE_PROPS,
+    ...extra
+  });
+
+const setResponseCsrfToken = (req, res) => {
+  if (typeof req.csrfToken === 'function') {
+    res.locals.csrfToken = req.csrfToken();
+  }
+};
+
 async function cleanupOfferFiles(files = []) {
   await Promise.all(
     files.map((file) =>
@@ -223,135 +236,176 @@ router.get('/servicii', (req, res) => {
 
 router
   .route('/contact')
-  .get((req, res) => {
+  .get(csrfProtection, (req, res) => {
+    setResponseCsrfToken(req, res);
     res.render('pages/contact', CONTACT_PAGE_PROPS);
   })
-  .post((req, res, next) => {
-    // 1. Adăugăm middleware-ul de upload pentru a procesa multipart/form-data
-    contactAttachmentUpload.single('attachment')(req, res, async (uploadError) => {
-      if (uploadError) {
-        return res.status(400).render('pages/contact', {
-          ...CONTACT_PAGE_PROPS,
-          error: mapContactUploadError(uploadError)
-        });
-      }
-
-      try {
-        const schema = z.object({
-          fullName: z.string().min(3, 'Numele trebuie să aibă minim 3 caractere'),
-          email: z.string().email('Adresa de email nu este validă'),
-          phone: z.string().min(6, 'Numărul de telefon este invalid'),
-          message: z.string().min(10, 'Mesajul trebuie să fie mai detaliat')
-        });
-        
-        const data = schema.parse(req.body);
-        const clientMetadata = collectClientMetadata(req);
-        
-        // Folosim req.file, deoarece 'attachment' nu era definit ca variabilă
-        const attachment = req.file;
-
-        if (req.session?.user) {
-          const user = req.session.user;
-          if (user.fullName !== data.fullName || user.phone !== data.phone) {
-            await updateUserProfile(user.id, { fullName: data.fullName, phone: data.phone });
-            req.session.user.fullName = data.fullName;
-            req.session.user.phone = data.phone;
-          }
-          
-          const { id: ticketId, displayCode } = await createTicket({
-            projectId: null,
-            userId: user.id,
-            subject: `Solicitare contact - ${data.fullName}`,
-            message: `Telefon: ${data.phone}\nEmail: ${user.email}\n\n${data.message}`,
-            kind: 'support',
-            clientMetadata
-          });
-
-          return res.render('pages/contact-success', {
-            title: 'Ticket deschis cu succes',
-            description: 'Am inregistrat solicitarea ta direct in cont. Echipa noastra iti va raspunde in cel mai scurt timp.',
-            ticketId,
-            ticketDisplayCode: displayCode,
-            submissionEmail: user.email
-          });
-        }
-
-        const ensuredAccount = await ensureClientAccount({
-          fullName: data.fullName,
-          email: data.email,
-          phone: data.phone
-        });
-
-        const messageBody = `Telefon: ${data.phone}\nEmail: ${data.email}\n\n${data.message}`;
-        const { id: ticketId, displayCode } = await createTicket({
-          projectId: null,
-          userId: ensuredAccount.userId,
-          subject: `Solicitare contact - ${data.fullName}`,
-          message: messageBody,
-          kind: 'support',
-          clientMetadata
-        });
-
-        // Aici probabil voiai să salvezi și atașamentul dacă există, 
-        // dar funcția createContactRequest din codul tău original primea doar 'data'.
-        await createContactRequest(data);
-
-        return res.render('pages/contact-success', {
-          title: 'Mesaj trimis cu succes',
-          description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.',
-          generatedPassword: ensuredAccount.generatedPassword,
-          submissionEmail: data.email,
-          ticketId,
-          ticketDisplayCode: displayCode
-        });
-
-      } catch (error) {
-        // AICI ERA EROAREA DE SINTAXĂ: Ai avut două blocuri catch imbricate
-        if (error instanceof z.ZodError) {
-          const message = error.errors?.[0]?.message || 'Completează corect toate câmpurile.';
-          return res.status(400).render('pages/contact', {
-            ...CONTACT_PAGE_PROPS,
-            error: message,
-            // E util să trimiți înapoi datele introduse ca să nu le piardă userul
-            request: { body: req.body } 
-          });
-        }
-        return next(error);
-      } finally {
-        // 2. Corecție: Folosim req.file în loc de variabila inexistentă 'attachment'
-        if (req.file) {
-          await cleanupContactAttachment(req.file);
-        }
-      }
-    });
-  });
+  .post(contactAttachmentUpload.single('attachment'), csrfProtection, handleContactPost);
 
 router
   .route('/oferta')
-  .get((req, res) => renderOfferPage(res))
-  .post((req, res, next) => {
-    offerAttachmentUpload.array('attachments', OFFER_ATTACHMENT_MAX_FILES)(req, res, async (uploadError) => {
-      if (uploadError) {
-        const attachments = Array.isArray(req.files) ? req.files : [];
-        await cleanupOfferFiles(attachments);
-        return renderOfferPage(res, { error: mapUploadError(uploadError) }, 400);
+  .get(csrfProtection, (req, res) => {
+    setResponseCsrfToken(req, res);
+    return renderOfferPage(res);
+  })
+  .post(offerAttachmentUpload.array('attachments', OFFER_ATTACHMENT_MAX_FILES), csrfProtection, handleOfferPost);
+
+router.use('/contact', async (err, req, res, next) => {
+  if (req.method !== 'POST') {
+    return next(err);
+  }
+  if (!(err instanceof multer.MulterError) && err?.message !== 'UNSUPPORTED_FILE_TYPE') {
+    return next(err);
+  }
+  try {
+    await cleanupContactAttachment(req.file);
+    return csrfProtection(req, res, (csrfError) => {
+      if (csrfError) {
+        return next(csrfError);
       }
-      try {
-        await handleOfferSubmission(req, res);
-      } catch (error) {
-        if (!(error instanceof z.ZodError)) {
-          return next(error);
-        }
-        const attachments = Array.isArray(req.files) ? req.files : [];
-        await cleanupOfferFiles(attachments);
-        const errorMessage =
-          error.errors?.[0]?.message || 'Verifică datele introduse și completează toate câmpurile obligatorii.';
-        return renderOfferPage(res, { error: errorMessage }, 400);
-      }
+      setResponseCsrfToken(req, res);
+      return renderContactPage(res, { error: mapContactUploadError(err) }, 400);
     });
-  });
+  } catch (cleanupError) {
+    return next(cleanupError);
+  }
+});
+
+router.use('/oferta', async (err, req, res, next) => {
+  if (req.method !== 'POST') {
+    return next(err);
+  }
+  if (!(err instanceof multer.MulterError) && err?.message !== 'UNSUPPORTED_FILE_TYPE') {
+    return next(err);
+  }
+  const attachments = Array.isArray(req.files) ? req.files : [];
+  try {
+    await cleanupOfferFiles(attachments);
+    return csrfProtection(req, res, (csrfError) => {
+      if (csrfError) {
+        return next(csrfError);
+      }
+      setResponseCsrfToken(req, res);
+      return renderOfferPage(res, { error: mapUploadError(err) }, 400);
+    });
+  } catch (cleanupError) {
+    return next(cleanupError);
+  }
+});
+
+async function handleContactPost(req, res, next) {
+  try {
+    setResponseCsrfToken(req, res);
+    const schema = z.object({
+      fullName: z.string().min(3, 'Numele trebuie să aibă minim 3 caractere'),
+      email: z.string().email('Adresa de email nu este validă'),
+      phone: z.string().min(6, 'Numărul de telefon este invalid'),
+      message: z.string().min(10, 'Mesajul trebuie să fie mai detaliat')
+    });
+
+    const data = schema.parse(req.body);
+    const clientMetadata = collectClientMetadata(req);
+
+    const attachment = req.file;
+
+    if (req.session?.user) {
+      const user = req.session.user;
+      if (user.fullName !== data.fullName || user.phone !== data.phone) {
+        await updateUserProfile(user.id, { fullName: data.fullName, phone: data.phone });
+        req.session.user.fullName = data.fullName;
+        req.session.user.phone = data.phone;
+      }
+
+      const { id: ticketId, displayCode } = await createTicket({
+        projectId: null,
+        userId: user.id,
+        subject: `Solicitare contact - ${data.fullName}`,
+        message: `Telefon: ${data.phone}\nEmail: ${user.email}\n\n${data.message}`,
+        kind: 'support',
+        clientMetadata
+      });
+
+      return res.render('pages/contact-success', {
+        title: 'Ticket deschis cu succes',
+        description: 'Am inregistrat solicitarea ta direct in cont. Echipa noastra iti va raspunde in cel mai scurt timp.',
+        ticketId,
+        ticketDisplayCode: displayCode,
+        submissionEmail: user.email
+      });
+    }
+
+    const ensuredAccount = await ensureClientAccount({
+      fullName: data.fullName,
+      email: data.email,
+      phone: data.phone
+    });
+
+    const messageBody = `Telefon: ${data.phone}\nEmail: ${data.email}\n\n${data.message}`;
+    const { id: ticketId, displayCode } = await createTicket({
+      projectId: null,
+      userId: ensuredAccount.userId,
+      subject: `Solicitare contact - ${data.fullName}`,
+      message: messageBody,
+      kind: 'support',
+      clientMetadata
+    });
+
+    await createContactRequest(data);
+
+    await sendContactSubmissionEmails({
+      payload: data,
+      attachments: attachment ? [attachment] : [],
+      clientMetadata,
+      submissionEmail: data.email
+    }).catch((error) => console.error('Nu s-a putut trimite emailul de contact:', error));
+
+    return res.render('pages/contact-success', {
+      title: 'Mesaj trimis cu succes',
+      description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.',
+      generatedPassword: ensuredAccount.generatedPassword,
+      submissionEmail: data.email,
+      ticketId,
+      ticketDisplayCode: displayCode
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const message = error.errors?.[0]?.message || 'Completează corect toate câmpurile.';
+      return renderContactPage(
+        res,
+        {
+          error: message,
+          request: { body: req.body }
+        },
+        400
+      );
+    }
+    return next(error);
+  } finally {
+    if (req.file) {
+      await cleanupContactAttachment(req.file);
+    }
+  }
+}
+
+async function handleOfferPost(req, res, next) {
+  try {
+    await handleOfferSubmission(req, res);
+  } catch (error) {
+    if (!(error instanceof z.ZodError)) {
+      return next(error);
+    }
+    const attachments = Array.isArray(req.files) ? req.files : [];
+    await cleanupOfferFiles(attachments);
+    setResponseCsrfToken(req, res);
+    const errorMessage =
+      error.errors?.[0]?.message || 'Verifică datele introduse și completează toate câmpurile obligatorii.';
+    return renderOfferPage(res, { error: errorMessage }, 400);
+  }
+  return null;
+}
 
 async function handleOfferSubmission(req, res) {
+  setResponseCsrfToken(req, res);
   const isAuthenticated = Boolean(req.session?.user);
   const schema = z.object({
     clientName: z.string().trim().min(3, 'Introduce un nume complet valid.'),

@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { promises as fs } from 'fs';
+import multer from 'multer';
 import { z } from 'zod';
 import { createContactRequest } from '../services/contactService.js';
 import {
@@ -8,11 +10,37 @@ import {
 } from '../services/offerService.js';
 import { ensureClientAccount, updateUserProfile } from '../services/userService.js';
 import { createTicket } from '../services/ticketService.js';
+import { sendOfferSubmissionEmails } from '../services/mailService.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
+import { OFFER_ATTACHMENT_ROOT, buildStoredFileName } from '../utils/fileStorage.js';
 
 const router = Router();
 
 const MINIMUM_DELIVERY_LEAD_DAYS = 14;
+const OFFER_ATTACHMENT_MAX_FILES = 5;
+const OFFER_ATTACHMENT_MAX_SIZE = 8 * 1024 * 1024; // 8 MB
+const OFFER_ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'application/x-7z-compressed',
+  'text/plain',
+  'text/csv',
+  'application/json',
+  'image/jpeg',
+  'image/png'
+]);
+const PHONE_PATTERN = /^(?:\+?40|0)[23789][0-9]{8}$/u;
+const OFFER_PAGE_TITLE = 'Solicită o ofertă personalizată pentru lucrarea ta';
+const OFFER_PAGE_DESCRIPTION =
+  'Completează formularul iar platforma va genera un draft de contract pentru redactarea, corectura și pregătirea lucrării tale.';
 
 const OFFER_WORK_TYPES = [
   'lucrare de licenta',
@@ -21,6 +49,23 @@ const OFFER_WORK_TYPES = [
   'lucrare de doctorat',
   'proiect'
 ];
+
+const offerAttachmentStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, OFFER_ATTACHMENT_ROOT),
+  filename: (req, file, cb) => cb(null, buildStoredFileName(file.originalname))
+});
+
+const offerAttachmentUpload = multer({
+  storage: offerAttachmentStorage,
+  limits: { fileSize: OFFER_ATTACHMENT_MAX_SIZE, files: OFFER_ATTACHMENT_MAX_FILES },
+  fileFilter: (req, file, cb) => {
+    if (OFFER_ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(null, true);
+    }
+    const error = new Error('UNSUPPORTED_FILE_TYPE');
+    return cb(error);
+  }
+});
 
 const getMinimumDeliveryDate = () => {
   const today = new Date();
@@ -42,6 +87,59 @@ const parseDateInput = (value) => {
     return null;
   }
   return new Date(Date.UTC(year, month - 1, day));
+};
+
+const renderOfferPage = (res, extra = {}, status = 200) =>
+  res.status(status).render('pages/offer', {
+    title: OFFER_PAGE_TITLE,
+    description: OFFER_PAGE_DESCRIPTION,
+    minDeliveryDate: formatDateForInput(getMinimumDeliveryDate()),
+    ...extra
+  });
+
+async function cleanupOfferFiles(files = []) {
+  await Promise.all(
+    files.map((file) =>
+      fs.unlink(file.path).catch(() => {
+        return null;
+      })
+    )
+  );
+}
+
+const formatAttachmentSummary = (files = []) => {
+  if (!files.length) {
+    return null;
+  }
+  return files
+    .map((file) => `- ${file.originalname} (${(file.size / 1024).toFixed(1)} KB)`)
+    .join('\n');
+};
+
+const mapUploadError = (error) => {
+  if (!error) {
+    return null;
+  }
+  if (error.code === 'LIMIT_FILE_SIZE') {
+    return 'Fiecare fișier poate avea maximum 8MB.';
+  }
+  if (error.code === 'LIMIT_FILE_COUNT' || error.code === 'LIMIT_UNEXPECTED_FILE') {
+    return 'Poți încărca cel mult 5 fișiere pentru evaluare.';
+  }
+  if (error.message === 'UNSUPPORTED_FILE_TYPE') {
+    return 'Formatul fișierului nu este acceptat. Încarcă PDF, DOC(X), XLS(X), PPT(X), imagini sau arhive.';
+  }
+  return 'Încărcarea fișierului a eșuat. Reîncearcă sau contactează-ne pentru ajutor.';
+};
+
+const sanitizePhoneValue = (value) => value.replace(/\s+/g, '');
+
+const hasInvalidRepetition = (value) => {
+  const digits = value.replace(/\D/g, '').slice(-9);
+  if (!digits || digits.length < 6) {
+    return false;
+  }
+  return /^([0-9])\1+$/u.test(digits);
 };
 
 router.get('/', (req, res) => {
@@ -127,109 +225,135 @@ router
 
 router
   .route('/oferta')
-  .get((req, res) => {
-    res.render('pages/offer', {
-      title: 'Solicita o oferta personalizata pentru lucrarea de licenta',
-      description:
-        'Completeaza formularul pentru a primi o oferta si un contract personalizat pentru redactarea lucrarii tale de licenta.',
-      minDeliveryDate: formatDateForInput(getMinimumDeliveryDate())
-    });
-  })
-  .post(async (req, res, next) => {
-    try {
-      const isAuthenticated = Boolean(req.session?.user);
-      const schema = z.object({
-        clientName: z.string().min(3),
-        email: z.string().email(),
-        phone: z.string().min(6),
-        program: z.string().min(3),
-        topic: z.string().min(5),
-        workType: z.enum(OFFER_WORK_TYPES),
-        deliveryDate: z
-          .string()
-          .regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u, 'Selecteaza o data de livrare valida (format AAAA-LL-ZZ).')
-          .refine((value) => {
-            const parsed = parseDateInput(value);
-            if (!parsed) {
-              return false;
-            }
-            const minimum = getMinimumDeliveryDate();
-            return parsed >= minimum;
-          }, `Data dorita de livrare trebuie sa fie la cel putin ${MINIMUM_DELIVERY_LEAD_DAYS} zile distanta de astazi.`),
-        notes: z.string().optional(),
-        acceptAccount: isAuthenticated ? z.any().optional() : z.literal('on')
-      });
-      const payload = schema.parse(req.body);
-      let generatedPassword = null;
-      let userId;
-      let submissionEmail = payload.email.toLowerCase();
-      if (isAuthenticated) {
-        const user = req.session.user;
-        userId = user.id;
-        submissionEmail = user.email.toLowerCase();
-        if (user.fullName !== payload.clientName || user.phone !== payload.phone) {
-          await updateUserProfile(user.id, { fullName: payload.clientName, phone: payload.phone });
-          req.session.user.fullName = payload.clientName;
-          req.session.user.phone = payload.phone;
+  .get((req, res) => renderOfferPage(res))
+  .post((req, res, next) => {
+    offerAttachmentUpload.array('attachments', OFFER_ATTACHMENT_MAX_FILES)(req, res, async (uploadError) => {
+      if (uploadError) {
+        const attachments = Array.isArray(req.files) ? req.files : [];
+        await cleanupOfferFiles(attachments);
+        return renderOfferPage(res, { error: mapUploadError(uploadError) }, 400);
+      }
+      try {
+        await handleOfferSubmission(req, res);
+      } catch (error) {
+        if (!(error instanceof z.ZodError)) {
+          return next(error);
         }
-      } else {
-        const ensured = await ensureClientAccount({
-          fullName: payload.clientName,
-          email: payload.email,
-          phone: payload.phone
-        });
-        userId = ensured.userId;
-        generatedPassword = ensured.generatedPassword;
-      }
-      const clientMetadata = collectClientMetadata(req);
-      const ticketId = await createTicket({
-        projectId: null,
-        userId,
-        subject: `Solicitare oferta - ${payload.topic}`,
-        message: `Tip lucrare: ${payload.workType}\nProgram de studiu: ${payload.program}\nLivrare dorita: ${
-          payload.deliveryDate
-        }\nDetalii suplimentare: ${payload.notes || 'nespecificate'}`,
-        kind: 'offer',
-        clientMetadata
-      });
-      const { offerCode } = await createOfferRequest({
-        clientName: payload.clientName,
-        userId,
-        email: submissionEmail,
-        phone: payload.phone,
-        program: payload.program,
-        topic: payload.topic,
-        workType: payload.workType,
-        deliveryDate: payload.deliveryDate,
-        notes: payload.notes,
-        ticketId
-      });
-      res.render('pages/offer-success', {
-        title: 'Oferta generata',
-        description:
-          'Solicitarea ta a fost inregistrata. Vei primi oferta personalizata in contul tau Licente la Cheie.',
-        offerCode,
-        ticketId,
-        generatedPassword,
-        defaultExpiration: DEFAULT_OFFER_EXPIRATION_HOURS,
-        submissionEmail
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
+        const attachments = Array.isArray(req.files) ? req.files : [];
+        await cleanupOfferFiles(attachments);
         const errorMessage =
-          error.errors?.[0]?.message ||
-          'Verifica datele introduse si completeaza toate campurile obligatorii.';
-        return res.status(400).render('pages/offer', {
-          title: 'Solicita o oferta personalizata pentru lucrarea de licenta',
-          description:
-            'Completeaza formularul pentru a primi o oferta si un contract personalizat pentru redactarea lucrarii tale de licenta.',
-          error: errorMessage,
-          minDeliveryDate: formatDateForInput(getMinimumDeliveryDate())
-        });
+          error.errors?.[0]?.message || 'Verifică datele introduse și completează toate câmpurile obligatorii.';
+        return renderOfferPage(res, { error: errorMessage }, 400);
       }
-      next(error);
-    }
+    });
   });
+
+async function handleOfferSubmission(req, res) {
+  const isAuthenticated = Boolean(req.session?.user);
+  const schema = z.object({
+    clientName: z.string().trim().min(3, 'Introduce un nume complet valid.'),
+    email: z.string().trim().email('Te rugăm să introduci o adresă de email validă.'),
+    phone: z
+      .string()
+      .min(6)
+      .transform((value) => sanitizePhoneValue(value))
+      .regex(PHONE_PATTERN, 'Introdu un număr de telefon din România cu prefix valid.')
+      .refine((value) => !hasInvalidRepetition(value), 'Numărul de telefon nu poate avea toate cifrele identice.'),
+    program: z.string().trim().min(3, 'Programul de studii trebuie să aibă cel puțin 3 caractere.'),
+    topic: z.string().trim().min(5, 'Tema lucrării trebuie să fie mai detaliată.'),
+    workType: z.enum(OFFER_WORK_TYPES),
+    deliveryDate: z
+      .string()
+      .regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u, 'Selectează o dată de livrare validă (format AAAA-LL-ZZ).')
+      .refine((value) => {
+        const parsed = parseDateInput(value);
+        if (!parsed) {
+          return false;
+        }
+        const minimum = getMinimumDeliveryDate();
+        return parsed >= minimum;
+      }, `Data dorită de livrare trebuie să fie la cel puțin ${MINIMUM_DELIVERY_LEAD_DAYS} zile distanță de astăzi.`),
+    notes: z
+      .string()
+      .max(2000)
+      .transform((value) => value.trim())
+      .optional(),
+    acceptAccount: isAuthenticated ? z.any().optional() : z.literal('on')
+  });
+  const payload = schema.parse(req.body);
+  const attachments = Array.isArray(req.files) ? req.files : [];
+  let generatedPassword = null;
+  let userId;
+  let submissionEmail = payload.email.toLowerCase();
+  if (isAuthenticated) {
+    const user = req.session.user;
+    userId = user.id;
+    submissionEmail = user.email.toLowerCase();
+    if (user.fullName !== payload.clientName || user.phone !== payload.phone) {
+      await updateUserProfile(user.id, { fullName: payload.clientName, phone: payload.phone });
+      req.session.user.fullName = payload.clientName;
+      req.session.user.phone = payload.phone;
+    }
+  } else {
+    const ensured = await ensureClientAccount({
+      fullName: payload.clientName,
+      email: payload.email,
+      phone: payload.phone
+    });
+    userId = ensured.userId;
+    generatedPassword = ensured.generatedPassword;
+  }
+  const clientMetadata = collectClientMetadata(req);
+  const attachmentSummary = formatAttachmentSummary(attachments);
+  const metadataLine = clientMetadata.ipAddress ? `IP client: ${clientMetadata.ipAddress}` : null;
+  const messageSegments = [
+    `Tip lucrare: ${payload.workType}`,
+    `Program de studii: ${payload.program}`,
+    `Livrare dorită: ${payload.deliveryDate}`,
+    `Detalii suplimentare: ${payload.notes || 'nespecificate'}`,
+    attachmentSummary ? `Atașamente încărcate:\n${attachmentSummary}` : null,
+    metadataLine
+  ].filter(Boolean);
+  const ticketId = await createTicket({
+    projectId: null,
+    userId,
+    subject: `Solicitare oferta - ${payload.topic}`,
+    message: messageSegments.join('\n\n'),
+    kind: 'offer',
+    clientMetadata
+  });
+  const { offerCode } = await createOfferRequest({
+    clientName: payload.clientName,
+    userId,
+    email: submissionEmail,
+    phone: payload.phone,
+    program: payload.program,
+    topic: payload.topic,
+    workType: payload.workType,
+    deliveryDate: payload.deliveryDate,
+    notes: payload.notes,
+    ticketId
+  });
+  sendOfferSubmissionEmails({
+    payload,
+    submissionEmail,
+    attachments,
+    clientMetadata,
+    ticketId,
+    offerCode
+  }).catch((error) => {
+    console.error('Nu s-a putut trimite notificarea prin email:', error);
+  });
+  res.render('pages/offer-success', {
+    title: 'Solicitarea a fost trimisă',
+    description: 'Solicitarea ta a fost înregistrată și ai primit un email de confirmare.',
+    offerCode,
+    ticketId,
+    generatedPassword,
+    defaultExpiration: DEFAULT_OFFER_EXPIRATION_HOURS,
+    submissionEmail
+  });
+}
 
 router.get('/contract/:code', async (req, res, next) => {
   try {

@@ -4,11 +4,20 @@
   <% const isManager = isAuthenticated && ['admin', 'superadmin'].includes(currentUser.role); %>
   <div class="container">
     <a
-      class="navbar-brand fw-semibold brand-gradient"
+      class="navbar-brand fw-semibold"
       href="/"
+      aria-label="Academia de Licențe"
     >
-      <span class="brand-title">Licențe la Cheie</span>
-      <span class="brand-beta-badge">BETA</span>
+      <span class="brand-logo-wrapper">
+        <img
+          src="/img/academiadelicente-logo.webp"
+          alt="Sigla Academia de Licențe"
+          class="brand-logo"
+          width="164"
+          height="40"
+        />
+        <span class="brand-beta-badge">BETA</span>
+      </span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Meniu">
       <span class="navbar-toggler-icon"></span>

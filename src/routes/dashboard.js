@@ -390,7 +390,7 @@ router.get('/cont', async (req, res, next) => {
 
     const viewModel = {
       title: 'Panou de control',
-      description: 'Monitorizeaza proiectele, contractele si discutiile cu echipa Licente la Cheie.',
+      description: 'Monitorizeaza proiectele, contractele si discutiile cu echipa Academia de Licențe.',
       projects,
       tickets,
       offers: [],

@@ -400,9 +400,9 @@ export async function sendOfferSubmissionEmails({
       `Codul tău de referință este ${offerCode}, iar ticketul asociat are ID-ul #${ticketId}.`,
       '',
       'Îți mulțumim pentru încredere!',
-      'Echipa Licențe la Cheie'
+      'Echipa Academia de Licențe'
     ].join('\n');
-    await sendRawMail({ to: submissionEmail, subject: 'Confirmare solicitare ofertă Licențe la Cheie', text: clientText, attachments: [] });
+    await sendRawMail({ to: submissionEmail, subject: 'Confirmare solicitare ofertă Academia de Licențe', text: clientText, attachments: [] });
   }
 }
 
@@ -445,16 +445,16 @@ export async function sendContactSubmissionEmails({ payload, attachments, client
       `Bună, ${payload.fullName}!`,
       '',
       'Îți confirmăm că am primit mesajul transmis prin formularul nostru de contact.',
-      'Un consultant Licențe la Cheie îți va răspunde în cel mai scurt timp la datele menționate.',
+      'Un consultant de la Academia de Licențe îți va răspunde în cel mai scurt timp la datele menționate.',
       '',
       'Dacă ai documente suplimentare, răspunde la acest email pentru a le atașa.',
       '',
       'Îți mulțumim!',
-      'Echipa Licențe la Cheie'
+      'Echipa Academia de Licențe'
     ].join('\n');
     await sendRawMail({
       to: submissionEmail,
-      subject: 'Confirmare mesaj de contact Licențe la Cheie',
+      subject: 'Confirmare mesaj de contact Academia de Licențe',
       text: clientText,
       attachments: []
     });

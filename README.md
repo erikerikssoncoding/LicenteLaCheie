@@ -1,4 +1,4 @@
-# Licente la Cheie — Platforma pentru lucrari de licenta
+# Academia de Licențe — Platforma pentru lucrari de licenta
 
 Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari de licenta, dizertatii si proiecte academice. Aplicatia ruleaza pe Node.js, utilizeaza o baza de date MySQL/MariaDB si ofera un panou de control pentru clienti, redactori, admini si superadmini.
 
@@ -168,4 +168,4 @@ Sesiunile sunt stocate in MySQL, parolele sunt hash-uite cu bcryptjs (cost 12), 
 
 ---
 
-Platforma Licente la Cheie este construita pentru a oferi o experienta premium studentilor si partenerilor academici, cu accent pe calitate, securitate si automatizare a proceselor cheie.
+Platforma Academia de Licențe este construita pentru a oferi o experienta premium studentilor si partenerilor academici, cu accent pe calitate, securitate si automatizare a proceselor cheie.

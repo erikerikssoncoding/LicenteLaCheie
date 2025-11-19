@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Проверка скрипта оператора</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --card: #111827;
+        --accent: #22c55e;
+        --danger: #ef4444;
+        --muted: #94a3b8;
+        --text: #e2e8f0;
+        --shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          sans-serif;
+        background: radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.08), transparent 25%),
+          radial-gradient(circle at 80% 0%, rgba(239, 68, 68, 0.12), transparent 25%), var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 16px;
+      }
+
+      main {
+        width: min(1080px, 100%);
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: var(--shadow);
+        border-radius: 24px;
+        padding: 28px;
+        backdrop-filter: blur(6px);
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+      }
+
+      p.lead {
+        margin: 0 0 24px;
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: 1.2fr 1fr;
+      }
+
+      @media (max-width: 960px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .card {
+        background: var(--card);
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 18px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+
+      .card h2 {
+        margin: 0 0 10px;
+        font-size: 1.05rem;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--muted);
+        margin-bottom: 14px;
+        font-weight: 600;
+      }
+
+      .script-text {
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 12px;
+        padding: 12px;
+        line-height: 1.6;
+        border: 1px dashed rgba(255, 255, 255, 0.08);
+      }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-top: 12px;
+      }
+
+      .record-btn {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        border: 0;
+        background: var(--accent);
+        color: #0a0f1c;
+        font-size: 26px;
+        cursor: pointer;
+        box-shadow: 0 14px 35px rgba(34, 197, 94, 0.35);
+        position: relative;
+        transition: all 220ms ease;
+        display: grid;
+        place-items: center;
+        outline: none;
+      }
+
+      .record-btn.recording {
+        background: var(--danger);
+        color: #fff;
+        box-shadow: 0 14px 35px rgba(239, 68, 68, 0.35);
+      }
+
+      .record-btn::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        border: 2px solid currentColor;
+        opacity: 0;
+        transform: scale(1.2);
+      }
+
+      .record-btn.recording::after {
+        animation: pulse 1.6s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 0.7;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0;
+          transform: scale(1.4);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(1.4);
+        }
+      }
+
+      .status {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .status .badge {
+        padding: 8px 12px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .result {
+        margin-top: 12px;
+        background: rgba(255, 255, 255, 0.02);
+        padding: 12px;
+        border-radius: 12px;
+        min-height: 68px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 1.05rem;
+      }
+
+      .highlight span {
+        padding: 2px 4px;
+        border-radius: 6px;
+        margin-right: 4px;
+        display: inline-block;
+        margin-bottom: 6px;
+      }
+
+      .good {
+        background: rgba(34, 197, 94, 0.15);
+        color: #86efac;
+      }
+
+      .bad {
+        background: rgba(239, 68, 68, 0.15);
+        color: #fecdd3;
+      }
+
+      .wildcard {
+        background: rgba(59, 130, 246, 0.18);
+        color: #bfdbfe;
+      }
+
+      .progress {
+        margin-top: 10px;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        height: 100%;
+        width: 0;
+        background: linear-gradient(90deg, #22c55e, #4ade80, #22c55e);
+        transition: width 250ms ease;
+      }
+
+      .block-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .block-item {
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        cursor: pointer;
+        transition: border-color 160ms ease, transform 160ms ease;
+      }
+
+      .block-item:hover {
+        border-color: rgba(34, 197, 94, 0.5);
+        transform: translateY(-1px);
+      }
+
+      .block-item.active {
+        border-color: #22c55e;
+        box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.35);
+      }
+
+      .success {
+        color: #bbf7d0;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .small {
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Проверка скрипта оператора</h1>
+      <p class="lead">
+        Используйте Web Speech API, чтобы продиктовать блок скрипта. Правильные слова
+        подсвечиваются зелёным, ошибки — красным. Если блок совпадает на 70% и более, вы
+        получаете галочку.
+      </p>
+      <div class="grid">
+        <section class="card">
+          <h2>Блок скрипта</h2>
+          <div class="hint" id="hint">Подсказка появится здесь</div>
+          <div class="script-text" id="scriptText"></div>
+          <div class="controls">
+            <button class="record-btn" id="recordBtn" aria-label="Начать запись" title="Начать запись">
+              🎤
+            </button>
+            <div class="status">
+              <div class="badge" id="statusLabel">Ожидание начала записи</div>
+              <div class="badge" id="scoreLabel">Совпадение: 0%</div>
+            </div>
+          </div>
+          <div class="progress" aria-hidden="true">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+          <div class="result highlight" id="result">Произнесите фразу полностью, чтобы увидеть расшифровку.</div>
+        </section>
+        <section class="card">
+          <h2>Блоки диалога</h2>
+          <p class="small">Выберите нужный блок скрипта перед записью.</p>
+          <div class="block-list" id="blockList"></div>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const blocks = [
+        {
+          id: 'greeting',
+          hint: 'Поприветствуй кандидата',
+          expected:
+            'Добрый день! Меня зовут ------, компания Купер. Получили Ваш отклик на позицию сборщика. Вы готовы рассмотреть наше предложение?'
+        },
+        {
+          id: 'reason',
+          hint: 'Уточни причину отказа',
+          expected: 'Подскажите, пожалуйста, почему предложение перестало быть актуальным?'
+        },
+        {
+          id: 'offer',
+          hint: 'Предложи подработку',
+          expected:
+            'Отлично, что вы уже почти решили вопрос с работой. Нашу вакансию можно рассмотреть как вариант подработки, у нас высокий доход и гибкий график. Давайте продолжим диалог?'
+        },
+        {
+          id: 'closing',
+          hint: 'Вежливо заверши разговор',
+          expected:
+            'Спасибо за уделенное время, если у вас что-то изменится, вы всегда можете нам перезвонить. Всего доброго!'
+        }
+      ];
+
+      const hintEl = document.getElementById('hint');
+      const scriptEl = document.getElementById('scriptText');
+      const resultEl = document.getElementById('result');
+      const recordBtn = document.getElementById('recordBtn');
+      const statusLabel = document.getElementById('statusLabel');
+      const scoreLabel = document.getElementById('scoreLabel');
+      const progressBar = document.getElementById('progressBar');
+      const blockList = document.getElementById('blockList');
+
+      let currentBlock = blocks[0];
+      let isRecording = false;
+      let recognition;
+
+      function supportsSpeechApi() {
+        return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+      }
+
+      function createRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const rec = new SpeechRecognition();
+        rec.lang = 'ru-RU';
+        rec.continuous = false;
+        rec.interimResults = false;
+        return rec;
+      }
+
+      function tokenize(text) {
+        return text
+          .toLowerCase()
+          .replace(/[^a-zа-яё0-9\-\s]/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .split(' ')
+          .filter(Boolean);
+      }
+
+      function levenshtein(a, b) {
+        const matrix = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+        for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+        for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+        for (let i = 1; i <= a.length; i++) {
+          for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(
+              matrix[i - 1][j] + 1,
+              matrix[i][j - 1] + 1,
+              matrix[i - 1][j - 1] + cost
+            );
+          }
+        }
+        return matrix[a.length][b.length];
+      }
+
+      function isWildcard(word) {
+        return /^-+$/.test(word);
+      }
+
+      function isCloseMatch(expected, received) {
+        if (!received) return false;
+        if (expected === received) return true;
+        const distance = levenshtein(expected, received);
+        const allowed = Math.ceil(expected.length * 0.3);
+        return distance <= allowed;
+      }
+
+      function calculateMatch(expectedWords, spokenWords) {
+        const maxLen = Math.max(expectedWords.length, spokenWords.length);
+        let matches = 0;
+        const parts = [];
+
+        for (let i = 0; i < maxLen; i++) {
+          const expected = expectedWords[i];
+          const spoken = spokenWords[i];
+          let success = false;
+          let cssClass = 'bad';
+
+          if (expected !== undefined) {
+            if (isWildcard(expected)) {
+              success = Boolean(spoken) && spoken.length <= 15;
+              cssClass = success ? 'wildcard' : 'bad';
+            } else {
+              success = isCloseMatch(expected, spoken || '');
+              cssClass = success ? 'good' : 'bad';
+            }
+          } else {
+            success = false;
+          }
+
+          if (success) {
+            matches += 1;
+          }
+
+          if (spoken) {
+            const safeText = spoken.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            parts.push(`<span class="${cssClass}">${safeText}</span>`);
+          } else if (expected) {
+            parts.push(`<span class="${cssClass}">[пропуск]</span>`);
+          }
+        }
+
+        return { matches, parts };
+      }
+
+      function updateUi(matchRatio, parts, transcript) {
+        const percent = Math.round(matchRatio * 100);
+        scoreLabel.textContent = `Совпадение: ${percent}%`;
+        progressBar.style.width = `${percent}%`;
+        resultEl.innerHTML = parts.length
+          ? parts.join(' ')
+          : transcript || 'Произнесите фразу полностью, чтобы увидеть расшифровку.';
+
+        if (matchRatio >= 0.7) {
+          statusLabel.innerHTML = '<span class="success">✔️ Блок выполнен без критичных ошибок</span>';
+        } else {
+          statusLabel.textContent = 'Продиктуйте блок ещё раз или поправьте ошибки';
+        }
+      }
+
+      function renderBlockList() {
+        blockList.innerHTML = '';
+        blocks.forEach((block) => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.className = `block-item${block.id === currentBlock.id ? ' active' : ''}`;
+          item.innerHTML = `<strong>${block.hint}</strong><br /><span class="small">${block.expected}</span>`;
+          item.addEventListener('click', () => {
+            currentBlock = block;
+            updateBlock();
+            renderBlockList();
+          });
+          blockList.appendChild(item);
+        });
+      }
+
+      function updateBlock() {
+        hintEl.textContent = currentBlock.hint;
+        scriptEl.textContent = currentBlock.expected;
+        resultEl.textContent = 'Произнесите фразу полностью, чтобы увидеть расшифровку.';
+        statusLabel.textContent = 'Ожидание начала записи';
+        scoreLabel.textContent = 'Совпадение: 0%';
+        progressBar.style.width = '0%';
+      }
+
+      function handleResult(event) {
+        const transcript = event.results[0][0].transcript.trim();
+        const expectedWords = tokenize(currentBlock.expected);
+        const spokenWords = tokenize(transcript);
+        const { matches, parts } = calculateMatch(expectedWords, spokenWords);
+        const matchRatio = expectedWords.length ? matches / expectedWords.length : 0;
+        updateUi(matchRatio, parts, transcript);
+      }
+
+      function startRecognition() {
+        if (!recognition) {
+          recognition = createRecognition();
+          recognition.onresult = handleResult;
+          recognition.onstart = () => {
+            isRecording = true;
+            recordBtn.classList.add('recording');
+            statusLabel.textContent = 'Идёт запись... говорите фразу';
+          };
+          recognition.onend = () => {
+            isRecording = false;
+            recordBtn.classList.remove('recording');
+            statusLabel.textContent = 'Запись остановлена, ожидаем результат';
+          };
+          recognition.onerror = (e) => {
+            isRecording = false;
+            recordBtn.classList.remove('recording');
+            statusLabel.textContent = `Ошибка записи: ${e.error}`;
+          };
+        }
+        recognition.start();
+      }
+
+      function stopRecognition() {
+        if (recognition) {
+          recognition.stop();
+        }
+      }
+
+      recordBtn.addEventListener('click', () => {
+        if (!supportsSpeechApi()) {
+          alert('Web Speech API не поддерживается в этом браузере. Попробуйте Chrome.');
+          return;
+        }
+        if (isRecording) {
+          stopRecognition();
+        } else {
+          startRecognition();
+        }
+      });
+
+      updateBlock();
+      renderBlockList();
+    </script>
+  </body>
+</html>

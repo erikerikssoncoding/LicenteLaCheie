@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { promises as fs } from 'fs';
+import { createRequire } from 'module';
 import multer from 'multer';
 import { z } from 'zod';
 import { createContactRequest } from '../services/contactService.js';
@@ -14,6 +15,9 @@ import { sendContactSubmissionEmails, sendOfferSubmissionEmails } from '../servi
 import { collectClientMetadata } from '../utils/requestMetadata.js';
 import { CONTACT_ATTACHMENT_ROOT, OFFER_ATTACHMENT_ROOT, buildStoredFileName } from '../utils/fileStorage.js';
 import csrfProtection from '../middleware/csrfProtection.js';
+
+const require = createRequire(import.meta.url);
+const phonePrefixData = require('../../public/data/phone-prefixes.json');
 
 const router = Router();
 
@@ -47,7 +51,15 @@ const CONTACT_ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png'
 ]);
-const PHONE_PATTERN = /^(?:\+?40|0)[23789][0-9]{8}$/u;
+const PHONE_PREFIXES = (phonePrefixData.default ?? phonePrefixData)
+  .map((entry) => ({
+    emoji: entry.emoji,
+    country: entry.country,
+    code: typeof entry.code === 'string' ? entry.code.replace(/[^+\d]/g, '') : ''
+  }))
+  .filter((entry) => entry.code && entry.code.startsWith('+'));
+const PHONE_PREFIX_CODES = PHONE_PREFIXES.map((entry) => entry.code).sort((a, b) => b.length - a.length);
+const INTERNATIONAL_PHONE_PATTERN = /^\+[1-9][0-9]{5,14}$/u;
 const OFFER_PAGE_TITLE = 'Solicită o ofertă personalizată pentru lucrarea ta';
 const OFFER_PAGE_DESCRIPTION =
   'Completează formularul iar platforma va genera un draft de contract pentru redactarea, corectura și pregătirea lucrării tale.';
@@ -200,7 +212,20 @@ const CONTACT_PAGE_PROPS = {
     'Scrie-ne pentru a afla cum te putem ajuta cu redactarea lucrarii de licenta sau a proiectului tau academic.'
 };
 
-const sanitizePhoneValue = (value) => value.replace(/[\s().-]+/g, '');
+const sanitizePhoneValue = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  const compact = trimmed.replace(/[\s().-]+/g, '');
+  if (compact.startsWith('00')) {
+    return `+${compact.slice(2)}`;
+  }
+  if (/^0[0-9]{9}$/u.test(compact)) {
+    return `+4${compact}`;
+  }
+  return compact;
+};
 
 const hasInvalidRepetition = (value) => {
   const digits = value.replace(/\D/g, '').slice(-9);
@@ -209,6 +234,16 @@ const hasInvalidRepetition = (value) => {
   }
   return /^([0-9])\1+$/u.test(digits);
 };
+
+const hasSupportedPhonePrefix = (value) => {
+  if (!value || !value.startsWith('+')) {
+    return false;
+  }
+  return PHONE_PREFIX_CODES.some((prefix) => value.startsWith(prefix));
+};
+
+const isSupportedInternationalPhone = (value) =>
+  INTERNATIONAL_PHONE_PATTERN.test(value) && hasSupportedPhonePrefix(value);
 
 router.get('/', (req, res) => {
   res.render('pages/home', {
@@ -299,7 +334,12 @@ async function handleContactPost(req, res, next) {
     const schema = z.object({
       fullName: z.string().min(3, 'Numele trebuie să aibă minim 3 caractere'),
       email: z.string().email('Adresa de email nu este validă'),
-      phone: z.string().min(6, 'Numărul de telefon este invalid'),
+      phone: z
+        .string()
+        .min(6, 'Numărul de telefon este invalid')
+        .transform((value) => sanitizePhoneValue(value))
+        .refine((value) => isSupportedInternationalPhone(value), 'Introdu un număr de telefon internațional cu prefix valid.')
+        .refine((value) => !hasInvalidRepetition(value), 'Numărul de telefon nu poate avea toate cifrele identice.'),
       message: z.string().min(10, 'Mesajul trebuie să fie mai detaliat')
     });
 
@@ -414,7 +454,7 @@ async function handleOfferSubmission(req, res) {
       .string()
       .min(6)
       .transform((value) => sanitizePhoneValue(value))
-      .refine((value) => PHONE_PATTERN.test(value), 'Introdu un număr de telefon din România cu prefix valid.')
+      .refine((value) => isSupportedInternationalPhone(value), 'Introdu un număr de telefon internațional cu prefix valid.')
       .refine((value) => !hasInvalidRepetition(value), 'Numărul de telefon nu poate avea toate cifrele identice.'),
     program: z.string().trim().min(3, 'Programul de studii trebuie să aibă cel puțin 3 caractere.'),
     topic: z.string().trim().min(5, 'Tema lucrării trebuie să fie mai detaliată.'),

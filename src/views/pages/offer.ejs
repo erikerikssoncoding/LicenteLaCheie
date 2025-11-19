@@ -91,18 +91,22 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="phone">Telefon</label>
-                <input
-                  class="form-control"
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  value="<%= request.body?.phone || currentUser?.phone || '' %>"
-                  inputmode="tel"
-                  pattern="^(0|(?:\+40))[23789][0-9]{8}$"
-                  required
-                  data-required-message="Te rugăm să completezi numărul de telefon."
-                  data-phone-message="Introduce un număr de telefon din România, cu prefix 0 sau +40."
-                />
+                <div class="phone-input-wrapper" data-phone-input-wrapper>
+                  <span class="phone-input-flag" data-phone-flag aria-hidden="true"></span>
+                  <input
+                    class="form-control"
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    value="<%= request.body?.phone || currentUser?.phone || '' %>"
+                    inputmode="tel"
+                    pattern="^\+?[0-9\s().-]{6,20}$"
+                    required
+                    data-required-message="Te rugăm să completezi numărul de telefon."
+                    data-phone-message="Introduce un număr de telefon internațional valid, folosind prefixul țării (ex: +447...)."
+                    data-phone-input
+                  />
+                </div>
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="program">Program de studii</label>

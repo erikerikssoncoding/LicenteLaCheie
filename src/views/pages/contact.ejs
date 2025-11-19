@@ -83,17 +83,22 @@
             </div>
             <div class="col-12">
               <label class="form-label" for="phone">Telefon</label>
-              <input
-                class="form-control"
-                type="tel"
-                id="phone"
-                name="phone"
-                value="<%= request.body?.phone || currentUser?.phone || '' %>"
-                pattern="(?:\+?40|0)[23789][0-9]{8}"
-                inputmode="tel"
-                title="Introdu un număr de telefon din România, începând cu +40 sau 0."
-                required
-              />
+              <div class="phone-input-wrapper" data-phone-input-wrapper>
+                <span class="phone-input-flag" data-phone-flag aria-hidden="true"></span>
+                <input
+                  class="form-control"
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value="<%= request.body?.phone || currentUser?.phone || '' %>"
+                  pattern="^\+?[0-9\s().-]{6,20}$"
+                  inputmode="tel"
+                  title="Introdu un număr de telefon internațional valid, începând cu + și prefixul țării."
+                  required
+                  data-phone-message="Completează numărul cu prefixul internațional al țării tale (ex: +4917..., +4074...)."
+                  data-phone-input
+                />
+              </div>
             </div>
             <div class="col-12">
               <label class="form-label" for="message">Mesaj</label>

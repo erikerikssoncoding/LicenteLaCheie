@@ -12,6 +12,7 @@ import publicRoutes from './routes/public.js';
 import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
 import { injectUser } from './middleware/auth.js';
+import simpleCookieParser from './middleware/simpleCookieParser.js';
 import { initializeSecurityState, getSecurityState } from './utils/securityState.js';
 import { initializeLicenseState } from './utils/licenseState.js';
 import { CONTACT_ATTACHMENT_ROOT, OFFER_ATTACHMENT_ROOT, PROJECT_UPLOAD_ROOT } from './utils/fileStorage.js';
@@ -32,6 +33,9 @@ await Promise.all([
 ]);
 
 const app = express();
+const APP_COOKIE_DOMAIN = process.env.APP_COOKIE_DOMAIN || null;
+const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME || 'licentelacheie.csrf';
+const isProduction = process.env.NODE_ENV === 'production';
 
 app.set('trust proxy', 1);
 app.set('views', path.join(__dirname, 'views'));
@@ -61,8 +65,19 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(morgan('combined'));
 app.use(express.static(path.join(__dirname, '../public')));
+app.use(simpleCookieParser);
 app.use(sessionMiddleware);
-app.use(csrf());
+const csrfProtection = csrf({
+  cookie: {
+    key: CSRF_COOKIE_NAME,
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProduction,
+    path: '/',
+    ...(APP_COOKIE_DOMAIN ? { domain: APP_COOKIE_DOMAIN } : {})
+  }
+});
+app.use(csrfProtection);
 app.use(injectUser);
 
 app.use((req, res, next) => {

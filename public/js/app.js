@@ -74,24 +74,91 @@
 })();
 
 (() => {
-  const phoneField = document.querySelector('[data-phone-message]');
-  if (!phoneField) {
+  const phoneFields = document.querySelectorAll('[data-phone-input]');
+  if (!phoneFields.length) {
     return;
   }
   const repeatedMessage = 'Numărul de telefon nu poate avea toate cifrele identice.';
-  const validatePhone = () => {
-    phoneField.setCustomValidity('');
-    const digits = phoneField.value.replace(/\D/g, '').slice(-9);
+  const sanitizePhoneValue = (value) => {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    const compact = value.replace(/[\s().-]+/g, '');
+    if (compact.startsWith('00')) {
+      return `+${compact.slice(2)}`;
+    }
+    if (/^0[0-9]{9}$/u.test(compact)) {
+      return `+4${compact}`;
+    }
+    return compact;
+  };
+  const flagVisibleClass = 'phone-input-flag-visible';
+  let prefixEntries = [];
+
+  const validateField = (field) => {
+    field.setCustomValidity('');
+    const digits = field.value.replace(/\D/g, '').slice(-9);
     if (digits && digits.length >= 6 && /^([0-9])\1+$/u.test(digits)) {
-      phoneField.setCustomValidity(repeatedMessage);
+      field.setCustomValidity(repeatedMessage);
       return;
     }
-    if (phoneField.validity.patternMismatch) {
-      phoneField.setCustomValidity(phoneField.getAttribute('data-phone-message'));
+    if (field.validity.patternMismatch && field.hasAttribute('data-phone-message')) {
+      field.setCustomValidity(field.getAttribute('data-phone-message'));
     }
   };
-  phoneField.addEventListener('input', validatePhone);
-  phoneField.addEventListener('blur', validatePhone);
+
+  const updateFlag = (field) => {
+    const wrapper = field.closest('[data-phone-input-wrapper]');
+    const flagElement = wrapper ? wrapper.querySelector('[data-phone-flag]') : null;
+    if (!flagElement) {
+      return;
+    }
+    if (!prefixEntries.length) {
+      flagElement.textContent = '';
+      flagElement.classList.remove(flagVisibleClass);
+      flagElement.removeAttribute('title');
+      return;
+    }
+    const sanitized = sanitizePhoneValue(field.value || '');
+    const match = sanitized.startsWith('+')
+      ? prefixEntries.find((entry) => sanitized.startsWith(entry.code))
+      : null;
+    if (match) {
+      flagElement.textContent = match.emoji || '';
+      flagElement.title = match.country ? `${match.country} (${match.code})` : match.code;
+      flagElement.classList.add(flagVisibleClass);
+    } else {
+      flagElement.textContent = '';
+      flagElement.classList.remove(flagVisibleClass);
+      flagElement.removeAttribute('title');
+    }
+  };
+
+  phoneFields.forEach((field) => {
+    field.addEventListener('input', () => {
+      validateField(field);
+      updateFlag(field);
+    });
+    field.addEventListener('blur', () => validateField(field));
+    validateField(field);
+  });
+
+  fetch('/data/phone-prefixes.json')
+    .then((response) => (response.ok ? response.json() : []))
+    .then((data) => {
+      prefixEntries = (Array.isArray(data) ? data : [])
+        .map((entry) => ({
+          emoji: entry.emoji,
+          country: entry.country,
+          code: typeof entry.code === 'string' ? entry.code.replace(/[^+\d]/g, '') : ''
+        }))
+        .filter((entry) => entry.code && entry.code.startsWith('+'))
+        .sort((a, b) => b.code.length - a.code.length);
+      phoneFields.forEach(updateFlag);
+    })
+    .catch(() => {
+      /* prefix list optional */
+    });
 })();
 
 (() => {

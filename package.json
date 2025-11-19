@@ -1,7 +1,7 @@
 {
     "name": "licente-la-cheie",
   "version": "1.0.0",
-    "description": "Platforma Licente la Cheie pentru gestionarea proiectelor academice si a ticketelor",
+    "description": "Platforma Licențe la Cheie pentru gestionarea proiectelor academice și a ticketelor",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
@@ -9,8 +9,9 @@
     "start": "node src/server.js",
     "lint": "eslint ."
   },
-  "keywords": [
-    "lucrari de licenta",
+    "keywords": [
+    "lucrări academice",
+    "materiale infodocumentare",
     "mariadb",
     "nodejs",
     "ticketing",

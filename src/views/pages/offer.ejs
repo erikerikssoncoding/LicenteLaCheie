@@ -4,13 +4,13 @@
   <div class="container">
     <div class="row align-items-start">
       <div class="col-lg-6">
-        <h1>Solicita oferta pentru lucrarea de licenta</h1>
+        <h1>Solicită ofertă pentru lucrarea academică sau materialul infodocumentar</h1>
         <p class="lead">
-          Completeaza formularul si platforma va genera un contract draft pe care il poti semna digital dupa validare.
+          Completează formularul și platforma va genera un contract draft pe care îl poți semna digital după validare.
         </p>
         <ul class="list-check">
-          <li>Evaluare gratuita a cerintelor si temei</li>
-          <li>Contract personalizat si garantie de livrare</li>
+          <li>Evaluare gratuită a cerințelor și temei</li>
+          <li>Contract personalizat și garanție de livrare</li>
           <li>Proces securizat, compliant cu GDPR</li>
         </ul>
       </div>
@@ -62,22 +62,22 @@
                 <input class="form-control" type="text" id="program" name="program" value="<%= request.body?.program || '' %>" required />
               </div>
               <div class="col-md-6">
-                <label class="form-label" for="topic">Tema lucrarii</label>
+                <label class="form-label" for="topic">Tema lucrării</label>
                 <input class="form-control" type="text" id="topic" name="topic" value="<%= request.body?.topic || '' %>" required />
               </div>
               <div class="col-md-6">
-                <label class="form-label" for="workType">Tipul lucrarii</label>
+                <label class="form-label" for="workType">Tipul lucrării</label>
                 <select class="form-select" id="workType" name="workType" required>
-                  <option value="" disabled <%= request.body?.workType ? '' : 'selected' %>>Selecteaza tipul lucrarii</option>
-                  <option value="lucrare de licenta" <%= request.body?.workType === 'lucrare de licenta' ? 'selected' : '' %>>Lucrare de licenta</option>
+                  <option value="" disabled <%= request.body?.workType ? '' : 'selected' %>>Selectează tipul lucrării</option>
+                  <option value="lucrare de licenta" <%= request.body?.workType === 'lucrare de licenta' ? 'selected' : '' %>>Lucrare de licență</option>
                   <option value="lucrare de grad" <%= request.body?.workType === 'lucrare de grad' ? 'selected' : '' %>>Lucrare de grad</option>
-                  <option value="lucrare de disertatie" <%= request.body?.workType === 'lucrare de disertatie' ? 'selected' : '' %>>Lucrare de disertatie</option>
+                  <option value="lucrare de disertatie" <%= request.body?.workType === 'lucrare de disertatie' ? 'selected' : '' %>>Lucrare de disertație</option>
                   <option value="lucrare de doctorat" <%= request.body?.workType === 'lucrare de doctorat' ? 'selected' : '' %>>Lucrare de doctorat</option>
                   <option value="proiect" <%= request.body?.workType === 'proiect' ? 'selected' : '' %>>Proiect</option>
                 </select>
               </div>
               <div class="col-md-6">
-                <label class="form-label" for="deliveryDate">Data dorita de livrare</label>
+                <label class="form-label" for="deliveryDate">Data dorită de livrare</label>
                 <input
                   class="form-control"
                   type="date"
@@ -105,7 +105,7 @@
                     required
                   />
                   <label class="form-check-label" for="acceptAccount">
-                    Sunt de acord sa fie creat un cont Licente la Cheie pentru gestionarea ofertei si a contractului.
+                    Sunt de acord să fie creat un cont Licențe la Cheie pentru gestionarea ofertei și a contractului.
                   </label>
                 </div>
               </div>

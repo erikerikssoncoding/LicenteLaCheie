@@ -102,11 +102,11 @@
                   <%= user.mustResetPassword ? 'checked' : '' %>
                   <%= canModifyStatus ? '' : 'disabled' %>
                 />
-                <label class="form-check-label" for="userMustResetPassword">Solicita resetarea parolei la urmatoarea autentificare</label>
+                <label class="form-check-label" for="userMustResetPassword">Solicită resetarea parolei la următoarea autentificare</label>
               </div>
               <div class="d-flex gap-2">
-                <button class="btn btn-primary" type="submit" <%= canModifyProfile ? '' : 'disabled' %>>Salveaza modificarile</button>
-                <a class="btn btn-outline-secondary" href="/cont/utilizatori">Renunta</a>
+                <button class="btn btn-primary" type="submit" <%= canModifyProfile ? '' : 'disabled' %>>Salvează modificările</button>
+                <a class="btn btn-outline-secondary" href="/cont/utilizatori">Renunță</a>
               </div>
             </form>
           </div>
@@ -114,13 +114,13 @@
 
         <div class="card shadow-sm mt-4">
           <div class="card-body">
-            <h2 class="h5 mb-3">Resetare parola</h2>
-            <p class="text-muted small">Stabileste o parola temporara pe care utilizatorul o va schimba la urmatoarea autentificare.</p>
+            <h2 class="h5 mb-3">Resetare parolă</h2>
+            <p class="text-muted small">Stabilește o parolă temporară pe care utilizatorul o va schimba la următoarea autentificare.</p>
             <form action="/cont/utilizatori/<%= user.id %>/parola" method="post" class="row g-3 align-items-end">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <input type="hidden" name="returnTo" value="/cont/utilizatori/<%= user.id %>" />
               <div class="col-md-8">
-                <label class="form-label" for="userNewPassword">Parola noua</label>
+                <label class="form-label" for="userNewPassword">Parolă nouă</label>
                 <input
                   class="form-control"
                   id="userNewPassword"
@@ -132,7 +132,7 @@
                 />
               </div>
               <div class="col-md-4 d-grid">
-                <button class="btn btn-outline-primary" type="submit" <%= canResetPassword ? '' : 'disabled' %>>Seteaza parola</button>
+                <button class="btn btn-outline-primary" type="submit" <%= canResetPassword ? '' : 'disabled' %>>Setează parola</button>
               </div>
             </form>
           </div>

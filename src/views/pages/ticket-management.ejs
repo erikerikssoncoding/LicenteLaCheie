@@ -7,13 +7,13 @@
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
       <div>
         <h1 class="h3 mb-1">Gestionare tichete</h1>
-        <p class="text-muted mb-0">Monitorizeaza rapid solicitarile clientilor si actualizeaza statusurile.</p>
+        <p class="text-muted mb-0">Monitorizează rapid solicitările clienților și actualizează statusurile.</p>
       </div>
       <form class="d-flex flex-wrap gap-2" action="/cont/tichete" method="get">
         <select class="form-select" name="status">
           <option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>Toate statusurile</option>
           <option value="deschis" <%= filters.status === 'deschis' ? 'selected' : '' %>>Deschis</option>
-          <option value="in-analiza" <%= filters.status === 'in-analiza' ? 'selected' : '' %>>In analiza</option>
+          <option value="in-analiza" <%= filters.status === 'in-analiza' ? 'selected' : '' %>>În analiză</option>
           <option value="rezolvat" <%= filters.status === 'rezolvat' ? 'selected' : '' %>>Rezolvat</option>
         </select>
         <select class="form-select" name="kind">
@@ -21,17 +21,17 @@
           <option value="support" <%= filters.kind === 'support' ? 'selected' : '' %>>Suport</option>
           <option value="offer" <%= filters.kind === 'offer' ? 'selected' : '' %>>Oferta</option>
         </select>
-        <button class="btn btn-outline-primary" type="submit">Filtreaza</button>
+        <button class="btn btn-outline-primary" type="submit">Filtrează</button>
       </form>
     </div>
 
     <% if (licenseRestricted) { %>
     <div class="alert alert-warning" role="alert">
-      Accesul la functiile de gestionare este limitat deoarece licenta platformei a expirat. Poti vizualiza tichetele, dar nu le poti deschide sau actualiza pana la reinnoirea licentei.
+      Accesul la funcțiile de gestionare este limitat deoarece licența platformei a expirat. Poți vizualiza tichetele, dar nu le poți deschide sau actualiza până la reînnoirea licenței.
     </div>
     <% } %>
 
-    <% const kindLabels = { support: 'Suport', offer: 'Oferta' }; %>
+    <% const kindLabels = { support: 'Suport', offer: 'Ofertă' }; %>
 
     <div class="card shadow-sm">
       <div class="card-body">
@@ -48,13 +48,13 @@
                 <th>Tip</th>
                 <th>Status</th>
                 <th>Creat la</th>
-                <th class="text-end">Actiuni</th>
+                <th class="text-end">Acțiuni</th>
               </tr>
             </thead>
             <tbody>
               <% if (tickets.length === 0) { %>
               <tr>
-                <td colspan="6" class="text-center text-muted">Nu exista tichete pentru filtrele selectate.</td>
+                <td colspan="6" class="text-center text-muted">Nu există tichete pentru filtrele selectate.</td>
               </tr>
               <% } else { %>
               <% tickets.forEach((ticket) => { %>
@@ -77,7 +77,7 @@
                   <div class="d-flex flex-column gap-1">
                     <span class="badge bg-light text-dark text-uppercase align-self-start"><%= statusLabel %></span>
                     <p class="text-muted small mb-0">
-                      Fuzionat in
+                      Fuzionat în
                       <a href="/cont/tichete/<%= ticket.merged_into_ticket_id %>">#<%= ticket.merged_into_display_code || ticket.merged_into_ticket_id %></a>
                     </p>
                   </div>
@@ -86,10 +86,10 @@
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                     <select class="form-select form-select-sm" name="status" <%= staffLinksDisabled ? 'disabled' : '' %>>
                       <option value="deschis" <%= ticket.status === 'deschis' ? 'selected' : '' %>>Deschis</option>
-                      <option value="in-analiza" <%= ticket.status === 'in-analiza' ? 'selected' : '' %>>In analiza</option>
+                      <option value="in-analiza" <%= ticket.status === 'in-analiza' ? 'selected' : '' %>>În analiză</option>
                       <option value="rezolvat" <%= ticket.status === 'rezolvat' ? 'selected' : '' %>>Rezolvat</option>
                     </select>
-                    <button class="btn btn-sm btn-outline-secondary" type="submit" <%= staffLinksDisabled ? 'disabled' : '' %>>Actualizeaza</button>
+                    <button class="btn btn-sm btn-outline-secondary" type="submit" <%= staffLinksDisabled ? 'disabled' : '' %>>Actualizează</button>
                   </form>
                   <% } %>
                 </td>

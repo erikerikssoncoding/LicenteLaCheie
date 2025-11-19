@@ -40,13 +40,13 @@
     </style>
     <div class="mb-3">
       <% const statusMap = {
-      sent: 'Oferta transmisa',
-      pending: 'In pregatire',
-      accepted: 'Acceptata',
-      refused: 'Refuzata',
-      expired: 'Expirata',
-      counter_pending: 'Contraoferta in asteptare',
-      counter_submitted: 'Contraoferta trimisa'
+      sent: 'Ofertă transmisă',
+      pending: 'În pregătire',
+      accepted: 'Acceptată',
+      refused: 'Refuzată',
+      expired: 'Expirată',
+      counter_pending: 'Contraofertă în așteptare',
+      counter_submitted: 'Contraofertă trimisă'
       }; %>
       <span class="badge bg-primary">Status: <%= statusMap[offer.status] || offer.status %></span>
     </div>
@@ -64,10 +64,10 @@
       </div>
     </div>
     <% } else { %>
-    <div class="alert alert-warning">Contractul va fi generat automat dupa ce administratorul seteaza oferta finala.</div>
+    <div class="alert alert-warning">Contractul va fi generat automat după ce administratorul setează oferta finală.</div>
     <% } %>
     <div class="alert alert-info mt-4">
-      Pentru a semna contractul si a interactiona cu oferta, autentifica-te in platforma Licente la Cheie.
+      Pentru a semna contractul și a interacționa cu oferta, autentifică-te în platforma Licențe la Cheie.
     </div>
   </div>
 </section>

@@ -4,29 +4,28 @@
   <div class="container">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h1 class="h3 mb-3">Solicitarea de oferta a fost inregistrata</h1>
+        <h1 class="h3 mb-3">Solicitarea de ofertă a fost înregistrată</h1>
         <p>
-          Codul tau de referinta este <strong><%= offerCode %></strong>. Il poti folosi pentru a urmari contractul si discutiile
-          in contul tau.
+          Codul tău de referință este <strong><%= offerCode %></strong>. Îl poți folosi pentru a urmări contractul și discuțiile în contul tău.
         </p>
         <p>
-          In maxim <strong><%= defaultExpiration %> ore</strong> un administrator iti va trimite oferta cu pretul final si termenul
-          de valabilitate direct in ticketul creat automat.
+          În maximum <strong><%= defaultExpiration %> ore</strong> un administrator îți va trimite oferta cu prețul final și termenul
+          de valabilitate direct în ticketul creat automat.
         </p>
         <div class="alert alert-info mt-4">
-          <p class="mb-1">Ticketul tau dedicat poate fi accesat dupa autentificare din panoul „Tichetele mele”.</p>
+          <p class="mb-1">Ticketul tău dedicat poate fi accesat după autentificare din panoul „Tichetele mele”.</p>
           <p class="mb-0">ID ticket: <strong>#<%= ticketId %></strong></p>
         </div>
         <% if (generatedPassword) { %>
         <div class="alert alert-success mt-3">
           <p class="mb-1">Am creat un cont pentru tine pe licentelacheie.ro.</p>
-          <p class="mb-0">Email: <strong><%= submissionEmail %></strong> | Parola temporara: <strong><%= generatedPassword %></strong></p>
-          <small class="text-muted">Te rugam sa o schimbi din sectiunea „Cont” dupa prima autentificare.</small>
+          <p class="mb-0">Email: <strong><%= submissionEmail %></strong> | Parolă temporară: <strong><%= generatedPassword %></strong></p>
+          <small class="text-muted">Te rugăm să o schimbi din secțiunea „Cont” după prima autentificare.</small>
         </div>
         <% } else { %>
-        <p class="mt-3">Te poti autentifica folosind datele existente pentru a vizualiza si accepta oferta.</p>
+        <p class="mt-3">Te poți autentifica folosind datele existente pentru a vizualiza și accepta oferta.</p>
         <% } %>
-        <a class="btn btn-primary mt-4" href="/autentificare">Autentifica-te in platforma</a>
+        <a class="btn btn-primary mt-4" href="/autentificare">Autentifică-te în platformă</a>
       </div>
     </div>
   </div>

@@ -11,19 +11,19 @@
                 <span class="display-6 text-warning">⚠️</span>
               </div>
               <div>
-                <h1 class="h4 mb-3">Acces restrictionat - licenta expirata</h1>
+                <h1 class="h4 mb-3">Acces restricționat - licență expirată</h1>
                 <p class="text-muted">
-                  Functionalitatea solicitata este indisponibila deoarece licenta platformei a expirat. Pentru a relua accesul complet, contacteaza un superadministrator sau reinnoieste licenta.
+                  Funcționalitatea solicitată este indisponibilă deoarece licența platformei a expirat. Pentru a relua accesul complet, contactează un superadministrator sau reînnoiește licența.
                 </p>
                 <% if (licenseState?.paidUntilDisplay) { %>
                 <p class="mb-3 small text-muted">
-                  Ultima data de valabilitate inregistrata: <span class="fw-semibold text-dark"><%= licenseState.paidUntilDisplay %></span>.
+                  Ultima dată de valabilitate înregistrată: <span class="fw-semibold text-dark"><%= licenseState.paidUntilDisplay %></span>.
                 </p>
                 <% } %>
                 <ul class="small text-muted mb-3">
-                  <li>Detaliile tichetelelor si proiectelor raman vizibile, dar nu pot fi deschise.</li>
-                  <li>Actualizarile de status si raspunsurile sunt dezactivate temporar.</li>
-                  <li>Incarcarea sau stergerea fisierelor din proiecte nu este permisa.</li>
+                  <li>Detaliile tichetelor și proiectelor rămân vizibile, dar nu pot fi deschise.</li>
+                  <li>Actualizările de status și răspunsurile sunt dezactivate temporar.</li>
+                  <li>Încărcarea sau ștergerea fișierelor din proiecte nu este permisă.</li>
                 </ul>
                 <a class="btn btn-outline-primary" href="/cont">Revenire la panou</a>
               </div>

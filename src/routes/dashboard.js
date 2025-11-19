@@ -1588,7 +1588,7 @@ router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
     req.session.ticketFeedback = {
       success: 'Datele pentru contract au fost salvate si draftul contractului a fost generat.'
     };
-    res.redirect(`/cont/tichete/${ticketId}`);
+    res.redirect(`/cont/tichete/${ticketId}#contract-draft`);
   } catch (error) {
     if (error instanceof z.ZodError) {
       req.session.ticketFeedback = { error: 'Te rugam sa completezi toate campurile obligatorii.' };

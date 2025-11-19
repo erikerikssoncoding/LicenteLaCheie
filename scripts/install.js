@@ -90,7 +90,7 @@ async function createSuperAdmin(connection, adminConfig) {
 async function main() {
   let closed = false;
   try {
-    console.log('Instalare platforma Licente la Cheie');
+    console.log('Instalare platforma Academia de Licențe');
     const dbHost = await ask('Host baza de date', '127.0.0.1');
     const dbPort = Number(await ask('Port baza de date', '3306'));
     const dbUser = await ask('Utilizator baza de date', 'root');

@@ -1,7 +1,7 @@
 {
     "name": "licente-la-cheie",
   "version": "1.0.0",
-    "description": "Platforma Licențe la Cheie pentru gestionarea proiectelor academice și a ticketelor",
+    "description": "Platforma Academia de Licențe pentru gestionarea proiectelor academice și a ticketelor",
   "type": "module",
   "main": "src/server.js",
   "scripts": {

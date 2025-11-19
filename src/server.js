@@ -4,7 +4,6 @@ import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import csrf from 'csurf';
 import dotenv from 'dotenv';
 import { promises as fs } from 'fs';
 import sessionMiddleware from './config/session.js';
@@ -13,6 +12,7 @@ import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
 import { injectUser } from './middleware/auth.js';
 import simpleCookieParser from './middleware/simpleCookieParser.js';
+import csrfProtection from './middleware/csrfProtection.js';
 import { initializeSecurityState, getSecurityState } from './utils/securityState.js';
 import { initializeLicenseState } from './utils/licenseState.js';
 import { CONTACT_ATTACHMENT_ROOT, OFFER_ATTACHMENT_ROOT, PROJECT_UPLOAD_ROOT } from './utils/fileStorage.js';
@@ -33,9 +33,7 @@ await Promise.all([
 ]);
 
 const app = express();
-const APP_COOKIE_DOMAIN = process.env.APP_COOKIE_DOMAIN || null;
-const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME || 'licentelacheie.csrf';
-const isProduction = process.env.NODE_ENV === 'production';
+const multipartCsrfBypassPaths = new Set(['/contact', '/oferta']);
 
 app.set('trust proxy', 1);
 app.set('views', path.join(__dirname, 'views'));
@@ -71,17 +69,12 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(simpleCookieParser);
 app.use(sessionMiddleware);
-const csrfProtection = csrf({
-  cookie: {
-    key: CSRF_COOKIE_NAME,
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: isProduction,
-    path: '/',
-    ...(APP_COOKIE_DOMAIN ? { domain: APP_COOKIE_DOMAIN } : {})
+app.use((req, res, next) => {
+  if (req.method === 'POST' && multipartCsrfBypassPaths.has(req.path)) {
+    return next();
   }
+  return csrfProtection(req, res, next);
 });
-app.use(csrfProtection);
 app.use(injectUser);
 
 app.use((req, res, next) => {

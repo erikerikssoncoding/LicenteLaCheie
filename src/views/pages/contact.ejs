@@ -2,22 +2,24 @@
 <%- include('../partials/header') %>
 <section class="py-5 py-lg-6">
   <div class="container">
-    <div class="row g-5 align-items-start">
-      <div class="col-lg-5">
+    <div class="row g-5 align-items-stretch">
+      <div class="col-lg-5 d-flex flex-column">
         <span class="section-label">Contact rapid</span>
-        <h1 class="section-title mt-3">Discută cu echipa Licențe la Cheie</h1>
-        <p class="section-subtitle section-subtitle-start">
-          Completează formularul, iar un consultant îți răspunde în maximum două ore în zilele lucrătoare pentru a stabili pașii următori.
-        </p>
-        <div class="glass-card mt-4">
+        <h1 class="section-title mt-3">Discută cu echipa noastră</h1>
+        <p class="section-subtitle section-subtitle-start">Hai să povestim despre proiectul tău și să găsim împreună cea mai bună soluție.</p>
+        <div class="glass-card mt-4 h-100">
           <ul class="list-unstyled mb-0 vstack gap-3">
             <li>
+              <strong>Adresă</strong>
+              <p class="mb-0 text-muted">Bd. Pipera nr. 1/I, construcția C2, et. 7, biroul 10, compartiment 12, Voluntari, Ilfov</p>
+            </li>
+            <li>
               <strong>Email</strong>
-              <p class="mb-0 text-muted">suport@licentelacheie.ro</p>
+              <p class="mb-0 text-muted"><a class="link-dark text-decoration-none" href="mailto:office@licentelacheie.ro">office@licentelacheie.ro</a></p>
             </li>
             <li>
               <strong>Telefon</strong>
-              <p class="mb-0 text-muted">+40 744 000 000</p>
+              <p class="mb-0 text-muted"><a class="link-dark text-decoration-none" href="tel:+40744000000">+40 744 000 000</a></p>
             </li>
             <li>
               <strong>Program</strong>
@@ -26,9 +28,9 @@
           </ul>
         </div>
       </div>
-      <div class="col-lg-7">
-        <div class="glass-card">
-          <form action="/contact" method="post" class="row g-3">
+      <div class="col-lg-7 d-flex flex-column">
+        <div class="glass-card h-100 d-flex flex-column">
+          <form action="/contact" method="post" class="row g-3" enctype="multipart/form-data">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <div class="col-12">
               <div class="alert alert-success d-flex align-items-center gap-3 flex-wrap justify-content-between mb-0">
@@ -87,12 +89,26 @@
                 id="phone"
                 name="phone"
                 value="<%= request.body?.phone || currentUser?.phone || '' %>"
+                pattern="(?:\+?40|0)[23789][0-9]{8}"
+                inputmode="tel"
+                title="Introdu un număr de telefon din România, începând cu +40 sau 0."
                 required
               />
             </div>
             <div class="col-12">
               <label class="form-label" for="message">Mesaj</label>
               <textarea class="form-control" id="message" name="message" rows="5" required><%= request.body?.message || '' %></textarea>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="attachment">Atașament (opțional)</label>
+              <input
+                class="form-control"
+                type="file"
+                id="attachment"
+                name="attachment"
+                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+              />
+              <div class="form-text">Acceptăm PDF, DOCX, JPG, PNG sau TXT (max. 5MB).</div>
             </div>
             <div class="col-12 text-end">
               <button class="btn btn-gradient" type="submit">Trimite mesajul</button>

@@ -1,10 +1,10 @@
 import pool from '../config/db.js';
 
-export async function createContactRequest({ fullName, email, phone, message }) {
+export async function createContactRequest({ fullName, email, phone, message, ipAddress }) {
   await pool.query(
-    `INSERT INTO contact_messages (full_name, email, phone, message)
-     VALUES (?, ?, ?, ?)`,
-    [fullName, email, phone, message]
+    `INSERT INTO contact_messages (full_name, email, phone, ip_address, message)
+     VALUES (?, ?, ?, ?, ?)`,
+    [fullName, email, phone, ipAddress || null, message]
   );
 }
 

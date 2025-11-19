@@ -1,39 +1,57 @@
 <%- include('../partials/head', { title, description, request }) %>
 <%- include('../partials/header') %>
-<section class="py-5">
-  <div class="container" style="max-width: 600px;">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h1 class="h4 mb-3">Creeaza-ti cont</h1>
-        <% if (typeof error !== 'undefined') { %>
-        <div class="alert alert-danger"><%= error %></div>
-        <% } %>
-        <form action="/inregistrare" method="post" class="row g-3">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <div class="col-12">
-            <label class="form-label" for="fullName">Nume complet</label>
-            <input class="form-control" type="text" id="fullName" name="fullName" required />
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="email">Email</label>
-            <input class="form-control" type="email" id="email" name="email" required />
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="phone">Telefon</label>
-            <input class="form-control" type="tel" id="phone" name="phone" required />
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="password">Parola</label>
-            <input class="form-control" type="password" id="password" name="password" required />
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="confirmPassword">Confirma parola</label>
-            <input class="form-control" type="password" id="confirmPassword" name="confirmPassword" required />
-          </div>
-          <div class="col-12 text-end">
-            <button class="btn btn-primary" type="submit">Creeaza cont</button>
-          </div>
-        </form>
+<section class="py-5 auth-section">
+  <div class="container">
+    <div class="row align-items-center justify-content-center g-4">
+      <div class="col-lg-2 d-none d-lg-flex justify-content-end">
+        <div class="auth-icon-circle text-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3Zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+          </svg>
+        </div>
+      </div>
+      <div class="col-md-8 col-lg-6">
+        <div class="glass-card auth-card mx-auto">
+          <h1 class="h4 mb-3 text-center">Creează-ți contul</h1>
+          <% if (typeof error !== 'undefined') { %>
+          <div class="alert alert-danger"><%= error %></div>
+          <% } %>
+          <form action="/inregistrare" method="post" class="row g-3">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <div class="col-12">
+              <label class="form-label" for="fullName">Nume complet</label>
+              <input class="form-control" type="text" id="fullName" name="fullName" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="email">Email</label>
+              <input class="form-control" type="email" id="email" name="email" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="phone">Telefon</label>
+              <input class="form-control" type="tel" id="phone" name="phone" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="password">Parolă</label>
+              <input class="form-control" type="password" id="password" name="password" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="confirmPassword">Confirmă parola</label>
+              <input class="form-control" type="password" id="confirmPassword" name="confirmPassword" required />
+            </div>
+            <div class="col-12 text-end">
+              <button class="btn btn-primary" type="submit">Creează cont</button>
+            </div>
+          </form>
+        </div>
+        <p class="auth-slogan text-center mt-4">Înscrie-te și rezervă-ți un consultant dedicat.</p>
+      </div>
+      <div class="col-lg-2 d-none d-lg-flex justify-content-start">
+        <div class="auth-icon-circle text-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 0c-.69 0-1.25.56-1.25 1.25v.75h2.5V1.25C9.25.56 8.69 0 8 0ZM4.75 2A1.75 1.75 0 0 0 3 3.75V6h10V3.75A1.75 1.75 0 0 0 11.25 2Z" />
+            <path d="M14 7H2v5.25A1.75 1.75 0 0 0 3.75 14h8.5A1.75 1.75 0 0 0 14 12.25Z" />
+          </svg>
+        </div>
       </div>
     </div>
   </div>

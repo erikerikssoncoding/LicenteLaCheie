@@ -64,6 +64,10 @@ app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(morgan('combined'));
+app.use((req, res, next) => {
+  req.headers['x-forwarded-proto'] = 'https';
+  next();
+});
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(simpleCookieParser);
 app.use(sessionMiddleware);

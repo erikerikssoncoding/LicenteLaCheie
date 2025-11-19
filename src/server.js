@@ -90,7 +90,8 @@ app.use((err, req, res, next) => {
     return res.status(403).render('pages/403', {
       title: 'Sesiune expirata',
       description: 'Formularul a expirat. Te rugam sa reincerci.',
-      request: req
+      request: req,
+      currentUser: req.session?.user || null
     });
   }
   const status = err.status || 500;

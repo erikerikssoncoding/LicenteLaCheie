@@ -6,13 +6,54 @@
       <div class="col-lg-6">
         <h1>Solicită ofertă pentru lucrarea academică sau materialul infodocumentar</h1>
         <p class="lead">
-          Completează formularul și platforma va genera un contract draft pe care îl poți semna digital după validare.
+          Completează formularul iar platforma va genera un draft de contract pe care îl poți semna digital după validare.
         </p>
-        <ul class="list-check">
-          <li>Evaluare gratuită a cerințelor și temei</li>
-          <li>Contract personalizat și garanție de livrare</li>
-          <li>Proces securizat, compliant cu GDPR</li>
-        </ul>
+        <div class="process-flow mt-4">
+          <div class="process-step">
+            <div class="process-icon">🔍</div>
+            <div>
+              <h3>Evaluare documentație</h3>
+              <p>Analizăm cerințele, temele și atașamentele încărcate pentru a calibra volumul de lucru.</p>
+            </div>
+          </div>
+          <div class="process-step">
+            <div class="process-icon">📑</div>
+            <div>
+              <h3>Contract personalizat</h3>
+              <p>Primești draft de contract și termene de lucru adaptate universității tale.</p>
+            </div>
+          </div>
+          <div class="process-step">
+            <div class="process-icon">🛡️</div>
+            <div>
+              <h3>Proces securizat</h3>
+              <p>Flux compliant GDPR, cu arhivă de documente și audit pe fiecare etapă.</p>
+            </div>
+          </div>
+          <div class="process-step">
+            <div class="process-icon">📊</div>
+            <div>
+              <h3>Audit de originalitate</h3>
+              <p>Înainte de livrare verificăm originalitatea și oferim rapoarte antiplagiat.</p>
+            </div>
+          </div>
+          <div class="process-step">
+            <div class="process-icon">🤝</div>
+            <div>
+              <h3>Consiliere continuă</h3>
+              <p>Consultanță pentru susținere și actualizări în timp real direct în ticket.</p>
+            </div>
+          </div>
+        </div>
+        <div class="video-embed mt-4">
+          <iframe
+            src="https://www.youtube-nocookie.com/embed/9No-FiEInLA"
+            title="Spot video Licențe la Cheie"
+            loading="lazy"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+          ></iframe>
+        </div>
       </div>
       <div class="col-lg-6">
         <div class="card shadow-sm">
@@ -20,7 +61,7 @@
             <% if (typeof error !== 'undefined' && error) { %>
             <div class="alert alert-danger"><%= error %></div>
             <% } %>
-            <form action="/oferta" method="post" class="row g-3">
+            <form action="/oferta" method="post" class="row g-3" enctype="multipart/form-data">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <div class="col-12">
                 <label class="form-label" for="clientName">Nume complet</label>
@@ -32,6 +73,7 @@
                   value="<%= request.body?.clientName || currentUser?.fullName || '' %>"
                   <%= currentUser ? 'readonly' : '' %>
                   required
+                  data-required-message="Te rugăm să completezi numele complet."
                 />
               </div>
               <div class="col-md-6">
@@ -44,6 +86,7 @@
                   value="<%= request.body?.email || currentUser?.email || '' %>"
                   <%= currentUser ? 'readonly' : '' %>
                   required
+                  data-required-message="Te rugăm să completezi adresa de email."
                 />
               </div>
               <div class="col-md-6">
@@ -54,20 +97,46 @@
                   id="phone"
                   name="phone"
                   value="<%= request.body?.phone || currentUser?.phone || '' %>"
+                  inputmode="tel"
+                  pattern="^(0|(?:\+40))[23789][0-9]{8}$"
                   required
+                  data-required-message="Te rugăm să completezi numărul de telefon."
+                  data-phone-message="Introduce un număr de telefon din România, cu prefix 0 sau +40."
                 />
               </div>
               <div class="col-md-6">
-                <label class="form-label" for="program">Program de studiu</label>
-                <input class="form-control" type="text" id="program" name="program" value="<%= request.body?.program || '' %>" required />
+                <label class="form-label" for="program">Program de studii</label>
+                <input
+                  class="form-control"
+                  type="text"
+                  id="program"
+                  name="program"
+                  value="<%= request.body?.program || '' %>"
+                  required
+                  data-required-message="Te rugăm să menționezi programul de studii."
+                />
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="topic">Tema lucrării</label>
-                <input class="form-control" type="text" id="topic" name="topic" value="<%= request.body?.topic || '' %>" required />
+                <input
+                  class="form-control"
+                  type="text"
+                  id="topic"
+                  name="topic"
+                  value="<%= request.body?.topic || '' %>"
+                  required
+                  data-required-message="Te rugăm să completezi tema lucrării."
+                />
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="workType">Tipul lucrării</label>
-                <select class="form-select" id="workType" name="workType" required>
+                <select
+                  class="form-select"
+                  id="workType"
+                  name="workType"
+                  required
+                  data-required-message="Selectează tipul lucrării."
+                >
                   <option value="" disabled <%= request.body?.workType ? '' : 'selected' %>>Selectează tipul lucrării</option>
                   <option value="lucrare de licenta" <%= request.body?.workType === 'lucrare de licenta' ? 'selected' : '' %>>Lucrare de licență</option>
                   <option value="lucrare de grad" <%= request.body?.workType === 'lucrare de grad' ? 'selected' : '' %>>Lucrare de grad</option>
@@ -86,11 +155,35 @@
                   min="<%= minDeliveryDate %>"
                   value="<%= request.body?.deliveryDate || minDeliveryDate %>"
                   required
+                  data-required-message="Selectează data dorită de livrare."
                 />
               </div>
               <div class="col-12">
                 <label class="form-label" for="notes">Detalii suplimentare</label>
-                <textarea class="form-control" id="notes" name="notes" rows="3"><%= request.body?.notes || '' %></textarea>
+                <textarea
+                  class="form-control"
+                  id="notes"
+                  name="notes"
+                  rows="3"
+                  data-required-message="Adaugă detaliile suplimentare cerute de universitate."
+                ><%= request.body?.notes || '' %></textarea>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="attachments">Atașamente opționale</label>
+                <div class="attachment-upload">
+                  <input
+                    type="file"
+                    id="attachments"
+                    name="attachments"
+                    class="visually-hidden"
+                    data-attachment-input
+                    multiple
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.jpg,.jpeg,.png"
+                  />
+                  <label class="btn btn-outline-primary w-100 text-start" for="attachments">Încarcă documente</label>
+                  <small class="text-muted d-block mt-2">Format acceptat: PDF, DOC(X), XLS(X), PPT(X), imagini sau arhive (max. 5 fișiere / 8MB fiecare).</small>
+                  <div class="attachment-list mt-2" data-attachment-list>Niciun fișier selectat.</div>
+                </div>
               </div>
               <% if (!currentUser) { %>
               <div class="col-12">
@@ -103,6 +196,7 @@
                     name="acceptAccount"
                     <%= request.body?.acceptAccount ? 'checked' : '' %>
                     required
+                    data-required-message="Este necesar să accepți crearea contului pentru a continua."
                   />
                   <label class="form-check-label" for="acceptAccount">
                     Sunt de acord să fie creat un cont Licențe la Cheie pentru gestionarea ofertei și a contractului.

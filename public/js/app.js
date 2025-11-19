@@ -50,3 +50,69 @@
     }, 1000);
   });
 })();
+
+(() => {
+  const requiredFields = document.querySelectorAll('[data-required-message]');
+  requiredFields.forEach((field) => {
+    const message = field.getAttribute('data-required-message');
+    if (!message) {
+      return;
+    }
+    field.addEventListener('invalid', (event) => {
+      const target = event.target;
+      target.setCustomValidity('');
+      if (target.validity.valueMissing) {
+        target.setCustomValidity(message);
+      } else if (target.validity.patternMismatch && target.hasAttribute('data-phone-message')) {
+        target.setCustomValidity(target.getAttribute('data-phone-message'));
+      }
+    });
+    field.addEventListener('input', (event) => {
+      event.target.setCustomValidity('');
+    });
+  });
+})();
+
+(() => {
+  const phoneField = document.querySelector('[data-phone-message]');
+  if (!phoneField) {
+    return;
+  }
+  const repeatedMessage = 'Numărul de telefon nu poate avea toate cifrele identice.';
+  const validatePhone = () => {
+    phoneField.setCustomValidity('');
+    const digits = phoneField.value.replace(/\D/g, '').slice(-9);
+    if (digits && digits.length >= 6 && /^([0-9])\1+$/u.test(digits)) {
+      phoneField.setCustomValidity(repeatedMessage);
+      return;
+    }
+    if (phoneField.validity.patternMismatch) {
+      phoneField.setCustomValidity(phoneField.getAttribute('data-phone-message'));
+    }
+  };
+  phoneField.addEventListener('input', validatePhone);
+  phoneField.addEventListener('blur', validatePhone);
+})();
+
+(() => {
+  const input = document.querySelector('[data-attachment-input]');
+  const list = document.querySelector('[data-attachment-list]');
+  if (!input || !list) {
+    return;
+  }
+  const renderList = () => {
+    const files = Array.from(input.files);
+    list.innerHTML = '';
+    if (!files.length) {
+      list.textContent = 'Niciun fișier selectat.';
+      return;
+    }
+    files.forEach((file) => {
+      const row = document.createElement('div');
+      const size = file.size ? `${(file.size / 1024).toFixed(1)} KB` : 'dimensiune necunoscută';
+      row.textContent = `${file.name} (${size})`;
+      list.appendChild(row);
+    });
+  };
+  input.addEventListener('change', renderList);
+})();

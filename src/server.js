@@ -14,7 +14,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import { injectUser } from './middleware/auth.js';
 import { initializeSecurityState, getSecurityState } from './utils/securityState.js';
 import { initializeLicenseState } from './utils/licenseState.js';
-import { PROJECT_UPLOAD_ROOT } from './utils/fileStorage.js';
+import { OFFER_ATTACHMENT_ROOT, PROJECT_UPLOAD_ROOT } from './utils/fileStorage.js';
 
 dotenv.config();
 
@@ -25,7 +25,10 @@ const __dirname = path.dirname(__filename);
 
 await initializeSecurityState();
 await initializeLicenseState();
-await fs.mkdir(PROJECT_UPLOAD_ROOT, { recursive: true });
+await Promise.all([
+  fs.mkdir(PROJECT_UPLOAD_ROOT, { recursive: true }),
+  fs.mkdir(OFFER_ATTACHMENT_ROOT, { recursive: true })
+]);
 
 const app = express();
 
@@ -37,10 +40,11 @@ const baseHelmet = helmet({ contentSecurityPolicy: false });
 const cspMiddleware = helmet.contentSecurityPolicy({
   useDefaults: true,
   directives: {
-    "img-src": ["'self'", 'data:', 'https://images.unsplash.com'],
+    "img-src": ["'self'", 'data:', 'https://images.unsplash.com', 'https://i.ytimg.com'],
     "script-src": ["'self'", 'https://cdn.jsdelivr.net'],
     "style-src": ["'self'", 'https://cdn.jsdelivr.net', "'unsafe-inline'"],
-    "connect-src": ["'self'"]
+    "connect-src": ["'self'"],
+    "frame-src": ["'self'", 'https://www.youtube-nocookie.com']
   }
 });
 

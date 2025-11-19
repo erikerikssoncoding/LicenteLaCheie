@@ -226,82 +226,102 @@ router
   .get((req, res) => {
     res.render('pages/contact', CONTACT_PAGE_PROPS);
   })
-  .post(async (req, res, next) => {
-    try {
-      const schema = z.object({
-        fullName: z.string().min(3),
-        email: z.string().email(),
-        phone: z.string().min(6),
-        message: z.string().min(10)
-      });
-      const data = schema.parse(req.body);
-      const clientMetadata = collectClientMetadata(req);
-      if (req.session?.user) {
-        const user = req.session.user;
-        if (user.fullName !== data.fullName || user.phone !== data.phone) {
-          await updateUserProfile(user.id, { fullName: data.fullName, phone: data.phone });
-          req.session.user.fullName = data.fullName;
-          req.session.user.phone = data.phone;
+  .post((req, res, next) => {
+    // 1. Adăugăm middleware-ul de upload pentru a procesa multipart/form-data
+    contactAttachmentUpload.single('attachment')(req, res, async (uploadError) => {
+      if (uploadError) {
+        return res.status(400).render('pages/contact', {
+          ...CONTACT_PAGE_PROPS,
+          error: mapContactUploadError(uploadError)
+        });
+      }
+
+      try {
+        const schema = z.object({
+          fullName: z.string().min(3, 'Numele trebuie să aibă minim 3 caractere'),
+          email: z.string().email('Adresa de email nu este validă'),
+          phone: z.string().min(6, 'Numărul de telefon este invalid'),
+          message: z.string().min(10, 'Mesajul trebuie să fie mai detaliat')
+        });
+        
+        const data = schema.parse(req.body);
+        const clientMetadata = collectClientMetadata(req);
+        
+        // Folosim req.file, deoarece 'attachment' nu era definit ca variabilă
+        const attachment = req.file;
+
+        if (req.session?.user) {
+          const user = req.session.user;
+          if (user.fullName !== data.fullName || user.phone !== data.phone) {
+            await updateUserProfile(user.id, { fullName: data.fullName, phone: data.phone });
+            req.session.user.fullName = data.fullName;
+            req.session.user.phone = data.phone;
+          }
+          
+          const { id: ticketId, displayCode } = await createTicket({
+            projectId: null,
+            userId: user.id,
+            subject: `Solicitare contact - ${data.fullName}`,
+            message: `Telefon: ${data.phone}\nEmail: ${user.email}\n\n${data.message}`,
+            kind: 'support',
+            clientMetadata
+          });
+
+          return res.render('pages/contact-success', {
+            title: 'Ticket deschis cu succes',
+            description: 'Am inregistrat solicitarea ta direct in cont. Echipa noastra iti va raspunde in cel mai scurt timp.',
+            ticketId,
+            ticketDisplayCode: displayCode,
+            submissionEmail: user.email
+          });
         }
+
+        const ensuredAccount = await ensureClientAccount({
+          fullName: data.fullName,
+          email: data.email,
+          phone: data.phone
+        });
+
+        const messageBody = `Telefon: ${data.phone}\nEmail: ${data.email}\n\n${data.message}`;
         const { id: ticketId, displayCode } = await createTicket({
           projectId: null,
-          userId: user.id,
+          userId: ensuredAccount.userId,
           subject: `Solicitare contact - ${data.fullName}`,
-          message: `Telefon: ${data.phone}\nEmail: ${user.email}\n\n${data.message}`,
+          message: messageBody,
           kind: 'support',
           clientMetadata
         });
+
+        // Aici probabil voiai să salvezi și atașamentul dacă există, 
+        // dar funcția createContactRequest din codul tău original primea doar 'data'.
+        await createContactRequest(data);
+
         return res.render('pages/contact-success', {
-          title: 'Ticket deschis cu succes',
-          description: 'Am inregistrat solicitarea ta direct in cont. Echipa noastra iti va raspunde in cel mai scurt timp.',
+          title: 'Mesaj trimis cu succes',
+          description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.',
+          generatedPassword: ensuredAccount.generatedPassword,
+          submissionEmail: data.email,
           ticketId,
-          ticketDisplayCode: displayCode,
-          submissionEmail: user.email
+          ticketDisplayCode: displayCode
         });
-      }
-      const ensuredAccount = await ensureClientAccount({
-        fullName: data.fullName,
-        email: data.email,
-        phone: data.phone
-      });
-      const messageBody = `Telefon: ${data.phone}\nEmail: ${data.email}\n\n${data.message}`;
-      const { id: ticketId, displayCode } = await createTicket({
-        projectId: null,
-        userId: ensuredAccount.userId,
-        subject: `Solicitare contact - ${data.fullName}`,
-        message: messageBody,
-        kind: 'support',
-        clientMetadata
-      });
-      await createContactRequest(data);
-      return res.render('pages/contact-success', {
-        title: 'Mesaj trimis cu succes',
-        description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.',
-        generatedPassword: ensuredAccount.generatedPassword,
-        submissionEmail: data.email,
-        ticketId,
-        ticketDisplayCode: displayCode
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).render('pages/contact', {
-          title: 'Contact Licente la Cheie',
-          description:
-            'Scrie-ne pentru a afla cum te putem ajuta cu redactarea lucrarii de licenta sau a proiectului tau academic.',
-          error: 'Completeaza corect toate campurile pentru a trimite mesajul.'
-        });
+
       } catch (error) {
+        // AICI ERA EROAREA DE SINTAXĂ: Ai avut două blocuri catch imbricate
         if (error instanceof z.ZodError) {
-          const message =
-            error.errors?.[0]?.message || 'Completează corect toate câmpurile pentru a trimite mesajul.';
+          const message = error.errors?.[0]?.message || 'Completează corect toate câmpurile.';
           return res.status(400).render('pages/contact', {
             ...CONTACT_PAGE_PROPS,
-            error: message
+            error: message,
+            // E util să trimiți înapoi datele introduse ca să nu le piardă userul
+            request: { body: req.body } 
           });
         }
         return next(error);
       } finally {
-        await cleanupContactAttachment(attachment);
+        // 2. Corecție: Folosim req.file în loc de variabila inexistentă 'attachment'
+        if (req.file) {
+          await cleanupContactAttachment(req.file);
+        }
       }
     });
   });

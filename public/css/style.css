@@ -693,6 +693,99 @@ a:hover {
   color: #fff;
 }
 
+.footer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 2.5rem;
+}
+
+.footer-logo-stack {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.footer-logo {
+  width: 64px;
+  height: auto;
+}
+
+.footer-wordmark {
+  max-width: 210px;
+  height: auto;
+}
+
+.footer-text {
+  color: rgba(255, 255, 255, 0.75);
+  max-width: 360px;
+}
+
+.footer-company-meta {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.footer-company-name {
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
+}
+
+.footer-heading {
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 1rem;
+}
+
+.footer-links li {
+  margin-bottom: 0.45rem;
+}
+
+.footer-powered {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+}
+
+.footer-powered-mark {
+  height: 32px;
+  width: auto;
+}
+
+.footer-compliance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.footer-compliance-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.footer-compliance-link img {
+  width: 24px;
+  height: 24px;
+}
+
 .table > :not(caption) > * > * {
   padding: 1rem;
 }
@@ -844,7 +937,8 @@ a:hover {
     padding: 0.75rem;
   }
 
-  .footer-modern .row > [class*='col']:not(:first-child) {
-    margin-top: 1.5rem;
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
   }
 }

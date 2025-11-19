@@ -4,25 +4,51 @@
   <% const isManager = isAuthenticated && ['admin', 'superadmin'].includes(currentUser.role); %>
   <div class="container">
     <% if (!isStaff) { %>
-    <div class="row">
-      <div class="col-md-6">
-        <h5 class="fw-bold">Licențe la Cheie</h5>
-        <p class="mb-2">Servicii premium pentru lucrări academice și materiale infodocumentare.</p>
-        <p class="small mb-0">© <%= new Date().getFullYear() %> Licențe la Cheie. Toate drepturile rezervate.</p>
+    <div class="footer-grid">
+      <div>
+        <div class="footer-logo-stack">
+          <img src="/img/logo-white.svg" alt="Sigla Licențe la Cheie" class="footer-logo" />
+          <img src="/img/site-wordmark.svg" alt="Identitate vizuală Licențe la Cheie" class="footer-wordmark" />
+        </div>
+        <p class="footer-text">Hub complet pentru consultanță academică, management de proiect și livrabile premium.</p>
+        <div class="footer-company-meta">
+          <p class="footer-company-name">FREELANCE WRITTERS SRL</p>
+          <p class="mb-1">Nr. Registrul Comerțului: J23/4460/2023</p>
+          <p class="mb-3">CUI: RO48455074</p>
+        </div>
+        <p class="small mb-1">© <%= new Date().getFullYear() %> <a class="link-light text-decoration-none" href="https://www.licentelacheie.ro" target="_blank" rel="noreferrer noopener">www.licentelacheie.ro</a>. Toate drepturile rezervate.</p>
+        <div class="footer-powered">
+          <span>Powered by</span>
+          <img src="/img/agent-mark.svg" alt="Sigla Digital Makers" class="footer-powered-mark" />
+        </div>
       </div>
-      <div class="col-md-3">
-        <h6>Legături utile</h6>
-        <ul class="list-unstyled">
+      <div>
+        <p class="footer-heading">Legături utile</p>
+        <ul class="list-unstyled footer-links">
           <li><a class="link-light" href="/despre-noi">Despre noi</a></li>
           <li><a class="link-light" href="/servicii">Servicii</a></li>
           <li><a class="link-light" href="/oferta">Solicită ofertă</a></li>
           <li><a class="link-light" href="/contact">Contact</a></li>
+          <li><a class="link-light" href="/termeni-si-conditii">Termeni și condiții</a></li>
+          <li><a class="link-light" href="/politica-confidentialitate">Confidențialitate</a></li>
+          <li><a class="link-light" href="/politica-cookie">Politica de cookies</a></li>
         </ul>
+        <div class="footer-compliance">
+          <a class="footer-compliance-link" href="https://anpc.ro/" target="_blank" rel="noreferrer noopener">
+            <img src="/img/anpc-badge.svg" alt="ANPC" />
+            <span>ANPC</span>
+          </a>
+          <a class="footer-compliance-link" href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noreferrer noopener">
+            <img src="/img/sol-badge.svg" alt="Soluționarea Online a Litigiilor" />
+            <span>SOL</span>
+          </a>
+        </div>
       </div>
-      <div class="col-md-3">
-        <h6>Contact rapid</h6>
-        <p class="mb-1">Email: suport@licentelacheie.ro</p>
-        <p class="mb-0">Telefon: +40 744 000 000</p>
+      <div>
+        <p class="footer-heading">Contact rapid</p>
+        <p class="mb-2">Bd. Pipera nr. 1/I, construcția C2, et. 7, biroul 10, compartiment 12, Voluntari, Ilfov</p>
+        <p class="mb-1">Email: office@licentelacheie.ro</p>
+        <p class="mb-1">Telefon: +40 744 000 000</p>
       </div>
     </div>
     <% } else { %>

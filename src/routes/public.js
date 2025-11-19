@@ -414,7 +414,7 @@ async function handleOfferSubmission(req, res) {
       .string()
       .min(6)
       .transform((value) => sanitizePhoneValue(value))
-      .regex(PHONE_PATTERN, 'Introdu un număr de telefon din România cu prefix valid.')
+      .refine((value) => PHONE_PATTERN.test(value), 'Introdu un număr de telefon din România cu prefix valid.')
       .refine((value) => !hasInvalidRepetition(value), 'Numărul de telefon nu poate avea toate cifrele identice.'),
     program: z.string().trim().min(3, 'Programul de studii trebuie să aibă cel puțin 3 caractere.'),
     topic: z.string().trim().min(5, 'Tema lucrării trebuie să fie mai detaliată.'),

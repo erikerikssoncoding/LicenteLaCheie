@@ -14,7 +14,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import { injectUser } from './middleware/auth.js';
 import { initializeSecurityState, getSecurityState } from './utils/securityState.js';
 import { initializeLicenseState } from './utils/licenseState.js';
-import { OFFER_ATTACHMENT_ROOT, PROJECT_UPLOAD_ROOT } from './utils/fileStorage.js';
+import { CONTACT_ATTACHMENT_ROOT, OFFER_ATTACHMENT_ROOT, PROJECT_UPLOAD_ROOT } from './utils/fileStorage.js';
 
 dotenv.config();
 
@@ -27,7 +27,8 @@ await initializeSecurityState();
 await initializeLicenseState();
 await Promise.all([
   fs.mkdir(PROJECT_UPLOAD_ROOT, { recursive: true }),
-  fs.mkdir(OFFER_ATTACHMENT_ROOT, { recursive: true })
+  fs.mkdir(OFFER_ATTACHMENT_ROOT, { recursive: true }),
+  fs.mkdir(CONTACT_ATTACHMENT_ROOT, { recursive: true })
 ]);
 
 const app = express();

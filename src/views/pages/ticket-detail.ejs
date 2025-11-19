@@ -487,6 +487,56 @@
       const firstName = parts[0] || 'Echipa';
       return `${firstName}, Echipa Licențe la Cheie`;
     } %>
+    <% function escapeHtml(text) {
+      return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    } %>
+    <% function escapeAttribute(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    } %>
+    <% function linkifyMessageLine(line) {
+      const linkPattern = /(https?:\/\/[^\s<>"]+|\/cont\/tichete\/\d+)/gi;
+      let result = '';
+      let lastIndex = 0;
+      const value = String(line || '');
+      let match;
+      while ((match = linkPattern.exec(value)) !== null) {
+        const startIndex = match.index;
+        if (startIndex > lastIndex) {
+          result += escapeHtml(value.slice(lastIndex, startIndex));
+        }
+        let matched = match[0];
+        let trailing = '';
+        while (matched.length > 1 && /[.,!?)]$/.test(matched)) {
+          trailing = matched.slice(-1) + trailing;
+          matched = matched.slice(0, -1);
+        }
+        if (matched) {
+          const safeHref = escapeAttribute(matched);
+          const safeLabel = escapeHtml(matched);
+          const isExternal = /^https?:/i.test(matched);
+          const attrs = isExternal ? ' target="_blank" rel="noopener noreferrer"' : '';
+          result += `<a class="text-decoration-underline" href="${safeHref}"${attrs}>${safeLabel}</a>`;
+        } else {
+          result += escapeHtml(match[0]);
+        }
+        if (trailing) {
+          result += escapeHtml(trailing);
+        }
+        lastIndex = startIndex + match[0].length;
+      }
+      if (lastIndex < value.length) {
+        result += escapeHtml(value.slice(lastIndex));
+      }
+      return result;
+    } %>
     <% function formatTimelineDate(value) {
       if (!value) {
         return '—';
@@ -547,10 +597,10 @@
             <% } %>
           </div>
           <p class="mb-2 <%= entryType === 'log' ? 'small text-muted' : '' %>">
-            <% const messageLines = String(entry.message || '').split('\n'); %>
-            <% messageLines.forEach((line, index) => { %>
-            <%= line %><% if (index < messageLines.length - 1) { %><br /><% } %>
-            <% }) %>
+          <% const messageLines = String(entry.message || '').split('\n'); %>
+          <% messageLines.forEach((line, index) => { %>
+            <%- linkifyMessageLine(line) %><% if (index < messageLines.length - 1) { %><br /><% } %>
+          <% }) %>
           </p>
           <small class="text-muted d-block">
             <%= metaPrefix %> <%= formatTimelineName(entry.author_name, entry.author_role) %>
@@ -822,9 +872,50 @@
           if (index > 0) {
             paragraph.appendChild(document.createElement('br'));
           }
-          paragraph.appendChild(document.createTextNode(line));
+          linkifyLineNodes(line).forEach((node) => paragraph.appendChild(node));
         });
         return paragraph;
+      }
+
+      function linkifyLineNodes(line) {
+        const nodes = [];
+        const value = `${line ?? ''}`;
+        const pattern = /(https?:\/\/[^\s<>'"]+|\/cont\/tichete\/\d+)/gi;
+        let lastIndex = 0;
+        let match;
+        while ((match = pattern.exec(value)) !== null) {
+          const startIndex = match.index;
+          if (startIndex > lastIndex) {
+            nodes.push(document.createTextNode(value.slice(lastIndex, startIndex)));
+          }
+          let matched = match[0];
+          let trailing = '';
+          while (matched.length > 1 && /[.,!?)]$/.test(matched)) {
+            trailing = matched.slice(-1) + trailing;
+            matched = matched.slice(0, -1);
+          }
+          if (matched) {
+            const anchor = document.createElement('a');
+            anchor.href = matched;
+            anchor.textContent = matched;
+            anchor.className = 'text-decoration-underline';
+            anchor.rel = 'noopener noreferrer';
+            if (/^https?:/i.test(matched)) {
+              anchor.target = '_blank';
+            }
+            nodes.push(anchor);
+          } else {
+            nodes.push(document.createTextNode(match[0]));
+          }
+          if (trailing) {
+            nodes.push(document.createTextNode(trailing));
+          }
+          lastIndex = startIndex + match[0].length;
+        }
+        if (lastIndex < value.length) {
+          nodes.push(document.createTextNode(value.slice(lastIndex)));
+        }
+        return nodes;
       }
 
       function formatTimelineDateClient(value) {

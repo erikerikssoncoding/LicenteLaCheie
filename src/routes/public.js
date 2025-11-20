@@ -289,7 +289,7 @@ router.get('/politica-cookie', (req, res) => {
   res.render('pages/cookies', {
     title: 'Politica privind cookies - Academia de Licente',
     description:
-      'Detalii privind tipurile de cookie-uri folosite pe site-ul licentelacheie.ro si optiunile de control disponibile utilizatorilor.'
+      'Detalii privind tipurile de cookie-uri folosite pe site-ul academiadelicente.ro si optiunile de control disponibile utilizatorilor.'
   });
 });
 

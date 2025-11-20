@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const APP_COOKIE_DOMAIN = process.env.APP_COOKIE_DOMAIN || null;
-const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME || 'licentelacheie.csrf';
+const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME || 'academiadelicente.csrf';
 const isProduction = process.env.NODE_ENV === 'production';
 
 const csrfProtection = csrf({

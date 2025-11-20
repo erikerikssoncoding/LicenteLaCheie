@@ -25,8 +25,8 @@ Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari 
 1. **Clonati repository-ul**:
 
    ```bash
-   git clone https://github.com/organizatie/licente-la-cheie.git
-   cd licente-la-cheie
+   git clone https://github.com/organizatie/academia-de-licente.git
+   cd academia-de-licente
    ```
 
 2. **Instalati dependintele Node.js** (este necesara conectivitate la registry-ul npm):
@@ -67,10 +67,10 @@ Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari 
    ```nginx
    server {
        listen 443 ssl;
-       server_name licentelacheie.ro;
+      server_name academiadelicente.ro;
 
-       ssl_certificate /etc/letsencrypt/live/licentelacheie.ro/fullchain.pem;
-       ssl_certificate_key /etc/letsencrypt/live/licentelacheie.ro/privkey.pem;
+      ssl_certificate /etc/letsencrypt/live/academiadelicente.ro/fullchain.pem;
+      ssl_certificate_key /etc/letsencrypt/live/academiadelicente.ro/privkey.pem;
 
        location / {
            proxy_pass http://127.0.0.1:3000;
@@ -152,7 +152,7 @@ Sesiunile sunt stocate in MySQL, parolele sunt hash-uite cu bcryptjs (cost 12), 
 
 - Utilizati parole puternice si schimbati `SESSION_SECRET` in productie; aplicatia va refuza sa porneasca fara o valoare configurata.
 - Activati HTTPS si setati `Secure` pe cookie-uri (deja activ cand `NODE_ENV=production`).
-- Configurati `APP_COOKIE_DOMAIN` in `.env` pentru a partaja cookie-urile de sesiune si dispozitive de incredere intre subdomenii (ex. `.licentelacheie.ro`).
+- Configurati `APP_COOKIE_DOMAIN` in `.env` pentru a partaja cookie-urile de sesiune si dispozitive de incredere intre subdomenii (ex. `.academiadelicente.ro`).
 - Recomandam integrarea unui WAF si configurarea reCaptcha pentru formularele publice daca traficul creste.
 
 ## Probleme cunoscute / Limitari

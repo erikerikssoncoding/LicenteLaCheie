@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import pool from '../config/db.js';
 
 const TRUSTED_DEVICE_COOKIE_DOMAIN = process.env.APP_COOKIE_DOMAIN || null;
-export const TRUSTED_DEVICE_COOKIE_NAME = 'licentelacheie.trust';
+export const TRUSTED_DEVICE_COOKIE_NAME = 'academiadelicente.trust';
 export const TRUSTED_DEVICE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30; // 30 zile
 const TRUSTED_DEVICE_EXPIRATION_DAYS = 30;
 const TOKEN_BYTE_LENGTH = 48;

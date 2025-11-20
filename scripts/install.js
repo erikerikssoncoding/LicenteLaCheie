@@ -96,7 +96,7 @@ async function main() {
     const dbUser = await ask('Utilizator baza de date', 'root');
     const dbPassword = await ask('Parola utilizator', '', true);
     output.write('\n');
-    const dbName = await ask('Numele bazei de date', 'licentelacheie');
+    const dbName = await ask('Numele bazei de date', 'academiadelicente');
     const port = Number(await ask('Port aplicatie', '3000'));
     const sessionSecret = await ask('Cheie secreta sesiuni', Math.random().toString(36).slice(2));
 
@@ -117,7 +117,7 @@ async function main() {
     const createAdmin = (await ask('Doriti sa creati un superadmin acum? (da/nu)', 'da')).toLowerCase();
     if (createAdmin.startsWith('d')) {
       const fullName = await ask('Nume complet superadmin', 'Administrator Principal');
-      const email = await ask('Email superadmin', 'admin@licentelacheie.ro');
+      const email = await ask('Email superadmin', 'admin@academiadelicente.ro');
       const phone = await ask('Telefon superadmin', '+40 700 000 000');
       const password = await ask('Parola superadmin', '', true);
       output.write('\n');

@@ -17,7 +17,7 @@ const sessionStore = new MySQLStore({
   port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'licentelacheie',
+  database: process.env.DB_NAME || 'academiadelicente',
   clearExpired: true,
   checkExpirationInterval: 900000,
   expiration: 86400000,
@@ -33,7 +33,7 @@ const sessionStore = new MySQLStore({
 });
 
 const SESSION_COOKIE_DOMAIN = process.env.APP_COOKIE_DOMAIN || null;
-export const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'licentelacheie.sid';
+export const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'academiadelicente.sid';
 
 const BASE_SESSION_COOKIE_OPTIONS = Object.freeze({
   httpOnly: true,

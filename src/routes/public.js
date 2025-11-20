@@ -269,6 +269,30 @@ router.get('/servicii', (req, res) => {
   });
 });
 
+router.get('/termeni-si-conditii', (req, res) => {
+  res.render('pages/terms', {
+    title: 'Termeni si conditii - Academia de Licente',
+    description:
+      'Aflati conditiile de utilizare ale platformei Academia de Licente, responsabilitatile partilor si regulile de furnizare a serviciilor.'
+  });
+});
+
+router.get('/politica-confidentialitate', (req, res) => {
+  res.render('pages/privacy', {
+    title: 'Politica de confidentialitate - Academia de Licente',
+    description:
+      'Informatii despre modul in care colectam, folosim si protejam datele personale in platforma Academia de Licente.'
+  });
+});
+
+router.get('/politica-cookie', (req, res) => {
+  res.render('pages/cookies', {
+    title: 'Politica privind cookies - Academia de Licente',
+    description:
+      'Detalii privind tipurile de cookie-uri folosite pe site-ul licentelacheie.ro si optiunile de control disponibile utilizatorilor.'
+  });
+});
+
 router
   .route('/contact')
   .get(csrfProtection, (req, res) => {

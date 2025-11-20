@@ -7,8 +7,15 @@
         max-height: 320px;
         overflow-y: auto;
       }
+      .dashboard-scrollable {
+        max-height: 320px;
+        overflow-y: auto;
+      }
       @media (min-width: 992px) {
         .attention-ticket-scroll {
+          max-height: 420px;
+        }
+        .dashboard-scrollable {
           max-height: 420px;
         }
       }
@@ -283,6 +290,60 @@
     <% } %>
     <% } %>
 
+    <div class="row g-4 mb-4">
+      <% if (pendingSupportTickets && pendingSupportTickets.length > 0) { %>
+      <div class="col-lg-6 col-xl-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h2 class="h6 mb-3">Tichete ce necesita atentie</h2>
+            <div class="attention-ticket-scroll">
+              <ul class="list-group list-group-flush mb-0">
+                <% pendingSupportTickets.forEach((ticket) => { %>
+                <li class="list-group-item">
+                  <div class="fw-semibold"><%= ticket.subject %></div>
+                  <div class="small text-muted">Cod: <%= ticket.display_code %> • Status: <%= ticket.status === 'rezolvat' && ticket.merged_into_ticket_id ? 'rezolvat (merged)' : ticket.status %></div>
+                  <a
+                    class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
+                    href="<%= licenseRestricted ? '#' : `/cont/tichete/${ticket.id}` %>"
+                    <%= licenseRestricted ? 'tabindex=\"-1\" aria-disabled=\"true\"' : '' %>
+                  >
+                    Gestioneaza
+                  </a>
+                </li>
+                <% }) %>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <% } %>
+
+      <% if (pendingOffers && pendingOffers.length > 0) { %>
+      <div class="col-lg-6 col-xl-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h2 class="h6 mb-3">Oferte in asteptare</h2>
+            <ul class="list-group list-group-flush">
+              <% pendingOffers.forEach((offer) => { %>
+              <li class="list-group-item">
+                <div class="fw-semibold"><%= offer.client_name_full || offer.client_name %></div>
+                <div class="small text-muted">Solicitare <%= offer.offer_code %> – Ticket <%= offer.ticket_display_code || 'N/A' %> – status <%= offer.status %></div>
+                <a
+                  class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
+                  href="<%= licenseRestricted ? '#' : `/cont/tichete/${offer.ticket_id}` %>"
+                  <%= licenseRestricted ? 'tabindex=\"-1\" aria-disabled=\"true\"' : '' %>
+                >
+                  Deschide ticket
+                </a>
+              </li>
+              <% }) %>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <% } %>
+    </div>
+
     <div class="row g-4">
       <div class="col-lg-8">
         <div class="card shadow-sm h-100">
@@ -305,7 +366,7 @@
               %>
             </p>
             <% } else { %>
-            <div class="table-responsive">
+            <div class="table-responsive dashboard-scrollable">
               <table class="table align-middle">
                 <thead>
                   <tr>
@@ -365,21 +426,23 @@
             <% if (tickets.length === 0) { %>
             <p class="text-muted">Nu exista tichete deschise.</p>
             <% } else { %>
-            <ul class="list-group list-group-flush">
-              <% tickets.slice(0, 5).forEach((ticket) => { %>
-              <li class="list-group-item">
-                <div class="fw-semibold"><%= ticket.subject %></div>
-                <div class="small text-muted">Cod: <%= ticket.display_code %> • Tip: <%= ticket.kind %> • Status: <%= ticket.status === 'rezolvat' && ticket.merged_into_ticket_id ? 'rezolvat (merged)' : ticket.status %></div>
-                <a
-                  class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
-                  href="<%= licenseRestricted ? '#' : `/cont/tichete/${ticket.id}` %>"
-                  <%= licenseRestricted ? 'tabindex="-1" aria-disabled="true"' : '' %>
-                >
-                  Vezi ticket
-                </a>
-              </li>
-              <% }) %>
-            </ul>
+            <div class="dashboard-scrollable pe-1">
+              <ul class="list-group list-group-flush">
+                <% tickets.slice(0, 5).forEach((ticket) => { %>
+                <li class="list-group-item">
+                  <div class="fw-semibold"><%= ticket.subject %></div>
+                  <div class="small text-muted">Cod: <%= ticket.display_code %> • Tip: <%= ticket.kind %> • Status: <%= ticket.status === 'rezolvat' && ticket.merged_into_ticket_id ? 'rezolvat (merged)' : ticket.status %></div>
+                  <a
+                    class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
+                    href="<%= licenseRestricted ? '#' : `/cont/tichete/${ticket.id}` %>"
+                    <%= licenseRestricted ? 'tabindex=\"-1\" aria-disabled=\"true\"' : '' %>
+                  >
+                    Vezi ticket
+                  </a>
+                </li>
+                <% }) %>
+              </ul>
+            </div>
             <% } %>
             <% if (recentReplies && recentReplies.length > 0) { %>
             <div class="mt-4">
@@ -396,53 +459,6 @@
           </div>
         </div>
 
-        <% if (pendingSupportTickets && pendingSupportTickets.length > 0) { %>
-        <div class="card shadow-sm mt-4">
-          <div class="card-body">
-            <h2 class="h6 mb-3">Tichete ce necesita atentie</h2>
-            <div class="attention-ticket-scroll">
-              <ul class="list-group list-group-flush mb-0">
-                <% pendingSupportTickets.forEach((ticket) => { %>
-                <li class="list-group-item">
-                  <div class="fw-semibold"><%= ticket.subject %></div>
-                  <div class="small text-muted">Cod: <%= ticket.display_code %> • Status: <%= ticket.status === 'rezolvat' && ticket.merged_into_ticket_id ? 'rezolvat (merged)' : ticket.status %></div>
-                  <a
-                    class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
-                    href="<%= licenseRestricted ? '#' : `/cont/tichete/${ticket.id}` %>"
-                    <%= licenseRestricted ? 'tabindex="-1" aria-disabled="true"' : '' %>
-                  >
-                    Gestioneaza
-                  </a>
-                </li>
-                <% }) %>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <% } %>
-
-        <% if (pendingOffers && pendingOffers.length > 0) { %>
-        <div class="card shadow-sm mt-4">
-          <div class="card-body">
-            <h2 class="h6 mb-3">Oferte in asteptare</h2>
-            <ul class="list-group list-group-flush">
-              <% pendingOffers.forEach((offer) => { %>
-              <li class="list-group-item">
-                <div class="fw-semibold"><%= offer.client_name_full || offer.client_name %></div>
-                <div class="small text-muted">Solicitare <%= offer.offer_code %> – Ticket <%= offer.ticket_display_code || 'N/A' %> – status <%= offer.status %></div>
-                <a
-                  class="btn btn-sm btn-link px-0 <%= licenseRestricted ? 'disabled' : '' %>"
-                  href="<%= licenseRestricted ? '#' : `/cont/tichete/${offer.ticket_id}` %>"
-                  <%= licenseRestricted ? 'tabindex="-1" aria-disabled="true"' : '' %>
-                >
-                  Deschide ticket
-                </a>
-              </li>
-              <% }) %>
-            </ul>
-          </div>
-        </div>
-        <% } %>
       </div>
     </div>
   </div>

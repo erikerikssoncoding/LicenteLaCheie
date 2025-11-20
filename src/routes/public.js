@@ -367,7 +367,7 @@ async function handleContactPost(req, res, next) {
 
       return res.render('pages/contact-success', {
         title: 'Ticket deschis cu succes',
-        description: 'Am inregistrat solicitarea ta direct in cont. Echipa noastra iti va raspunde in cel mai scurt timp.',
+        description: 'Am înregistrat solicitarea ta direct în cont. Echipa noastră îți va răspunde în cel mai scurt timp.',
         ticketId,
         ticketDisplayCode: displayCode,
         submissionEmail: user.email
@@ -401,7 +401,7 @@ async function handleContactPost(req, res, next) {
 
     return res.render('pages/contact-success', {
       title: 'Mesaj trimis cu succes',
-      description: 'Solicitarea ta a fost inregistrata. Un consultant te va contacta in cel mai scurt timp.',
+      description: 'Solicitarea ta a fost înregistrată. Un consultant te va contacta în cel mai scurt timp.',
       generatedPassword: ensuredAccount.generatedPassword,
       submissionEmail: data.email,
       ticketId,

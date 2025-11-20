@@ -70,24 +70,8 @@ a:hover {
 }
 
 .brand-logo {
-  height: 40px;
+  height: 60px;
   width: auto;
-}
-
-.premium-navbar .navbar-brand .brand-beta-badge {
-  position: absolute;
-  top: -0.5rem;
-  right: -0.35rem;
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  background: rgba(124, 58, 237, 0.9);
-  -webkit-text-fill-color: #fff;
-  color: #fff;
-  border-radius: 999px;
-  padding: 0.15rem 0.4rem;
-  font-weight: 700;
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
-  text-transform: uppercase;
 }
 
 .navbar-light .navbar-toggler {
@@ -1074,10 +1058,6 @@ a:hover {
   .premium-navbar .navbar-brand {
     font-size: 1.1rem;
     padding-right: 1.75rem;
-  }
-
-  .premium-navbar .brand-beta-badge {
-    top: -0.35rem;
   }
 
   .navbar-nav {

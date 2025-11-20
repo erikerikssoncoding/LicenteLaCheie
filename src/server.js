@@ -62,10 +62,6 @@ app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(morgan('combined'));
-app.use((req, res, next) => {
-  req.headers['x-forwarded-proto'] = 'https';
-  next();
-});
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(simpleCookieParser);
 app.use(sessionMiddleware);
@@ -78,10 +74,13 @@ app.use((req, res, next) => {
 app.use(injectUser);
 
 app.use((req, res, next) => {
-  const proto = req.headers['x-forwarded-proto'];
-  if (getSecurityState().enforce_https && proto && proto !== 'https') {
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const proto = forwardedProto || req.protocol;
+
+  if (getSecurityState().enforce_https && proto !== 'https') {
     return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
   }
+
   return next();
 });
 

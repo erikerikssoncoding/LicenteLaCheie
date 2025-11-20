@@ -47,7 +47,7 @@ Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari 
    - Credentiale DB
    - Numele bazei de date (se creaza automat daca nu exista)
    - Portul aplicatiei
-   - Cheia secreta pentru sesiuni
+   - Cheia secreta pentru sesiuni (obligatoriu — aplicatia nu porneste fara o valoare configurata)
    - Optional: datele unui cont superadmin (e-mail, telefon, parola)
 
 4. **Porniti aplicatia in productie** (modul server):
@@ -150,7 +150,7 @@ Sesiunile sunt stocate in MySQL, parolele sunt hash-uite cu bcryptjs (cost 12), 
 
 ## Protectia datelor si securitate
 
-- Utilizati parole puternice si schimbati `SESSION_SECRET` in productie.
+- Utilizati parole puternice si schimbati `SESSION_SECRET` in productie; aplicatia va refuza sa porneasca fara o valoare configurata.
 - Activati HTTPS si setati `Secure` pe cookie-uri (deja activ cand `NODE_ENV=production`).
 - Configurati `APP_COOKIE_DOMAIN` in `.env` pentru a partaja cookie-urile de sesiune si dispozitive de incredere intre subdomenii (ex. `.licentelacheie.ro`).
 - Recomandam integrarea unui WAF si configurarea reCaptcha pentru formularele publice daca traficul creste.

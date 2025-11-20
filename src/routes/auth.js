@@ -20,8 +20,8 @@ router.get('/autentificare', (req, res) => {
     return res.redirect('/cont');
   }
   res.render('pages/login', {
-    title: 'Autentificare cont client si echipa',
-    description: 'Acceseaza panoul tau personalizat pentru a urmari proiectele de licenta si comunicarile.'
+    title: 'Autentificare cont client și echipă',
+    description: 'Accesează panoul tău personalizat pentru a urmări proiectele de licență și comunicările.'
   });
 });
 
@@ -36,17 +36,17 @@ router.post('/autentificare', async (req, res, next) => {
     const user = await findUserByEmail(email.toLowerCase());
     if (!user || !user.is_active) {
       return res.status(401).render('pages/login', {
-        title: 'Autentificare cont client si echipa',
+        title: 'Autentificare cont client și echipă',
         description: 'Contul este inactiv sau datele nu sunt valide.',
-        error: 'Contul tau este inactiv sau credentialele sunt invalide.'
+        error: 'Contul tău este inactiv sau credențialele sunt invalide.'
       });
     }
     const isValid = await validatePassword(user, password);
     if (!isValid) {
       return res.status(401).render('pages/login', {
-        title: 'Autentificare cont client si echipa',
-        description: 'Email sau parola invalide.',
-        error: 'Email sau parola invalide.'
+        title: 'Autentificare cont client și echipă',
+        description: 'Email sau parolă invalide.',
+        error: 'Email sau parolă invalide.'
       });
     }
     req.session.user = {
@@ -71,8 +71,8 @@ router.post('/autentificare', async (req, res, next) => {
 
 router.get('/inregistrare', (req, res) => {
   res.render('pages/register', {
-    title: 'Creeaza cont pentru lucrari de licenta',
-    description: 'Inregistreaza-te pentru a gestiona solicitarile, contractele si comunicarile cu echipa noastra.'
+    title: 'Creează cont pentru lucrări de licență',
+    description: 'Înregistrează-te pentru a gestiona solicitările, contractele și comunicările cu echipa noastră.'
   });
 });
 
@@ -94,15 +94,15 @@ router.post('/inregistrare', async (req, res, next) => {
     const existing = await findUserByEmail(payload.email.toLowerCase());
     if (existing) {
       return res.status(409).render('pages/register', {
-        title: 'Creeaza cont pentru lucrari de licenta',
-        description: 'Emailul exista deja in platforma.',
+        title: 'Creează cont pentru lucrări de licență',
+        description: 'Emailul există deja în platformă.',
         error: 'Emailul este deja folosit.'
       });
     }
     await createClient(payload);
     return res.render('pages/register-success', {
       title: 'Cont creat cu succes',
-      description: 'Contul tau a fost creat. Te poti autentifica pentru a gestiona proiectele.'
+      description: 'Contul tău a fost creat. Te poți autentifica pentru a gestiona proiectele.'
     });
   } catch (error) {
     next(error);

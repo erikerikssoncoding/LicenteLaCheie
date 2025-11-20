@@ -189,23 +189,27 @@
                   <div class="attachment-list mt-2" data-attachment-list>Niciun fișier selectat.</div>
                 </div>
               </div>
-              <% if (!currentUser) { %>
               <div class="col-12">
                 <div class="form-check">
                   <input
                     class="form-check-input"
                     type="checkbox"
                     value="on"
-                    id="acceptAccount"
-                    name="acceptAccount"
-                    <%= request.body?.acceptAccount ? 'checked' : '' %>
+                    id="acceptTerms"
+                    name="acceptTerms"
                     required
-                    data-required-message="Este necesar să accepți crearea contului pentru a continua."
                   />
-                  <label class="form-check-label" for="acceptAccount">
-                    Sunt de acord să fie creat un cont în platforma Academia de Licențe pentru gestionarea ofertei și a contractului.
+                  <label class="form-check-label" for="acceptTerms">
+                    Sunt de acord cu <a class="link-primary" href="/termeni-si-conditii" target="_blank">Termenii și Condițiile</a>
+                    precum și cu <a class="link-primary" href="/politica-confidentialitate" target="_blank">Politica de Confidențialitate</a> a site-ului.
                   </label>
                 </div>
+              </div>
+              <% if (!currentUser) { %>
+              <div class="col-12">
+                <p class="text-muted small mb-0">
+                  Prin trimiterea formularului îți creăm automat un cont gratuit în Academia de Licențe, pentru a centraliza oferta, contractul și comunicarea într-un spațiu sigur și ușor de urmărit.
+                </p>
               </div>
               <% } %>
               <div class="col-12 text-end">

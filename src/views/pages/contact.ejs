@@ -131,6 +131,14 @@
                 </label>
               </div>
             </div>
+            <% if (!currentUser) { %>
+            <div class="col-12">
+              <p class="text-muted small mb-0">
+                Prin trimiterea formularului îți creăm automat un cont gratuit în Academia de Licențe, pentru a centraliza oferta, contractul și comunicarea într-un spațiu sigur și ușor de urmărit.
+                Dacă nu dorești crearea contului, ne poți contacta direct pe email la <a class="link-primary" href="mailto:office@academiadelicente.ro">office@academiadelicente.ro</a>.
+              </p>
+            </div>
+            <% } %>
             <div class="col-12 text-end">
               <button class="btn btn-gradient" type="submit">Trimite mesajul</button>
             </div>

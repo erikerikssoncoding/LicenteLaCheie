@@ -6,6 +6,12 @@ dotenv.config();
 
 const MySQLStore = MySQLStoreFactory(session);
 
+const sessionSecret = process.env.SESSION_SECRET;
+
+if (!sessionSecret) {
+  throw new Error('SESSION_SECRET nu este setat. Configurati o valoare puternica in mediul de rulare.');
+}
+
 const sessionStore = new MySQLStore({
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT || 3306),
@@ -50,7 +56,7 @@ export function getSessionCookieClearOptions() {
 }
 
 export default session({
-  secret: process.env.SESSION_SECRET || 'schimbati-aceasta-cheie',
+  secret: sessionSecret,
   name: SESSION_COOKIE_NAME,
   resave: false,
   saveUninitialized: false,

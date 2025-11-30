@@ -16,6 +16,7 @@ import csrfProtection from './middleware/csrfProtection.js';
 import { initializeSecurityState, getSecurityState } from './utils/securityState.js';
 import { initializeLicenseState } from './utils/licenseState.js';
 import { CONTACT_ATTACHMENT_ROOT, OFFER_ATTACHMENT_ROOT, PROJECT_UPLOAD_ROOT } from './utils/fileStorage.js';
+import { DATE_TIME_TIMEZONE, formatDate, formatDateTime } from './utils/dateFormatter.js';
 
 dotenv.config();
 
@@ -38,6 +39,9 @@ const multipartCsrfBypassPaths = new Set(['/contact', '/oferta']);
 app.set('trust proxy', 1);
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
+app.locals.formatDateTime = formatDateTime;
+app.locals.formatDate = formatDate;
+app.locals.appTimezone = DATE_TIME_TIMEZONE;
 
 const baseHelmet = helmet({ contentSecurityPolicy: false });
 const cspMiddleware = helmet.contentSecurityPolicy({

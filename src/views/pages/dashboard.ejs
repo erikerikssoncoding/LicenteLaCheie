@@ -318,7 +318,7 @@
                       <div class="small text-muted"><%= entry.error_message %></div>
                       <% } %>
                     </td>
-                    <td class="text-end"><%= new Date(entry.created_at).toLocaleString('ro-RO') %></td>
+                    <td class="text-end"><%= formatDateTime(entry.created_at) %></td>
                   </tr>
                   <% }) %>
                 </tbody>

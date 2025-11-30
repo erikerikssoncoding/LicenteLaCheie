@@ -52,6 +52,19 @@ export async function getUserById(id) {
   return rows[0] || null;
 }
 
+export async function updateUserLastSeen(userId) {
+  if (!userId) {
+    return;
+  }
+  await pool.query(
+    `UPDATE users
+     SET last_seen_at = NOW()
+     WHERE id = ?
+       AND (last_seen_at IS NULL OR last_seen_at < DATE_SUB(NOW(), INTERVAL 1 MINUTE))`,
+    [userId]
+  );
+}
+
 export async function listClients() {
   const [rows] = await pool.query(
     `SELECT id, full_name, email, phone, created_at
@@ -126,7 +139,7 @@ export async function listUsers({ role, status, search, viewer } = {}) {
   }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const [rows] = await pool.query(
-    `SELECT id, full_name, email, phone, role, is_active, must_reset_password, created_at
+    `SELECT id, full_name, email, phone, role, is_active, must_reset_password, created_at, last_seen_at
      FROM users
      ${where}
      ORDER BY created_at DESC`,
@@ -280,7 +293,7 @@ export async function getManagedUserProfile({ actor, userId }) {
       lastKnownIp: lastActiveDevice ? lastActiveDevice.ipAddress : null,
       lastKnownUserAgent: lastActiveDevice ? lastActiveDevice.userAgent : null,
       lastKnownFingerprint: lastActiveDevice ? lastActiveDevice.fingerprint : null,
-      lastActivityAt: lastActiveDevice ? lastActiveDevice.lastUsedAt : null,
+      lastActivityAt: target.last_seen_at || (lastActiveDevice ? lastActiveDevice.lastUsedAt : null),
       deviceCount: trustedDevices.length
     }
   };

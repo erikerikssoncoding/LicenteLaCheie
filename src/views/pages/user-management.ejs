@@ -88,6 +88,7 @@
                     <th>Email</th>
                     <th>Rol</th>
                     <th>Status</th>
+                    <th>Activitate</th>
                     <th class="text-end">Actiuni</th>
                   </tr>
                 </thead>
@@ -95,7 +96,7 @@
                 <tbody>
                   <% if (users.length === 0) { %>
                   <tr>
-                    <td colspan="5" class="text-center text-muted">Nu exista utilizatori pentru filtrele selectate.</td>
+                    <td colspan="6" class="text-center text-muted">Nu exista utilizatori pentru filtrele selectate.</td>
                   </tr>
                   <% } else { %>
                   <% users.forEach((user) => { %>
@@ -115,6 +116,18 @@
                       <% } %>
                       <% if (user.is_protected) { %>
                       <span class="badge bg-warning text-dark ms-1">Protejat</span>
+                      <% } %>
+                    </td>
+                    <td>
+                      <% const lastSeen = user.last_seen_at ? new Date(user.last_seen_at) : null; %>
+                      <% const isOnline = lastSeen && Date.now() - lastSeen.getTime() <= 3 * 60 * 1000; %>
+                      <% if (isOnline) { %>
+                      <span class="badge bg-success">Online</span>
+                      <% } else if (lastSeen) { %>
+                      <div class="small text-muted">Ultima activitate</div>
+                      <div class="fw-semibold"><%= lastSeen.toLocaleString('ro-RO') %></div>
+                      <% } else { %>
+                      <span class="text-muted small">Niciodata</span>
                       <% } %>
                     </td>
                     <td class="text-end">

@@ -67,7 +67,8 @@ import {
   ROLE_HIERARCHY,
   forceChangeUserPassword,
   getManagedUserProfile,
-  updateManagedUserDetails
+  updateManagedUserDetails,
+  clearUserSecurityData
 } from '../services/userService.js';
 import { listSecuritySettings, updateSecuritySetting } from '../services/securityService.js';
 import {
@@ -558,6 +559,7 @@ router.get('/cont/utilizatori/:id', ensureRole('admin', 'superadmin'), async (re
       canModifyRole: canManageTarget,
       canModifyStatus: canManageTarget,
       canResetPassword: canManageTarget,
+      canClearSecurity: actor.role === 'superadmin' && canManageTarget,
       roleOptions: availableRoles,
       roleLabels
     });
@@ -895,6 +897,38 @@ router.post('/cont/utilizatori/:id/parola', ensureRole('admin', 'superadmin'), a
     }
     if (error.message === 'INSUFFICIENT_PRIVILEGES') {
       req.session.flash = { error: 'Nu aveti permisiuni pentru a modifica parola acestui utilizator.' };
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
+    }
+    if (error.message === 'USER_NOT_FOUND') {
+      req.session.flash = { error: 'Utilizatorul selectat nu exista.' };
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/utilizatori/:id/securitate/reset', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.id);
+    if (Number.isNaN(targetId)) {
+      req.session.flash = { error: 'Utilizator invalid.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    await clearUserSecurityData({ actor: req.session.user, userId: targetId });
+    req.session.flash = { success: 'Datele de securitate au fost sterse.' };
+    const redirectTo = resolveUserManagementRedirect(req.body.returnTo, `/cont/utilizatori/${targetId}`);
+    return res.redirect(redirectTo);
+  } catch (error) {
+    if (error.message === 'PROTECTED_USER') {
+      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi modificat.' };
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
+    }
+    if (error.message === 'SELF_MODIFICATION') {
+      req.session.flash = { error: 'Nu iti poti curata propriile date de securitate din aceasta sectiune.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    if (error.message === 'INSUFFICIENT_PRIVILEGES') {
+      req.session.flash = { error: 'Nu aveti permisiuni pentru a modifica acest utilizator.' };
       return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'USER_NOT_FOUND') {

@@ -260,6 +260,14 @@ export async function revokeTrustedDevicesExcept({ userId, exceptDeviceId = null
   return result.affectedRows || 0;
 }
 
+export async function clearTrustedDevicesForUser(userId) {
+  if (!userId) {
+    return 0;
+  }
+  const [result] = await pool.query(`DELETE FROM trusted_devices WHERE user_id = ?`, [userId]);
+  return result.affectedRows || 0;
+}
+
 function parseExtraMetadata(value) {
   if (!value) {
     return null;

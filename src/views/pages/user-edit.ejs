@@ -162,6 +162,17 @@
               <dt class="col-sm-5">Ultima actualizare</dt>
               <dd class="col-sm-7"><%= user.updatedAt ? formatDate(user.updatedAt) : 'Indisponibil' %></dd>
             </dl>
+            <% if (canClearSecurity) { %>
+            <form
+              action="/cont/utilizatori/<%= user.id %>/securitate/reset"
+              method="post"
+              class="mt-3 d-flex justify-content-end"
+            >
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="hidden" name="returnTo" value="/cont/utilizatori/<%= user.id %>" />
+              <button class="btn btn-outline-danger btn-sm" type="submit">Șterge istoricul de securitate</button>
+            </form>
+            <% } %>
             <% } %>
           </div>
         </div>

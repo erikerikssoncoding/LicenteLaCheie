@@ -56,11 +56,18 @@ router.post('/autentificare', async (req, res, next) => {
       role: user.role,
       phone: user.phone
     };
+
+    const metadata = collectClientMetadata(req);
+    const { token } = await createTrustedDevice({
+      userId: user.id,
+      metadata,
+      label: rememberDevice ? null : 'Conectare fără memorare'
+    });
+
     if (rememberDevice && user.role !== 'superadmin') {
-      const metadata = collectClientMetadata(req);
-      const { token } = await createTrustedDevice({ userId: user.id, metadata });
       res.cookie(TRUSTED_DEVICE_COOKIE_NAME, token, getTrustedDeviceCookieOptions());
     } else {
+      await revokeTrustedDeviceByToken(token);
       res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
     }
     return res.redirect('/cont');

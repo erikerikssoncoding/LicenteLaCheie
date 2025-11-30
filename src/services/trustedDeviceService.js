@@ -260,10 +260,30 @@ export async function revokeTrustedDevicesExcept({ userId, exceptDeviceId = null
   return result.affectedRows || 0;
 }
 
-export async function listTrustedDevicesForUser(userId) {
+function parseExtraMetadata(value) {
+  if (!value) {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    return value;
+  }
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return value;
+  }
+}
+
+export async function listTrustedDevicesForUser(userId, { includeRevoked = false, includeExpired = true } = {}) {
   if (!userId) {
     return [];
   }
+  const conditions = ['user_id = ?'];
+  if (!includeRevoked) {
+    conditions.push('revoked_at IS NULL');
+  }
+  const params = [userId];
+
   const [rows] = await pool.query(
     `SELECT id,
             device_label,
@@ -275,26 +295,43 @@ export async function listTrustedDevicesForUser(userId) {
             extra_metadata,
             created_at,
             last_used_at,
+            revoked_at,
             expires_at
      FROM trusted_devices
-     WHERE user_id = ?
-       AND revoked_at IS NULL
+     WHERE ${conditions.join(' AND ')}
      ORDER BY last_used_at DESC, created_at DESC`,
-    [userId]
+    params
   );
-  return rows.map((row) => ({
-    id: row.id,
-    label: row.device_label,
-    userAgent: row.user_agent,
-    clientHints: row.client_hints,
-    ipAddress: row.ip_address,
-    acceptLanguage: row.accept_language,
-    fingerprint: row.fingerprint,
-    extraMetadata: row.extra_metadata,
-    createdAt: row.created_at,
-    lastUsedAt: row.last_used_at,
-    expiresAt: row.expires_at
-  }));
+
+  return rows
+    .map((row) => {
+      const expiresAt = row.expires_at;
+      const revokedAt = row.revoked_at;
+      const isExpired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : false;
+      const isRevoked = Boolean(revokedAt);
+      const status = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
+
+      if (!includeExpired && (isExpired || isRevoked)) {
+        return null;
+      }
+
+      return {
+        id: row.id,
+        label: row.device_label,
+        userAgent: row.user_agent,
+        clientHints: row.client_hints,
+        ipAddress: row.ip_address,
+        acceptLanguage: row.accept_language,
+        fingerprint: row.fingerprint,
+        extraMetadata: parseExtraMetadata(row.extra_metadata),
+        createdAt: row.created_at,
+        lastUsedAt: row.last_used_at,
+        revokedAt,
+        expiresAt,
+        status
+      };
+    })
+    .filter(Boolean);
 }
 
 export async function revokeTrustedDeviceByToken(token) {

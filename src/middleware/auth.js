@@ -57,6 +57,11 @@ export async function injectUser(req, res, next) {
         await revokeTrustedDeviceByToken(trustedToken);
         res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
         trustedDevice = null;
+      } else if (latestUser.role === 'superadmin') {
+        await revokeTrustedDeviceByToken(trustedToken);
+        res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
+        trustedDevice = null;
+        trustedToken = null;
       } else {
         req.session.user = {
           id: latestUser.id,
@@ -98,7 +103,11 @@ export async function injectUser(req, res, next) {
       }
     }
 
-    if (req.session?.user && trustedDevice && trustedDevice.user_id !== req.session.user.id) {
+    if (
+      req.session?.user &&
+      trustedDevice &&
+      (trustedDevice.user_id !== req.session.user.id || req.session.user.role === 'superadmin')
+    ) {
       await revokeTrustedDeviceByToken(trustedToken);
       res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
       trustedDevice = null;

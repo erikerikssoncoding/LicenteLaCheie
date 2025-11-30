@@ -998,8 +998,8 @@ a:hover {
 }
 
 .footer-compliance-link img {
-  width: 24px;
-  height: 24px;
+  width: 130px;
+  height: auto;
 }
 
 .table > :not(caption) > * > * {

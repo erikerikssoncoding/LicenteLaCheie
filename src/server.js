@@ -77,9 +77,9 @@ app.use((req, res, next) => {
   const forwardedProto = req.headers['x-forwarded-proto'];
   const proto = forwardedProto || req.protocol;
 
-  if (getSecurityState().enforce_https && proto !== 'https') {
+/*  if (getSecurityState().enforce_https && proto !== 'https') {
     return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
-  }
+  }*/
 
   return next();
 });

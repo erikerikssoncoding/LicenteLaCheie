@@ -11,7 +11,11 @@ import {
 } from '../services/offerService.js';
 import { ensureClientAccount, updateUserProfile } from '../services/userService.js';
 import { createTicket } from '../services/ticketService.js';
-import { sendContactSubmissionEmails, sendOfferSubmissionEmails } from '../services/mailService.js';
+import {
+  sendContactSubmissionEmails,
+  sendOfferSubmissionEmails,
+  sendTicketCreatedNotification
+} from '../services/mailService.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
 import { CONTACT_ATTACHMENT_ROOT, OFFER_ATTACHMENT_ROOT, buildStoredFileName } from '../utils/fileStorage.js';
 import csrfProtection from '../middleware/csrfProtection.js';
@@ -389,6 +393,18 @@ async function handleContactPost(req, res, next) {
         clientMetadata
       });
 
+      const ticketPayload = {
+        id: ticketId,
+        display_code: displayCode,
+        subject: `Solicitare contact - ${data.fullName}`,
+        message: `Telefon: ${data.phone}\nEmail: ${user.email}\n\n${data.message}`
+      };
+      sendTicketCreatedNotification({
+        ticket: ticketPayload,
+        author: { id: user.id, fullName: user.fullName, email: user.email },
+        clientEmail: user.email
+      }).catch((error) => console.error('Nu s-a putut trimite notificarea de creare ticket (autentificat):', error));
+
       return res.render('pages/contact-success', {
         title: 'Ticket deschis cu succes',
         description: 'Am înregistrat solicitarea ta direct în cont. Echipa noastră îți va răspunde în cel mai scurt timp.',
@@ -413,6 +429,18 @@ async function handleContactPost(req, res, next) {
       kind: 'support',
       clientMetadata
     });
+
+    const ticketPayload = {
+      id: ticketId,
+      display_code: displayCode,
+      subject: `Solicitare contact - ${data.fullName}`,
+      message: messageBody
+    };
+    sendTicketCreatedNotification({
+      ticket: ticketPayload,
+      author: { id: ensuredAccount.userId, fullName: data.fullName, email: data.email },
+      clientEmail: data.email
+    }).catch((error) => console.error('Nu s-a putut trimite notificarea de creare ticket (guest):', error));
 
     await createContactRequest(data);
 
@@ -535,7 +563,7 @@ async function handleOfferSubmission(req, res) {
     attachmentSummary ? `Atașamente încărcate:\n${attachmentSummary}` : null,
     metadataLine
   ].filter(Boolean);
-  const { id: ticketId } = await createTicket({
+  const { id: ticketId, displayCode } = await createTicket({
     projectId: null,
     userId,
     subject: `Solicitare oferta - ${payload.topic}`,
@@ -543,6 +571,20 @@ async function handleOfferSubmission(req, res) {
     kind: 'offer',
     clientMetadata
   });
+  const ticketPayload = {
+    id: ticketId,
+    display_code: displayCode,
+    subject: `Solicitare oferta - ${payload.topic}`,
+    message: messageSegments.join('\n\n')
+  };
+  const authorInfo = isAuthenticated
+    ? { id: userId, fullName: req.session.user.fullName, email: submissionEmail }
+    : { id: userId, fullName: payload.clientName, email: submissionEmail };
+  sendTicketCreatedNotification({
+    ticket: ticketPayload,
+    author: authorInfo,
+    clientEmail: submissionEmail
+  }).catch((error) => console.error('Nu s-a putut trimite notificarea de creare ticket (oferta):', error));
   const { offerCode } = await createOfferRequest({
     clientName: payload.clientName,
     userId,

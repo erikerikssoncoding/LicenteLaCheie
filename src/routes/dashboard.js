@@ -77,6 +77,8 @@ import {
   revokeTrustedDevicesExcept,
   TRUSTED_DEVICE_COOKIE_NAME
 } from '../services/trustedDeviceService.js';
+import { sendTicketCreatedNotification, sendTicketReplyNotification } from '../services/mailService.js';
+import { listRecentMailEvents } from '../services/notificationLogService.js';
 import { refreshSecurityState } from '../utils/securityState.js';
 import { getLicenseState, updateLicensePaidUntil } from '../utils/licenseState.js';
 import {
@@ -402,6 +404,7 @@ router.get('/cont', async (req, res, next) => {
       recentReplies: [],
       securitySettings: [],
       securityFlash: null,
+      mailLogs: [],
       licenseState: getLicenseState()
     };
 
@@ -437,11 +440,12 @@ router.get('/cont', async (req, res, next) => {
     }
 
     if (user.role === 'superadmin') {
-      const securitySettings = await listSecuritySettings();
+      const [securitySettings, mailLogs] = await Promise.all([listSecuritySettings(), listRecentMailEvents(25)]);
       const flash = req.session.securityFlash || null;
       delete req.session.securityFlash;
       viewModel.securitySettings = securitySettings;
       viewModel.securityFlash = flash;
+      viewModel.mailLogs = mailLogs;
     }
 
     viewModel.projectStatuses = PROJECT_STATUSES;
@@ -936,13 +940,41 @@ router
       const data = schema.parse(req.body);
       const projectId = data.projectId ? Number(data.projectId) : null;
       const clientMetadata = collectClientMetadata(req);
-      await createTicket({
+      const project = projectId ? await getProjectById(projectId) : null;
+      const projectAdmins = [];
+      if (project?.assigned_admin_id) {
+        const adminUser = await getUserById(project.assigned_admin_id);
+        if (adminUser?.email) {
+          projectAdmins.push(adminUser.email);
+        }
+      }
+      if (project?.assigned_editor_id) {
+        const editorUser = await getUserById(project.assigned_editor_id);
+        if (editorUser?.email) {
+          projectAdmins.push(editorUser.email);
+        }
+      }
+
+      const { id: ticketId, displayCode } = await createTicket({
         projectId,
         userId: req.session.user.id,
         subject: data.subject,
         message: data.message,
         clientMetadata
       });
+      const ticketPayload = {
+        id: ticketId,
+        display_code: displayCode,
+        subject: data.subject,
+        message: data.message
+      };
+      sendTicketCreatedNotification({
+        ticket: ticketPayload,
+        author: req.session.user,
+        clientEmail: req.session.user.email,
+        adminEmails: projectAdmins,
+        projectTitle: project?.title || null
+      }).catch((error) => console.error('Nu s-a putut trimite notificarea de creare ticket (cont):', error));
       res.redirect('/cont');
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1142,11 +1174,34 @@ router.post('/cont/tichete/:id/raspuns', requireActiveLicense(), async (req, res
       };
       return res.redirect(`/cont/tichete/${req.params.id}`);
     }
+    const project = ticket.project_id ? await getProjectById(ticket.project_id) : null;
+    const projectAdmins = [];
+    if (project?.assigned_admin_id) {
+      const adminUser = await getUserById(project.assigned_admin_id);
+      if (adminUser?.email) {
+        projectAdmins.push(adminUser.email);
+      }
+    }
+    if (project?.assigned_editor_id) {
+      const editorUser = await getUserById(project.assigned_editor_id);
+      if (editorUser?.email) {
+        projectAdmins.push(editorUser.email);
+      }
+    }
+    const ticketAuthor = ticket.created_by ? await getUserById(ticket.created_by) : null;
     await addReply({
       ticketId: ticket.id,
       userId: user.id,
       message: data.message
     });
+    sendTicketReplyNotification({
+      ticket: { id: ticket.id, display_code: ticket.display_code, subject: ticket.subject },
+      author: { id: user.id, role: user.role, fullName: user.fullName, email: user.email },
+      message: data.message,
+      clientEmail: ticketAuthor?.email || null,
+      adminEmails: projectAdmins,
+      projectTitle: project?.title || null
+    }).catch((error) => console.error('Nu s-a putut trimite notificarea de raspuns ticket:', error));
     res.redirect(`/cont/tichete/${req.params.id}`);
   } catch (error) {
     next(error);

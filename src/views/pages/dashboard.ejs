@@ -284,6 +284,50 @@
             </div>
           </form>
           <% }) %>
+          <div class="border rounded-3 p-3 bg-body-tertiary">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+              <div>
+                <h3 class="h6 mb-1">Jurnal notificări email</h3>
+                <p class="small text-muted mb-0">Ultimele notificări trimise sau eșuate din platformă.</p>
+              </div>
+              <span class="badge bg-light text-body-secondary border">maxim 25 intrări recente</span>
+            </div>
+            <% if (mailLogs && mailLogs.length > 0) { %>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col">Eveniment</th>
+                    <th scope="col">Subiect</th>
+                    <th scope="col">Destinatari</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end">Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% mailLogs.forEach((entry) => { %>
+                  <tr>
+                    <td class="text-nowrap"><span class="badge bg-secondary"><%= entry.event_type %></span></td>
+                    <td class="text-truncate" style="max-width: 240px"><%= entry.subject || 'fără subiect' %></td>
+                    <td class="text-truncate" style="max-width: 260px"><%= entry.recipients || 'n/a' %></td>
+                    <td>
+                      <span class="badge <%= entry.status === 'sent' ? 'bg-success' : entry.status === 'skipped' ? 'bg-warning text-dark' : 'bg-danger' %>">
+                        <%= entry.status %>
+                      </span>
+                      <% if (entry.error_message) { %>
+                      <div class="small text-muted"><%= entry.error_message %></div>
+                      <% } %>
+                    </td>
+                    <td class="text-end"><%= new Date(entry.created_at).toLocaleString('ro-RO') %></td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+            <% } else { %>
+            <p class="mb-0 text-muted">Nu există notificări înregistrate încă.</p>
+            <% } %>
+          </div>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { getUserById } from '../services/userService.js';
+import { getUserById, updateUserLastSeen } from '../services/userService.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
 import { getLicenseState } from '../utils/licenseState.js';
 import {
@@ -110,6 +110,10 @@ export async function injectUser(req, res, next) {
         const metadata = collectClientMetadata(req);
         await touchTrustedDevice(trustedDevice.id, metadata);
       }
+    }
+
+    if (req.session?.user) {
+      await updateUserLastSeen(req.session.user.id);
     }
 
     const licenseState = getLicenseState();

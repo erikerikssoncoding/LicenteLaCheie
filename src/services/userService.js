@@ -273,7 +273,10 @@ export async function getManagedUserProfile({ actor, userId }) {
   if (actor.id !== PROTECTED_USER_ID && actor.id !== target.id && targetLevel > actorLevel) {
     throw new Error('INSUFFICIENT_PRIVILEGES');
   }
-  const trustedDevices = await listTrustedDevicesForUser(target.id);
+  const isSuperadminProfile = target.role === 'superadmin';
+  const trustedDevices = isSuperadminProfile
+    ? []
+    : await listTrustedDevicesForUser(target.id, { includeRevoked: true, includeExpired: true });
   const lastActiveDevice = trustedDevices.find((device) => device.lastUsedAt) || trustedDevices[0] || null;
   return {
     user: {
@@ -289,13 +292,15 @@ export async function getManagedUserProfile({ actor, userId }) {
       isProtected
     },
     trustedDevices,
-    securitySummary: {
-      lastKnownIp: lastActiveDevice ? lastActiveDevice.ipAddress : null,
-      lastKnownUserAgent: lastActiveDevice ? lastActiveDevice.userAgent : null,
-      lastKnownFingerprint: lastActiveDevice ? lastActiveDevice.fingerprint : null,
-      lastActivityAt: target.last_seen_at || (lastActiveDevice ? lastActiveDevice.lastUsedAt : null),
-      deviceCount: trustedDevices.length
-    }
+    securitySummary: isSuperadminProfile
+      ? null
+      : {
+          lastKnownIp: lastActiveDevice ? lastActiveDevice.ipAddress : null,
+          lastKnownUserAgent: lastActiveDevice ? lastActiveDevice.userAgent : null,
+          lastKnownFingerprint: lastActiveDevice ? lastActiveDevice.fingerprint : null,
+          lastActivityAt: target.last_seen_at || (lastActiveDevice ? lastActiveDevice.lastUsedAt : null),
+          deviceCount: trustedDevices.length
+        }
   };
 }
 

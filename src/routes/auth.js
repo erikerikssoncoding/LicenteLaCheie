@@ -56,7 +56,7 @@ router.post('/autentificare', async (req, res, next) => {
       role: user.role,
       phone: user.phone
     };
-    if (rememberDevice) {
+    if (rememberDevice && user.role !== 'superadmin') {
       const metadata = collectClientMetadata(req);
       const { token } = await createTrustedDevice({ userId: user.id, metadata });
       res.cookie(TRUSTED_DEVICE_COOKIE_NAME, token, getTrustedDeviceCookieOptions());

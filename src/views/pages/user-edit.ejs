@@ -143,6 +143,9 @@
           <div class="card-body">
             <h2 class="h5 mb-3">Securitate si activitate</h2>
             <% const formatDate = (value) => (value ? new Date(value).toLocaleString('ro-RO') : 'Indisponibil'); %>
+            <% if (!securitySummary) { %>
+            <p class="text-muted mb-0">Profilul acestui utilizator nu reține date de activitate.</p>
+            <% } else { %>
             <dl class="row mb-0 g-3">
               <dt class="col-sm-5">Ultima activitate</dt>
               <dd class="col-sm-7"><%= securitySummary.lastActivityAt ? formatDate(securitySummary.lastActivityAt) : 'Indisponibil' %></dd>
@@ -159,50 +162,67 @@
               <dt class="col-sm-5">Ultima actualizare</dt>
               <dd class="col-sm-7"><%= user.updatedAt ? formatDate(user.updatedAt) : 'Indisponibil' %></dd>
             </dl>
+            <% } %>
           </div>
         </div>
 
         <div class="card shadow-sm mt-4">
           <div class="card-body">
-            <h2 class="h5 mb-3">Dispozitive de incredere</h2>
+            <h2 class="h5 mb-3">Dispozitive si istoric acces</h2>
             <% const truncate = (value, length = 120) => {
               if (!value) return '';
               const stringValue = String(value);
               return stringValue.length > length ? `${stringValue.slice(0, length)}…` : stringValue;
             }; %>
             <% if (!trustedDevices.length) { %>
-            <p class="text-muted mb-0">Nu au fost inregistrate dispozitive de incredere pentru acest cont.</p>
+            <p class="text-muted mb-0">Nu au fost inregistrate dispozitive sau sesiuni pentru acest cont.</p>
             <% } else { %>
             <div class="table-responsive">
               <table class="table table-sm align-middle">
                 <thead>
                   <tr>
                     <th>Dispozitiv</th>
-                    <th>Ultima utilizare</th>
-                    <th>IP</th>
+                    <th class="text-nowrap">Status</th>
+                    <th>Activitate</th>
+                    <th>Detalii tehnice</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% trustedDevices.forEach((device) => { %>
+                  <% const extra = device.extraMetadata && typeof device.extraMetadata === 'object' ? device.extraMetadata : null; %>
                   <tr>
                     <td>
                       <div class="fw-semibold"><%= device.label || 'Fara eticheta' %></div>
-                      <div class="text-muted small text-break">Agent: <%= truncate(device.userAgent, 140) || 'N/A' %></div>
+                      <div class="text-muted small text-break">Agent: <%= truncate(device.userAgent, 220) || 'N/A' %></div>
+                    </td>
+                    <td class="text-nowrap">
+                      <% const badgeClass = device.status === 'active' ? 'bg-success' : device.status === 'expired' ? 'bg-warning text-dark' : 'bg-secondary'; %>
+                      <span class="badge <%= badgeClass %>">
+                        <%= device.status === 'revoked' ? 'Revocat' : device.status === 'expired' ? 'Expirat' : 'Activ' %>
+                      </span>
+                      <% if (device.revokedAt) { %>
+                      <div class="text-muted small">Revocat: <%= formatDate(device.revokedAt) %></div>
+                      <% } else if (device.expiresAt) { %>
+                      <div class="text-muted small">Expira: <%= formatDate(device.expiresAt) %></div>
+                      <% } %>
+                    </td>
+                    <td>
+                      <div>Ultima utilizare: <%= device.lastUsedAt ? formatDate(device.lastUsedAt) : 'Indisponibil' %></div>
+                      <div class="text-muted small">Creat: <%= device.createdAt ? formatDate(device.createdAt) : 'Indisponibil' %></div>
+                    </td>
+                    <td>
+                      <div class="text-break">IP: <%= device.ipAddress || 'N/A' %></div>
                       <% if (device.fingerprint) { %>
                       <div class="text-muted small text-break">Fingerprint: <%= truncate(device.fingerprint, 160) %></div>
                       <% } %>
                       <% if (device.clientHints) { %>
                       <div class="text-muted small text-break">Client hints: <%= truncate(device.clientHints, 160) %></div>
                       <% } %>
-                    </td>
-                    <td>
-                      <div><%= device.lastUsedAt ? formatDate(device.lastUsedAt) : 'Indisponibil' %></div>
-                      <div class="text-muted small">Creat: <%= device.createdAt ? formatDate(device.createdAt) : 'Indisponibil' %></div>
-                    </td>
-                    <td>
-                      <div><%= device.ipAddress || 'N/A' %></div>
                       <% if (device.acceptLanguage) { %>
-                      <div class="text-muted small">Limbi: <%= truncate(device.acceptLanguage, 60) %></div>
+                      <div class="text-muted small text-break">Limbi: <%= truncate(device.acceptLanguage, 120) %></div>
+                      <% } %>
+                      <% if (extra) { %>
+                      <div class="text-muted small text-break">Extra: <%= truncate(JSON.stringify(extra), 220) %></div>
                       <% } %>
                     </td>
                   </tr>

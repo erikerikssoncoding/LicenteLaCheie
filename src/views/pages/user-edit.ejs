@@ -142,13 +142,12 @@
         <div class="card shadow-sm">
           <div class="card-body">
             <h2 class="h5 mb-3">Securitate si activitate</h2>
-            <% const formatDate = (value) => (value ? new Date(value).toLocaleString('ro-RO') : 'Indisponibil'); %>
             <% if (!securitySummary) { %>
             <p class="text-muted mb-0">Profilul acestui utilizator nu reține date de activitate.</p>
             <% } else { %>
             <dl class="row mb-0 g-3">
               <dt class="col-sm-5">Ultima activitate</dt>
-              <dd class="col-sm-7"><%= securitySummary.lastActivityAt ? formatDate(securitySummary.lastActivityAt) : 'Indisponibil' %></dd>
+              <dd class="col-sm-7"><%= securitySummary.lastActivityAt ? formatDateTime(securitySummary.lastActivityAt, { fallback: 'Indisponibil' }) : 'Indisponibil' %></dd>
               <dt class="col-sm-5">IP recent</dt>
               <dd class="col-sm-7"><%= securitySummary.lastKnownIp || 'Indisponibil' %></dd>
               <dt class="col-sm-5">Browser agent</dt>
@@ -158,9 +157,9 @@
               <dt class="col-sm-5">Dispozitive de incredere</dt>
               <dd class="col-sm-7"><%= securitySummary.deviceCount %></dd>
               <dt class="col-sm-5">Creat la</dt>
-              <dd class="col-sm-7"><%= user.createdAt ? formatDate(user.createdAt) : 'Indisponibil' %></dd>
+              <dd class="col-sm-7"><%= user.createdAt ? formatDateTime(user.createdAt, { fallback: 'Indisponibil' }) : 'Indisponibil' %></dd>
               <dt class="col-sm-5">Ultima actualizare</dt>
-              <dd class="col-sm-7"><%= user.updatedAt ? formatDate(user.updatedAt) : 'Indisponibil' %></dd>
+              <dd class="col-sm-7"><%= user.updatedAt ? formatDateTime(user.updatedAt, { fallback: 'Indisponibil' }) : 'Indisponibil' %></dd>
             </dl>
             <% if (canClearSecurity) { %>
             <form
@@ -212,14 +211,14 @@
                         <%= device.status === 'revoked' ? 'Revocat' : device.status === 'expired' ? 'Expirat' : 'Activ' %>
                       </span>
                       <% if (device.revokedAt) { %>
-                      <div class="text-muted small">Revocat: <%= formatDate(device.revokedAt) %></div>
+                      <div class="text-muted small">Revocat: <%= formatDateTime(device.revokedAt) %></div>
                       <% } else if (device.expiresAt) { %>
-                      <div class="text-muted small">Expira: <%= formatDate(device.expiresAt) %></div>
+                      <div class="text-muted small">Expira: <%= formatDateTime(device.expiresAt) %></div>
                       <% } %>
                     </td>
                     <td>
-                      <div>Ultima utilizare: <%= device.lastUsedAt ? formatDate(device.lastUsedAt) : 'Indisponibil' %></div>
-                      <div class="text-muted small">Creat: <%= device.createdAt ? formatDate(device.createdAt) : 'Indisponibil' %></div>
+                      <div>Ultima utilizare: <%= device.lastUsedAt ? formatDateTime(device.lastUsedAt, { fallback: 'Indisponibil' }) : 'Indisponibil' %></div>
+                      <div class="text-muted small">Creat: <%= device.createdAt ? formatDateTime(device.createdAt, { fallback: 'Indisponibil' }) : 'Indisponibil' %></div>
                     </td>
                     <td>
                       <div class="text-break">IP: <%= device.ipAddress || 'N/A' %></div>

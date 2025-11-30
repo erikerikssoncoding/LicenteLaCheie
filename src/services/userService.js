@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import pool from '../config/db.js';
-import { listTrustedDevicesForUser } from './trustedDeviceService.js';
+import { clearTrustedDevicesForUser, listTrustedDevicesForUser } from './trustedDeviceService.js';
 
 export const ROLE_HIERARCHY = {
   client: 1,
@@ -302,6 +302,36 @@ export async function getManagedUserProfile({ actor, userId }) {
           deviceCount: trustedDevices.length
         }
   };
+}
+
+export async function clearUserSecurityData({ actor, userId }) {
+  if (!actor) {
+    throw new Error('UNAUTHORIZED');
+  }
+  const targetId = Number(userId);
+  if (Number.isNaN(targetId)) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  const target = await getUserById(targetId);
+  if (!target) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  if (targetId === PROTECTED_USER_ID && actor.id !== PROTECTED_USER_ID) {
+    throw new Error('PROTECTED_USER');
+  }
+  if (actor.role !== 'superadmin') {
+    throw new Error('INSUFFICIENT_PRIVILEGES');
+  }
+  if (actor.id === targetId) {
+    throw new Error('SELF_MODIFICATION');
+  }
+  const actorLevel = ROLE_HIERARCHY[actor.role] || 0;
+  const targetLevel = ROLE_HIERARCHY[target.role] || 0;
+  if (actor.id !== PROTECTED_USER_ID && targetLevel > actorLevel) {
+    throw new Error('INSUFFICIENT_PRIVILEGES');
+  }
+  await clearTrustedDevicesForUser(targetId);
+  await pool.query(`UPDATE users SET last_seen_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [targetId]);
 }
 
 export async function updateManagedUserDetails({

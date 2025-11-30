@@ -1,7 +1,7 @@
 import pool from '../config/db.js';
 import { customAlphabet } from 'nanoid';
 
-const generateTicketCode = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 6);
+const generateTicketCode = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 15);
 
 function pickExecutor(connection) {
   return connection ?? pool;

@@ -3,6 +3,7 @@ import tls from 'tls';
 import os from 'os';
 import { promises as fs } from 'fs';
 import crypto from 'crypto';
+import { logMailEvent } from './notificationLogService.js';
 
 const MAIL_HOST = process.env.MAIL_HOST || null;
 const MAIL_PORT = Number(process.env.MAIL_PORT || 465);
@@ -16,6 +17,14 @@ const MAIL_ALLOW_INVALID_CERTS = String(process.env.MAIL_ALLOW_INVALID_CERTS || 
 
 const MAX_EMAIL_RECIPIENTS = 10;
 const CLIENT_HOSTNAME = os.hostname();
+
+async function safeLogMailEvent(payload) {
+  try {
+    await logMailEvent(payload);
+  } catch (error) {
+    console.error('Nu s-a putut salva logul de notificare email:', error?.message || error);
+  }
+}
 
 function normalizeAddressList(value) {
   if (!value) {
@@ -292,13 +301,22 @@ export function isMailConfigured() {
   return Boolean(MAIL_HOST && MAIL_FROM);
 }
 
-async function sendRawMail({ to, subject, text, attachments }) {
+async function sendRawMail({ to, subject, text, attachments, eventType = 'generic', context = null }) {
+  const recipients = normalizeAddressList(to);
   if (!isMailConfigured()) {
     console.info('Mail service is not configured. Skipping send.');
+    await safeLogMailEvent({
+      eventType,
+      subject,
+      recipients,
+      status: 'skipped',
+      errorMessage: 'MAIL_NOT_CONFIGURED',
+      context
+    });
     return false;
   }
-  const recipients = normalizeAddressList(to);
   if (!recipients.length) {
+    await safeLogMailEvent({ eventType, subject, recipients: [], status: 'skipped', errorMessage: 'NO_RECIPIENTS', context });
     return false;
   }
   const preparedAttachments = await prepareAttachments(attachments);
@@ -325,7 +343,11 @@ async function sendRawMail({ to, subject, text, attachments }) {
     await connection.command('DATA', 354);
     await connection.sendData(`${mimeMessage}\r\n`);
     await connection.command('QUIT', 221);
+    await safeLogMailEvent({ eventType, subject, recipients, status: 'sent', context });
     return true;
+  } catch (error) {
+    await safeLogMailEvent({ eventType, subject, recipients, status: 'error', errorMessage: error.message, context });
+    throw error;
   } finally {
     connection.close();
   }
@@ -348,6 +370,16 @@ function formatMetadata(clientMetadata) {
   return segments.join('\n');
 }
 
+function getAdminNotificationRecipients(additional = []) {
+  const adminRecipients = normalizeAddressList(MAIL_NOTIFICATIONS_TO) || [];
+  if (!adminRecipients.length && MAIL_FROM) {
+    adminRecipients.push(extractAddress(MAIL_FROM));
+  }
+  const extras = normalizeAddressList(additional);
+  const merged = [...adminRecipients, ...extras];
+  return [...new Set(merged.filter(Boolean))];
+}
+
 export async function sendOfferSubmissionEmails({
   payload,
   submissionEmail,
@@ -364,10 +396,7 @@ export async function sendOfferSubmissionEmails({
     contentType: file.mimetype,
     path: file.path
   }));
-  const adminRecipients = normalizeAddressList(MAIL_NOTIFICATIONS_TO) || [];
-  if (!adminRecipients.length) {
-    adminRecipients.push(extractAddress(MAIL_FROM));
-  }
+  const adminRecipients = getAdminNotificationRecipients();
   const adminText = [
     'A sosit o nouă solicitare de ofertă:',
     '',
@@ -388,7 +417,14 @@ export async function sendOfferSubmissionEmails({
   ]
     .filter(Boolean)
     .join('\n');
-  await sendRawMail({ to: adminRecipients, subject: `Solicitare ofertă - ${payload.topic}`, text: adminText, attachments: attachmentPayload });
+  await sendRawMail({
+    to: adminRecipients,
+    subject: `Solicitare ofertă - ${payload.topic}`,
+    text: adminText,
+    attachments: attachmentPayload,
+    eventType: 'offer_submission_admin',
+    context: { ticketId, offerCode }
+  });
 
   if (submissionEmail) {
     const clientText = [
@@ -402,7 +438,14 @@ export async function sendOfferSubmissionEmails({
       'Îți mulțumim pentru încredere!',
       'Echipa Academia de Licențe'
     ].join('\n');
-    await sendRawMail({ to: submissionEmail, subject: 'Confirmare solicitare ofertă Academia de Licențe', text: clientText, attachments: [] });
+    await sendRawMail({
+      to: submissionEmail,
+      subject: 'Confirmare solicitare ofertă Academia de Licențe',
+      text: clientText,
+      attachments: [],
+      eventType: 'offer_submission_client',
+      context: { ticketId, offerCode, submissionEmail }
+    });
   }
 }
 
@@ -415,10 +458,7 @@ export async function sendContactSubmissionEmails({ payload, attachments, client
     contentType: file.mimetype,
     path: file.path
   }));
-  const adminRecipients = normalizeAddressList(MAIL_NOTIFICATIONS_TO) || [];
-  if (!adminRecipients.length) {
-    adminRecipients.push(extractAddress(MAIL_FROM));
-  }
+  const adminRecipients = getAdminNotificationRecipients();
   const ipInfo = payload.ipAddress || clientMetadata?.ipAddress || 'nedisponibil';
   const adminText = [
     'Ai primit un mesaj nou prin formularul de contact:',
@@ -437,7 +477,9 @@ export async function sendContactSubmissionEmails({ payload, attachments, client
     to: adminRecipients,
     subject: `Mesaj nou din formularul de contact - ${payload.fullName}`,
     text: adminText,
-    attachments: attachmentPayload
+    attachments: attachmentPayload,
+    eventType: 'contact_submission_admin',
+    context: { submissionEmail, ip: ipInfo }
   });
 
   if (submissionEmail) {
@@ -456,7 +498,142 @@ export async function sendContactSubmissionEmails({ payload, attachments, client
       to: submissionEmail,
       subject: 'Confirmare mesaj de contact Academia de Licențe',
       text: clientText,
-      attachments: []
+      attachments: [],
+      eventType: 'contact_submission_client',
+      context: { submissionEmail }
+    });
+  }
+}
+
+function sanitizeEmailList(values = [], exclude = []) {
+  const exclusions = new Set(exclude.map((item) => String(item || '').toLowerCase()).filter(Boolean));
+  return [...new Set(values.map((item) => String(item || '').toLowerCase()).filter((item) => item && !exclusions.has(item)))];
+}
+
+export async function sendTicketCreatedNotification({ ticket, author, clientEmail, adminEmails = [], projectTitle = null }) {
+  if (!ticket) {
+    return;
+  }
+  const normalizedClientEmail = clientEmail ? String(clientEmail).toLowerCase() : null;
+  const adminRecipients = sanitizeEmailList(getAdminNotificationRecipients(adminEmails), normalizedClientEmail ? [normalizedClientEmail] : []);
+  const baseContext = { ticketId: ticket.id, displayCode: ticket.display_code, authorId: author?.id };
+  if (adminRecipients.length) {
+    const adminText = [
+      'A fost deschis un ticket nou.',
+      '',
+      `Referinta: #${ticket.display_code}`,
+      `Subiect: ${ticket.subject}`,
+      projectTitle ? `Proiect: ${projectTitle}` : null,
+      author?.fullName ? `Client: ${author.fullName} (${author.email || 'email indisponibil'})` : null,
+      '',
+      'Mesaj initial:',
+      ticket.message || 'Mesaj indisponibil'
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    await sendRawMail({
+      to: adminRecipients,
+      subject: `[Ticket #${ticket.display_code}] Ticket nou: ${ticket.subject}`,
+      text: adminText,
+      attachments: [],
+      eventType: 'ticket_created_admin',
+      context: baseContext
+    });
+  }
+
+  if (normalizedClientEmail) {
+    const clientText = [
+      `Bună, ${author?.fullName || 'client'}!`,
+      '',
+      'Am deschis un ticket nou pentru solicitarea ta.',
+      `Referința ta este #${ticket.display_code}. Include acest cod în subiectul emailului pentru a menține firul conversației.`,
+      '',
+      `Subiect: ${ticket.subject}`,
+      '',
+      'Mesaj trimis:',
+      ticket.message || 'Mesaj indisponibil',
+      '',
+      'Poți urmări discuția și din contul tău.',
+      'Echipa Academia de Licențe'
+    ].join('\n');
+
+    await sendRawMail({
+      to: normalizedClientEmail,
+      subject: `Am deschis ticketul #${ticket.display_code} – ${ticket.subject}`,
+      text: clientText,
+      attachments: [],
+      eventType: 'ticket_created_client',
+      context: baseContext
+    });
+  }
+}
+
+export async function sendTicketReplyNotification({
+  ticket,
+  author,
+  message,
+  clientEmail,
+  adminEmails = [],
+  projectTitle = null
+}) {
+  if (!ticket || !author || !message) {
+    return;
+  }
+  const normalizedClientEmail = clientEmail ? String(clientEmail).toLowerCase() : null;
+  const senderEmail = author.email ? String(author.email).toLowerCase() : null;
+  const baseContext = { ticketId: ticket.id, displayCode: ticket.display_code, authorId: author.id };
+
+  const adminRecipients = sanitizeEmailList(getAdminNotificationRecipients(adminEmails), [senderEmail, normalizedClientEmail].filter(Boolean));
+  const clientRecipients = normalizedClientEmail && senderEmail !== normalizedClientEmail ? [normalizedClientEmail] : [];
+  const replySummary = message.length > 500 ? `${message.slice(0, 500)}…` : message;
+  const isClientAuthor = author.role === 'client';
+
+  if (adminRecipients.length) {
+    const adminText = [
+      isClientAuthor ? 'Clientul a trimis un raspuns intr-un ticket.' : 'Echipa a transmis un raspuns intr-un ticket.',
+      '',
+      `Referinta: #${ticket.display_code}`,
+      `Subiect: ${ticket.subject}`,
+      projectTitle ? `Proiect: ${projectTitle}` : null,
+      author.fullName ? `Autor mesaj: ${author.fullName} (${author.email || 'email indisponibil'})` : null,
+      '',
+      'Mesaj:',
+      replySummary
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    await sendRawMail({
+      to: adminRecipients,
+      subject: `[Ticket #${ticket.display_code}] Raspuns nou ${isClientAuthor ? 'de la client' : 'din echipa'}`,
+      text: adminText,
+      attachments: [],
+      eventType: 'ticket_reply_admin',
+      context: baseContext
+    });
+  }
+
+  if (!isClientAuthor && clientRecipients.length) {
+    const clientText = [
+      `Ai primit un raspuns in ticketul #${ticket.display_code}.`,
+      '',
+      `Subiect: ${ticket.subject}`,
+      '',
+      'Mesaj nou:',
+      replySummary,
+      '',
+      'Poti continua conversatia din contul tau sau raspunzand la acest email cu referinta ticketului.',
+      'Echipa Academia de Licențe'
+    ].join('\n');
+
+    await sendRawMail({
+      to: clientRecipients,
+      subject: `[Ticket #${ticket.display_code}] Raspuns nou de la echipa`,
+      text: clientText,
+      attachments: [],
+      eventType: 'ticket_reply_client',
+      context: baseContext
     });
   }
 }

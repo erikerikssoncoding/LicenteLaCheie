@@ -47,11 +47,31 @@ const baseHelmet = helmet({ contentSecurityPolicy: false });
 const cspMiddleware = helmet.contentSecurityPolicy({
   useDefaults: true,
   directives: {
-    "img-src": ["'self'", 'data:', 'https://images.unsplash.com', 'https://i.ytimg.com'],
-    "script-src": ["'self'", 'https://cdn.jsdelivr.net'],
-    "style-src": ["'self'", 'https://cdn.jsdelivr.net', "'unsafe-inline'"],
-    "connect-src": ["'self'"],
-    "frame-src": ["'self'", 'https://www.youtube-nocookie.com']
+    "default-src": ["'self'"],
+    "img-src": ["'self'", "data:", "https://images.unsplash.com", "https://i.ytimg.com"],
+    "script-src": [
+      "'self'",
+      "https://cdn.jsdelivr.net",
+      "'unsafe-inline'",
+      "https://www.googletagmanager.com"
+    ],
+    "style-src": [
+      "'self'",
+      "https://cdn.jsdelivr.net",
+      "'unsafe-inline'",
+      "https://fonts.googleapis.com"
+    ],
+    "font-src": [
+      "'self'",
+      "https://fonts.gstatic.com",
+      "https://cdn.jsdelivr.net"
+    ],
+    "connect-src": [
+      "'self'",
+      "https://www.google-analytics.com",
+      "https://cdn.jsdelivr.net"
+    ],
+    "frame-src": ["'self'", "https://www.youtube-nocookie.com"]
   }
 });
 

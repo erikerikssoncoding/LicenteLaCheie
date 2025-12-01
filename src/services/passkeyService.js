@@ -7,6 +7,7 @@ import {
 import pool from '../config/db.js';
 
 export const PASSKEY_LIMIT_PER_USER = 3;
+export const PASSKEY_TOTAL_LIMIT_PER_USER = 20;
 
 function sanitizeLabel(label) {
   if (!label) return 'Passkey securizat';
@@ -42,6 +43,14 @@ export async function countActivePasskeysForUser(userId) {
   return rows[0]?.total || 0;
 }
 
+export async function countTotalPasskeysForUser(userId) {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total FROM passkeys WHERE user_id = ?`,
+    [userId]
+  );
+  return rows[0]?.total || 0;
+}
+
 async function getActiveCredentialDescriptors(userId) {
   const [rows] = await pool.query(
     `SELECT credential_id, transports FROM passkeys WHERE user_id = ? AND revoked_at IS NULL`,
@@ -61,10 +70,20 @@ async function getActiveCredentialDescriptors(userId) {
 
 export async function generatePasskeyRegistrationOptions({ user, rpID, rpName }) {
   if (!user?.id) throw new Error('USER_REQUIRED');
-  
-  const activeCount = await countActivePasskeysForUser(user.id);
+
+  const [activeCount, totalCount] = await Promise.all([
+    countActivePasskeysForUser(user.id),
+    countTotalPasskeysForUser(user.id)
+  ]);
+
   if (activeCount >= PASSKEY_LIMIT_PER_USER) {
     const error = new Error('PASSKEY_LIMIT_REACHED');
+    error.status = 400;
+    throw error;
+  }
+
+  if (totalCount >= PASSKEY_TOTAL_LIMIT_PER_USER) {
+    const error = new Error('PASSKEY_TOTAL_LIMIT_REACHED');
     error.status = 400;
     throw error;
   }
@@ -94,6 +113,17 @@ export async function generatePasskeyRegistrationOptions({ user, rpID, rpName })
 export async function verifyPasskeyRegistration({ userId, response, expectedChallenge, rpID, origin, label }) {
   if (!userId) throw new Error('USER_ID_REQUIRED');
   if (!expectedChallenge) throw new Error('PASSKEY_CHALLENGE_MISSING');
+
+  const [activeCount, totalCount] = await Promise.all([
+    countActivePasskeysForUser(userId),
+    countTotalPasskeysForUser(userId)
+  ]);
+
+  if (activeCount >= PASSKEY_LIMIT_PER_USER || totalCount >= PASSKEY_TOTAL_LIMIT_PER_USER) {
+    const error = new Error('PASSKEY_LIMIT_REACHED');
+    error.status = 400;
+    throw error;
+  }
 
   const verification = await verifyRegistrationResponse({
     response,

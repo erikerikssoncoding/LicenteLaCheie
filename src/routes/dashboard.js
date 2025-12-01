@@ -236,6 +236,7 @@ router
         listTrustedDevicesForUser(user.id),
         listPasskeysForUser(user.id)
       ]);
+      const activePasskeyCount = passkeys.filter((passkey) => passkey.status === 'active').length;
       const successKey = typeof req.query.success === 'string' ? req.query.success : null;
       const errorKey = typeof req.query.error === 'string' ? req.query.error : null;
       const requestedTab = typeof req.query.tab === 'string' ? req.query.tab : null;
@@ -294,6 +295,7 @@ router
         contracts,
         trustedDevices,
         passkeys,
+        activePasskeyCount,
         feedback,
         passkeyLimit: PASSKEY_LIMIT_PER_USER,
         activeTab,
@@ -416,7 +418,7 @@ router.get('/cont/setari/passkeys/generate-options', async (req, res, next) => {
 
     res.json(options);
   } catch (error) {
-    if (error.message === 'PASSKEY_LIMIT_REACHED') {
+    if (error.message === 'PASSKEY_LIMIT_REACHED' || error.message === 'PASSKEY_TOTAL_LIMIT_REACHED') {
       return res.status(400).json({ error: 'PASSKEY_LIMIT_REACHED' });
     }
     next(error);
@@ -455,7 +457,7 @@ router.post('/cont/setari/passkeys/verify', async (req, res, next) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'INVALID_PASSKEY_PAYLOAD' });
     }
-    if (error.message === 'PASSKEY_LIMIT_REACHED') {
+    if (error.message === 'PASSKEY_LIMIT_REACHED' || error.message === 'PASSKEY_TOTAL_LIMIT_REACHED') {
       return res.status(400).json({ error: 'PASSKEY_LIMIT_REACHED' });
     }
     if (error.message === 'PASSKEY_CHALLENGE_MISSING') {

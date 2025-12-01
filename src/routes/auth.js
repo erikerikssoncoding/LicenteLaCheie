@@ -12,7 +12,10 @@ import {
   revokeTrustedDeviceByToken,
   TRUSTED_DEVICE_COOKIE_NAME
 } from '../services/trustedDeviceService.js';
-import { authenticatePasskey } from '../services/passkeyService.js';
+import {
+  generatePasskeyAuthenticationOptions,
+  verifyPasskeyAuthentication
+} from '../services/passkeyService.js';
 
 const router = Router();
 
@@ -80,18 +83,28 @@ router.post('/autentificare', async (req, res, next) => {
 router.post('/autentificare/passkey', async (req, res, next) => {
   try {
     const schema = z.object({
-      token: z.string().min(10),
-      rememberDevice: z.enum(['on', '1', 'true']).optional()
+      credential: z.any(),
+      rememberDevice: z.enum(['on', '1', 'true']).optional(),
+      email: z.string().email().optional()
     });
-    const { token, rememberDevice } = schema.parse(req.body);
-    const result = await authenticatePasskey(token.trim());
-    if (!result) {
-      return res.status(401).render('pages/login', {
-        title: 'Autentificare cont client și echipă',
-        description: 'Cheia de acces nu este validă sau a fost revocată.',
-        error: 'Passkey invalid sau revocat.'
-      });
-    }
+    const { credential, rememberDevice, email } = schema.parse(req.body);
+
+    const expectedChallenge = req.session.passkeyLoginChallenge;
+    const expectedEmail =
+      typeof req.session.passkeyLoginEmail === 'string' ? req.session.passkeyLoginEmail : email || null;
+    const rpID = (req.headers.host || 'localhost').split(':')[0];
+    const origin = `${req.protocol}://${req.get('host')}`;
+
+    const result = await verifyPasskeyAuthentication({
+      credential,
+      expectedChallenge,
+      rpID,
+      origin,
+      expectedEmail
+    });
+
+    req.session.passkeyLoginChallenge = null;
+    req.session.passkeyLoginEmail = null;
 
     req.session.user = result.user;
 
@@ -109,14 +122,45 @@ router.post('/autentificare/passkey', async (req, res, next) => {
       res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
     }
 
-    return res.redirect('/cont');
+    return res.json({ ok: true, redirect: '/cont' });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).render('pages/login', {
-        title: 'Autentificare cont client și echipă',
-        description: 'Completează corect datele pentru autentificare.',
-        error: 'Cheia de acces nu este validă.'
-      });
+      return res.status(400).json({ error: 'INVALID_PASSKEY_PAYLOAD' });
+    }
+    if (
+      error.message === 'PASSKEY_CHALLENGE_MISSING' ||
+      error.message === 'PASSKEY_VERIFICATION_FAILED'
+    ) {
+      return res.status(401).json({ error: error.message });
+    }
+    if (error.message === 'PASSKEY_NOT_FOUND') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'PASSKEY_USER_MISMATCH') {
+      return res.status(403).json({ error: error.message });
+    }
+    next(error);
+  } finally {
+    req.session.passkeyLoginChallenge = null;
+    req.session.passkeyLoginEmail = null;
+  }
+});
+
+router.post('/autentificare/passkey/options', async (req, res, next) => {
+  try {
+    const schema = z.object({ email: z.string().email().optional() });
+    const data = schema.parse(req.body || {});
+
+    const rpID = (req.headers.host || 'localhost').split(':')[0];
+    const options = await generatePasskeyAuthenticationOptions({ rpID, userEmail: data.email });
+
+    req.session.passkeyLoginChallenge = options.challenge;
+    req.session.passkeyLoginEmail = data.email || null;
+
+    res.json(options);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'INVALID_PASSKEY_PAYLOAD' });
     }
     next(error);
   }

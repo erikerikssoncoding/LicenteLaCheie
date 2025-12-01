@@ -26,29 +26,101 @@
             <button class="btn btn-primary w-100" type="submit">Autentificare</button>
           </form>
           <div class="text-center text-muted my-3">sau</div>
-          <form action="/autentificare/passkey" method="post" class="vstack gap-3">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-            <div>
-              <label class="form-label" for="passkeyToken">Passkey</label>
-              <input
-                class="form-control"
-                type="text"
-                id="passkeyToken"
-                name="token"
-                placeholder="Introduceți cheia de acces generată"
-                required
-              />
-              <div class="form-text">Cheia este generată din contul tău și poate fi folosită fără parolă.</div>
+          <div class="vstack gap-3">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <div class="form-label mb-0">Passkey</div>
+                <div class="form-text">Autentifică-te fără parolă folosind passkey-ul salvat pe dispozitiv.</div>
+              </div>
+              <button class="btn btn-outline-primary" type="button" id="btn-passkey-login">Autentificare cu Passkey</button>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="rememberPasskeyDevice" name="rememberDevice" value="1" />
               <label class="form-check-label" for="rememberPasskeyDevice">Ține-mă minte pe acest dispozitiv</label>
             </div>
-            <button class="btn btn-outline-primary w-100" type="submit">Autentificare cu Passkey</button>
-          </form>
+            <div id="passkey-login-status" class="small text-muted"></div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </section>
+<script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const passkeyButton = document.getElementById('btn-passkey-login');
+    const rememberPasskeyCheckbox = document.getElementById('rememberPasskeyDevice');
+    const statusElement = document.getElementById('passkey-login-status');
+    const emailInput = document.getElementById('email');
+    const csrfToken = '<%= csrfToken %>';
+
+    const setStatus = (message, variant = 'muted') => {
+      if (!statusElement) return;
+      statusElement.textContent = message || '';
+      statusElement.className = `small text-${variant}`;
+    };
+
+    if (!passkeyButton) {
+      return;
+    }
+
+    if (!window.PublicKeyCredential || !window.SimpleWebAuthnBrowser) {
+      passkeyButton.disabled = true;
+      setStatus('Dispozitivul nu suportă autentificarea cu passkey.', 'danger');
+      return;
+    }
+
+    passkeyButton.addEventListener('click', async () => {
+      try {
+        const email = emailInput?.value?.trim() || undefined;
+        setStatus('Pregătim fereastra de autentificare pentru passkey...');
+        passkeyButton.disabled = true;
+
+        const optionsResponse = await fetch('/autentificare/passkey/options', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({ email })
+        });
+
+        if (!optionsResponse.ok) {
+          throw new Error('Nu am putut pregăti autentificarea cu passkey.');
+        }
+
+        const options = await optionsResponse.json();
+        const assertion = await window.SimpleWebAuthnBrowser.startAuthentication(options, {
+          mediation: 'optional'
+        });
+
+        const verifyResponse = await fetch('/autentificare/passkey', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({
+            credential: assertion,
+            rememberDevice: rememberPasskeyCheckbox?.checked ? '1' : undefined,
+            email
+          })
+        });
+
+        if (!verifyResponse.ok) {
+          const payload = await verifyResponse.json().catch(() => ({ error: 'PASSKEY_VERIFICATION_FAILED' }));
+          throw new Error(payload.error || 'PASSKEY_VERIFICATION_FAILED');
+        }
+
+        const payload = await verifyResponse.json();
+        window.location.href = payload.redirect || '/cont';
+      } catch (error) {
+        console.error('Nu am putut autentifica folosind passkey.', error);
+        setStatus('Nu am putut finaliza autentificarea cu passkey. Te rugăm să reîncerci.', 'danger');
+      } finally {
+        passkeyButton.disabled = false;
+      }
+    });
+  });
+</script>
 <%- include('../partials/footer') %>

@@ -252,19 +252,31 @@ export async function generatePasskeyAuthenticationOptions() {
 export async function verifyPasskeyAuthentication({ response, expectedChallenge, rpID, origin }) {
   const credentialID = response.id;
 
+  // DEBUG: Vedem exact ce ID primim de la browser
+  console.log('--- PASSKEY AUTH DEBUG ---');
+  console.log('Received ID:', credentialID);
+
+  // 1. Căutăm passkey-ul folosind ID-ul exact (string), fără conversii intermediare
   const [rows] = await pool.query(
     `SELECT p.*, u.email, u.full_name, u.role, u.phone, u.is_active
      FROM passkeys p
      JOIN users u ON p.user_id = u.id
      WHERE p.credential_id = ? AND p.revoked_at IS NULL`,
-    [Buffer.from(credentialID, 'base64url').toString('base64url')]
+    [credentialID]
   );
+
+  console.log('Rows found:', rows.length);
 
   const passkey = rows[0];
   if (!passkey) {
+    // Dacă nu găsim nimic, afișăm în consolă ID-urile din baza de date pentru comparație
+    const [allKeys] = await pool.query('SELECT credential_id FROM passkeys LIMIT 5');
+    console.log('Existing IDs in DB:', allKeys.map((k) => k.credential_id));
+
     throw new Error('PASSKEY_NOT_FOUND');
   }
 
+  // 2. Verificăm semnătura criptografică
   const verification = await verifyAuthenticationResponse({
     response,
     expectedChallenge,
@@ -272,7 +284,7 @@ export async function verifyPasskeyAuthentication({ response, expectedChallenge,
     expectedRPID: rpID,
     authenticator: {
       credentialID: passkey.credential_id,
-      credentialPublicKey: Buffer.from(passkey.public_key, 'base64'),
+      credentialPublicKey: Buffer.from(passkey.public_key, 'base64'), // Cheia publică e salvată base64 standard
       counter: passkey.counter,
       transports: passkey.transports ? JSON.parse(passkey.transports) : []
     }
@@ -282,6 +294,7 @@ export async function verifyPasskeyAuthentication({ response, expectedChallenge,
     throw new Error('VERIFICATION_FAILED');
   }
 
+  // 3. Actualizăm counter-ul pentru securitate
   const newCounter = verification.authenticationInfo.newCounter;
   await pool.query('UPDATE passkeys SET counter = ?, last_used_at = NOW() WHERE id = ?', [newCounter, passkey.id]);
 

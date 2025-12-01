@@ -48,30 +48,49 @@ const cspMiddleware = helmet.contentSecurityPolicy({
   useDefaults: true,
   directives: {
     "default-src": ["'self'"],
-    "img-src": ["'self'", "data:", "https://images.unsplash.com", "https://i.ytimg.com"],
     "script-src": [
       "'self'",
-      "https://cdn.jsdelivr.net",
       "'unsafe-inline'",
-      "https://www.googletagmanager.com"
+      "'unsafe-eval'", // Deseori necesar pentru scripturi complexe
+      "https://cdn.jsdelivr.net",
+      "https://www.googletagmanager.com",
+      "https://www.google-analytics.com",
+      "https://challenges.cloudflare.com", // Pentru Cloudflare
+      "https://ajax.cloudflare.com"
     ],
     "style-src": [
       "'self'",
-      "https://cdn.jsdelivr.net",
       "'unsafe-inline'",
+      "https://cdn.jsdelivr.net",
       "https://fonts.googleapis.com"
     ],
     "font-src": [
       "'self'",
+      "data:",
       "https://fonts.gstatic.com",
       "https://cdn.jsdelivr.net"
+    ],
+    "img-src": [
+      "'self'",
+      "data:",
+      "https://images.unsplash.com",
+      "https://i.ytimg.com",
+      "https://www.googletagmanager.com",
+      "https://www.google-analytics.com"
     ],
     "connect-src": [
       "'self'",
       "https://www.google-analytics.com",
-      "https://cdn.jsdelivr.net"
+      "https://region1.google-analytics.com", // Aici era blocat Analytics
+      "https://cdn.jsdelivr.net",
+      "https://cloudflare.com"
     ],
-    "frame-src": ["'self'", "https://www.youtube-nocookie.com"]
+    "frame-src": [
+      "'self'",
+      "https://www.youtube-nocookie.com",
+      "https://challenges.cloudflare.com"
+    ],
+    "upgrade-insecure-requests": [] // Asigură-te că totul merge pe HTTPS
   }
 });
 

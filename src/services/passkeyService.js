@@ -1,4 +1,9 @@
-import { generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server';
+import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse
+} from '@simplewebauthn/server';
 import pool from '../config/db.js';
 
 export const PASSKEY_LIMIT_PER_USER = 3;
@@ -53,6 +58,36 @@ async function getActiveCredentialDescriptors(userId) {
        AND revoked_at IS NULL`,
     [userId]
   );
+  return rows
+    .map((row) => {
+      const decodedId = decodeCredentialId(row.credential_id);
+      if (!decodedId) {
+        return null;
+      }
+      return {
+        id: decodedId,
+        type: 'public-key',
+        transports: parseTransports(row.transports)
+      };
+    })
+    .filter(Boolean);
+}
+
+async function getActiveCredentialDescriptorsForEmail(email) {
+  if (!email) {
+    return [];
+  }
+
+  const [rows] = await pool.query(
+    `SELECT p.credential_id, p.transports
+     FROM passkeys p
+     INNER JOIN users u ON u.id = p.user_id
+     WHERE u.email = ?
+       AND u.is_active = 1
+       AND p.revoked_at IS NULL`,
+    [email]
+  );
+
   return rows
     .map((row) => {
       const decodedId = decodeCredentialId(row.credential_id);
@@ -202,7 +237,135 @@ export async function revokeAllPasskeysForUser(userId) {
   return result.affectedRows || 0;
 }
 
-export async function authenticatePasskey(token) {
-  console.warn('Legacy passkey authentication is no longer supported.');
-  return null;
+export async function generatePasskeyAuthenticationOptions({ rpID, userEmail }) {
+  const allowCredentials = await getActiveCredentialDescriptorsForEmail(userEmail);
+
+  const options = await generateAuthenticationOptions({
+    rpID,
+    userVerification: 'preferred',
+    timeout: 60000,
+    allowCredentials: allowCredentials.length ? allowCredentials : undefined
+  });
+
+  return options;
+}
+
+async function findPasskeyByCredentialId(credentialId) {
+  if (!credentialId) {
+    return null;
+  }
+
+  const [rows] = await pool.query(
+    `SELECT
+      p.id,
+      p.user_id,
+      p.credential_id,
+      p.public_key,
+      p.counter,
+      p.transports,
+      u.email,
+      u.full_name,
+      u.role,
+      u.phone,
+      u.is_active
+     FROM passkeys p
+     INNER JOIN users u ON u.id = p.user_id
+     WHERE p.credential_id = ?
+       AND p.revoked_at IS NULL
+     LIMIT 1`,
+    [credentialId]
+  );
+
+  const record = rows[0];
+  if (!record || !record.is_active) {
+    return null;
+  }
+
+  const credentialID = decodeCredentialId(record.credential_id);
+  if (!credentialID) {
+    return null;
+  }
+
+  const credentialPublicKey = record.public_key ? Buffer.from(record.public_key, 'base64') : null;
+  if (!credentialPublicKey) {
+    return null;
+  }
+
+  const transports = parseTransports(record.transports);
+
+  return {
+    id: record.id,
+    userId: record.user_id,
+    authenticator: {
+      credentialID,
+      credentialPublicKey,
+      counter: Number(record.counter) || 0,
+      transports
+    },
+    user: {
+      id: record.user_id,
+      email: record.email,
+      fullName: record.full_name,
+      role: record.role,
+      phone: record.phone
+    }
+  };
+}
+
+export async function verifyPasskeyAuthentication({
+  credential,
+  expectedChallenge,
+  rpID,
+  origin,
+  expectedEmail
+}) {
+  if (!expectedChallenge) {
+    const error = new Error('PASSKEY_CHALLENGE_MISSING');
+    error.status = 400;
+    throw error;
+  }
+
+  const credentialId = credential?.rawId || credential?.id;
+  const passkey = await findPasskeyByCredentialId(credentialId);
+
+  if (!passkey) {
+    const error = new Error('PASSKEY_NOT_FOUND');
+    error.status = 404;
+    throw error;
+  }
+
+  if (expectedEmail && passkey.user.email !== expectedEmail) {
+    const error = new Error('PASSKEY_USER_MISMATCH');
+    error.status = 403;
+    throw error;
+  }
+
+  const verification = await verifyAuthenticationResponse({
+    response: credential,
+    expectedChallenge,
+    expectedOrigin: origin,
+    expectedRPID: rpID,
+    authenticator: passkey.authenticator,
+    requireUserVerification: true
+  });
+
+  if (!verification.verified || !verification.authenticationInfo) {
+    const error = new Error('PASSKEY_VERIFICATION_FAILED');
+    error.status = 401;
+    throw error;
+  }
+
+  const newCounter = verification.authenticationInfo.newCounter ?? passkey.authenticator.counter;
+
+  await pool.query(
+    `UPDATE passkeys
+     SET counter = ?, last_used_at = NOW()
+     WHERE id = ?`,
+    [newCounter, passkey.id]
+  );
+
+  return {
+    verified: true,
+    user: passkey.user
+  };
 }

@@ -1,23 +1,17 @@
 import {
-  generateAuthenticationOptions,
   generateRegistrationOptions,
-  verifyAuthenticationResponse,
-  verifyRegistrationResponse
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse
 } from '@simplewebauthn/server';
 import pool from '../config/db.js';
-import { getUserById } from './userService.js';
 
 export const PASSKEY_LIMIT_PER_USER = 3;
 
 function sanitizeLabel(label) {
-  if (!label) {
-    return 'Passkey securizat';
-  }
+  if (!label) return 'Passkey securizat';
   const trimmed = label.toString().trim();
-  if (!trimmed.length) {
-    return 'Passkey securizat';
-  }
-  return trimmed.slice(0, 150);
+  return trimmed.length ? trimmed.slice(0, 150) : 'Passkey securizat';
 }
 
 function parseTransports(value) {
@@ -29,23 +23,20 @@ function parseTransports(value) {
   }
 }
 
-function decodeCredentialId(value) {
-  if (!value) {
-    return null;
+// Funcție ajutătoare pentru a obține ID-ul corect ca string Base64URL
+function normalizeCredentialID(credentialID) {
+  if (!credentialID) return null;
+  // Dacă e deja string, îl returnăm direct (evităm dubla codare)
+  if (typeof credentialID === 'string') {
+    return credentialID;
   }
-  try {
-    return Buffer.from(value, 'base64url');
-  } catch (error) {
-    return null;
-  }
+  // Dacă e Buffer/Array, îl convertim
+  return Buffer.from(credentialID).toString('base64url');
 }
 
 export async function countActivePasskeysForUser(userId) {
   const [rows] = await pool.query(
-    `SELECT COUNT(*) AS total
-     FROM passkeys
-     WHERE user_id = ?
-       AND revoked_at IS NULL`,
+    `SELECT COUNT(*) AS total FROM passkeys WHERE user_id = ? AND revoked_at IS NULL`,
     [userId]
   );
   return rows[0]?.total || 0;
@@ -53,50 +44,14 @@ export async function countActivePasskeysForUser(userId) {
 
 async function getActiveCredentialDescriptors(userId) {
   const [rows] = await pool.query(
-    `SELECT credential_id, transports
-     FROM passkeys
-     WHERE user_id = ?
-       AND revoked_at IS NULL`,
+    `SELECT credential_id, transports FROM passkeys WHERE user_id = ? AND revoked_at IS NULL`,
     [userId]
   );
   return rows
     .map((row) => {
-      const decodedId = decodeCredentialId(row.credential_id);
-      if (!decodedId) {
-        return null;
-      }
+      // row.credential_id este deja string Base64URL corect în noua implementare
       return {
-        id: decodedId,
-        type: 'public-key',
-        transports: parseTransports(row.transports)
-      };
-    })
-    .filter(Boolean);
-}
-
-async function getActiveCredentialDescriptorsForEmail(email) {
-  if (!email) {
-    return [];
-  }
-
-  const [rows] = await pool.query(
-    `SELECT p.credential_id, p.transports
-     FROM passkeys p
-     INNER JOIN users u ON u.id = p.user_id
-     WHERE u.email = ?
-       AND u.is_active = 1
-       AND p.revoked_at IS NULL`,
-    [email]
-  );
-
-  return rows
-    .map((row) => {
-      const decodedId = decodeCredentialId(row.credential_id);
-      if (!decodedId) {
-        return null;
-      }
-      return {
-        id: decodedId,
+        id: row.credential_id, 
         type: 'public-key',
         transports: parseTransports(row.transports)
       };
@@ -105,20 +60,20 @@ async function getActiveCredentialDescriptorsForEmail(email) {
 }
 
 export async function generatePasskeyRegistrationOptions({ user, rpID, rpName }) {
-  if (!user?.id) {
-    throw new Error('USER_REQUIRED');
-  }
+  if (!user?.id) throw new Error('USER_REQUIRED');
+  
   const activeCount = await countActivePasskeysForUser(user.id);
   if (activeCount >= PASSKEY_LIMIT_PER_USER) {
     const error = new Error('PASSKEY_LIMIT_REACHED');
     error.status = 400;
     throw error;
   }
+
   const excludeCredentials = await getActiveCredentialDescriptors(user.id);
   const userName = user.email || `user-${user.id}`;
   const displayName = user.fullName || user.email || `Utilizator ${user.id}`;
-
-  // Convertim ID-ul utilizatorului în Uint8Array folosind Buffer pentru compatibilitatea cu WebAuthn
+  
+  // Convertim ID-ul numeric în format binar compatibil cu standardul nou
   const userID = new Uint8Array(Buffer.from(String(user.id)));
 
   return generateRegistrationOptions({
@@ -128,30 +83,18 @@ export async function generatePasskeyRegistrationOptions({ user, rpID, rpName })
     userDisplayName: displayName,
     userID,
     attestationType: 'none',
-    excludeCredentials
+    excludeCredentials,
+    authenticatorSelection: {
+      residentKey: 'preferred',
+      userVerification: 'preferred',
+      authenticatorAttachment: 'platform'
+    }
   });
 }
 
-export async function verifyPasskeyRegistration({
-  userId,
-  response,
-  expectedChallenge,
-  rpID,
-  origin,
-  label
-}) {
-  if (!userId) {
-    throw new Error('USER_ID_REQUIRED');
-  }
-  if (!expectedChallenge) {
-    throw new Error('PASSKEY_CHALLENGE_MISSING');
-  }
-  const activeCount = await countActivePasskeysForUser(userId);
-  if (activeCount >= PASSKEY_LIMIT_PER_USER) {
-    const error = new Error('PASSKEY_LIMIT_REACHED');
-    error.status = 400;
-    throw error;
-  }
+export async function verifyPasskeyRegistration({ userId, response, expectedChallenge, rpID, origin, label }) {
+  if (!userId) throw new Error('USER_ID_REQUIRED');
+  if (!expectedChallenge) throw new Error('PASSKEY_CHALLENGE_MISSING');
 
   const verification = await verifyRegistrationResponse({
     response,
@@ -168,12 +111,14 @@ export async function verifyPasskeyRegistration({
   }
 
   const { registrationInfo } = verification;
-  const credentialID = registrationInfo.credentialID;
+  
+  // FIX CRITIC: Folosim funcția de normalizare pentru a evita dubla codare
+  const credentialIdEncoded = normalizeCredentialID(registrationInfo.credentialID);
+  
   const credentialPublicKey = registrationInfo.credentialPublicKey;
   const credentialCounter = registrationInfo.counter ?? 0;
   const transports = registrationInfo.transports || response?.response?.transports || [];
-
-  const credentialIdEncoded = Buffer.from(credentialID).toString('base64url');
+  
   const publicKeyEncoded = Buffer.from(credentialPublicKey).toString('base64');
   const name = sanitizeLabel(label);
 
@@ -186,77 +131,22 @@ export async function verifyPasskeyRegistration({
   return { verified: true };
 }
 
-export async function listPasskeysForUser(userId, { includeRevoked = true } = {}) {
-  if (!userId) {
-    return [];
-  }
-  const conditions = ['user_id = ?'];
-  const params = [userId];
-  if (!includeRevoked) {
-    conditions.push('revoked_at IS NULL');
-  }
-  const [rows] = await pool.query(
-    `SELECT id, name, created_at, last_used_at, revoked_at
-     FROM passkeys
-     WHERE ${conditions.join(' AND ')}
-     ORDER BY created_at DESC`,
-    params
-  );
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    createdAt: row.created_at,
-    lastUsedAt: row.last_used_at,
-    revokedAt: row.revoked_at,
-    status: row.revoked_at ? 'revoked' : 'active'
-  }));
-}
-
-export async function revokePasskey({ userId, passkeyId }) {
-  if (!userId || !passkeyId) {
-    return false;
-  }
-  const [result] = await pool.query(
-    `UPDATE passkeys
-     SET revoked_at = NOW()
-     WHERE id = ?
-       AND user_id = ?
-       AND revoked_at IS NULL`,
-    [passkeyId, userId]
-  );
-  return result.affectedRows > 0;
-}
-
-export async function revokeAllPasskeysForUser(userId) {
-  if (!userId) {
-    return 0;
-  }
-  const [result] = await pool.query(
-    `UPDATE passkeys
-     SET revoked_at = NOW()
-     WHERE user_id = ?
-       AND revoked_at IS NULL`,
-    [userId]
-  );
-  return result.affectedRows || 0;
-}
+// --- LOGICĂ NOUĂ PENTRU AUTENTIFICARE ---
 
 export async function generatePasskeyAuthenticationOptions() {
   return generateAuthenticationOptions({
-    rpID: 'academiadelicente.ro',
-    allowCredentials: [],
-    userVerification: 'preferred'
+    rpID: 'academiadelicente.ro', // Asigură-te că e corect (sau localhost în dev)
+    userVerification: 'preferred',
   });
 }
 
 export async function verifyPasskeyAuthentication({ response, expectedChallenge, rpID, origin }) {
-  const credentialID = response.id;
+  const credentialID = response.id; // Browserul trimite string Base64URL
 
-  // DEBUG: Vedem exact ce ID primim de la browser
-  console.log('--- PASSKEY AUTH DEBUG ---');
-  console.log('Received ID:', credentialID);
+  console.log('--- PASSKEY AUTH ---');
+  console.log('Searching for ID:', credentialID);
 
-  // 1. Căutăm passkey-ul folosind ID-ul exact (string), fără conversii intermediare
+  // Căutăm exact string-ul primit, fără conversii
   const [rows] = await pool.query(
     `SELECT p.*, u.email, u.full_name, u.role, u.phone, u.is_active
      FROM passkeys p
@@ -265,26 +155,20 @@ export async function verifyPasskeyAuthentication({ response, expectedChallenge,
     [credentialID]
   );
 
-  console.log('Rows found:', rows.length);
-
   const passkey = rows[0];
   if (!passkey) {
-    // Dacă nu găsim nimic, afișăm în consolă ID-urile din baza de date pentru comparație
-    const [allKeys] = await pool.query('SELECT credential_id FROM passkeys LIMIT 5');
-    console.log('Existing IDs in DB:', allKeys.map((k) => k.credential_id));
-
+    console.error('Passkey not found in DB.');
     throw new Error('PASSKEY_NOT_FOUND');
   }
 
-  // 2. Verificăm semnătura criptografică
   const verification = await verifyAuthenticationResponse({
     response,
     expectedChallenge,
     expectedOrigin: origin,
     expectedRPID: rpID,
     authenticator: {
-      credentialID: passkey.credential_id,
-      credentialPublicKey: Buffer.from(passkey.public_key, 'base64'), // Cheia publică e salvată base64 standard
+      credentialID: passkey.credential_id, // Biblioteca știe să gestioneze string-ul base64url
+      credentialPublicKey: Buffer.from(passkey.public_key, 'base64'),
       counter: passkey.counter,
       transports: passkey.transports ? JSON.parse(passkey.transports) : []
     }
@@ -294,7 +178,6 @@ export async function verifyPasskeyAuthentication({ response, expectedChallenge,
     throw new Error('VERIFICATION_FAILED');
   }
 
-  // 3. Actualizăm counter-ul pentru securitate
   const newCounter = verification.authenticationInfo.newCounter;
   await pool.query('UPDATE passkeys SET counter = ?, last_used_at = NOW() WHERE id = ?', [newCounter, passkey.id]);
 
@@ -309,4 +192,37 @@ export async function verifyPasskeyAuthentication({ response, expectedChallenge,
       is_active: passkey.is_active
     }
   };
+}
+
+export async function listPasskeysForUser(userId, { includeRevoked = true } = {}) {
+  if (!userId) return [];
+  const conditions = ['user_id = ?'];
+  if (!includeRevoked) conditions.push('revoked_at IS NULL');
+  
+  const [rows] = await pool.query(
+    `SELECT id, name, created_at, last_used_at, revoked_at FROM passkeys WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`,
+    [userId]
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at,
+    revokedAt: row.revoked_at,
+    status: row.revoked_at ? 'revoked' : 'active'
+  }));
+}
+
+export async function revokePasskey({ userId, passkeyId }) {
+  if (!userId || !passkeyId) return false;
+  const [result] = await pool.query(
+    `UPDATE passkeys SET revoked_at = NOW() WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+    [passkeyId, userId]
+  );
+  return result.affectedRows > 0;
+}
+
+// Legacy - nu mai e folosit
+export async function authenticatePasskey(token) {
+  return null;
 }

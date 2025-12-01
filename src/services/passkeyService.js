@@ -8,6 +8,7 @@ import pool from '../config/db.js';
 import { getUserById } from './userService.js';
 
 export const PASSKEY_LIMIT_PER_USER = 3;
+export const PASSKEY_TOTAL_LIMIT_PER_USER = 20;
 
 function sanitizeLabel(label) {
   if (!label) {
@@ -46,6 +47,16 @@ export async function countActivePasskeysForUser(userId) {
      FROM passkeys
      WHERE user_id = ?
        AND revoked_at IS NULL`,
+    [userId]
+  );
+  return rows[0]?.total || 0;
+}
+
+export async function countTotalPasskeysForUser(userId) {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total
+     FROM passkeys
+     WHERE user_id = ?`,
     [userId]
   );
   return rows[0]?.total || 0;
@@ -108,6 +119,12 @@ export async function generatePasskeyRegistrationOptions({ user, rpID, rpName })
   if (!user?.id) {
     throw new Error('USER_REQUIRED');
   }
+  const totalCount = await countTotalPasskeysForUser(user.id);
+  if (totalCount >= PASSKEY_TOTAL_LIMIT_PER_USER) {
+    const error = new Error('PASSKEY_STORAGE_LIMIT');
+    error.status = 400;
+    throw error;
+  }
   const activeCount = await countActivePasskeysForUser(user.id);
   if (activeCount >= PASSKEY_LIMIT_PER_USER) {
     const error = new Error('PASSKEY_LIMIT_REACHED');
@@ -145,6 +162,12 @@ export async function verifyPasskeyRegistration({
   }
   if (!expectedChallenge) {
     throw new Error('PASSKEY_CHALLENGE_MISSING');
+  }
+  const totalCount = await countTotalPasskeysForUser(userId);
+  if (totalCount >= PASSKEY_TOTAL_LIMIT_PER_USER) {
+    const error = new Error('PASSKEY_STORAGE_LIMIT');
+    error.status = 400;
+    throw error;
   }
   const activeCount = await countActivePasskeysForUser(userId);
   if (activeCount >= PASSKEY_LIMIT_PER_USER) {

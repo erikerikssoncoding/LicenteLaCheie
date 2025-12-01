@@ -420,6 +420,10 @@
       >
         <% const savedDevices = Array.isArray(trustedDevices) ? trustedDevices : []; %>
         <% const savedPasskeys = Array.isArray(passkeys) ? passkeys : []; %>
+        <% const activePasskeyTotal =
+          typeof activePasskeyCount === 'number'
+            ? activePasskeyCount
+            : savedPasskeys.filter((passkey) => passkey.status === 'active').length; %>
         <% const activeTrustedDeviceId =
           typeof currentTrustedDeviceId !== 'undefined' && currentTrustedDeviceId !== null
             ? Number(currentTrustedDeviceId)
@@ -493,7 +497,7 @@
                   passkey-uri active.
                 </p>
               </div>
-              <% if (savedPasskeys.length < passkeyLimit) { %>
+              <% if (activePasskeyTotal < passkeyLimit) { %>
               <div class="d-flex gap-2 align-items-center">
                 <input
                   class="form-control"

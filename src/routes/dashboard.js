@@ -79,6 +79,7 @@ import {
   TRUSTED_DEVICE_COOKIE_NAME
 } from '../services/trustedDeviceService.js';
 import {
+  countActivePasskeysForUser,
   generatePasskeyRegistrationOptions,
   listPasskeysForUser,
   revokePasskey,
@@ -228,14 +229,16 @@ router
   .get(async (req, res, next) => {
     try {
       const user = req.session.user;
-      const [profile, tickets, projects, contracts, trustedDevices, passkeys] = await Promise.all([
-        getUserById(user.id),
-        listTicketsForUser(user),
-        listProjectsForUser(user),
-        listContractsForUser(user),
-        listTrustedDevicesForUser(user.id),
-        listPasskeysForUser(user.id)
-      ]);
+      const [profile, tickets, projects, contracts, trustedDevices, passkeys, activePasskeyCount] =
+        await Promise.all([
+          getUserById(user.id),
+          listTicketsForUser(user),
+          listProjectsForUser(user),
+          listContractsForUser(user),
+          listTrustedDevicesForUser(user.id),
+          listPasskeysForUser(user.id),
+          countActivePasskeysForUser(user.id)
+        ]);
       const successKey = typeof req.query.success === 'string' ? req.query.success : null;
       const errorKey = typeof req.query.error === 'string' ? req.query.error : null;
       const requestedTab = typeof req.query.tab === 'string' ? req.query.tab : null;
@@ -294,6 +297,7 @@ router
         contracts,
         trustedDevices,
         passkeys,
+        activePasskeyCount,
         feedback,
         passkeyLimit: PASSKEY_LIMIT_PER_USER,
         activeTab,
@@ -419,6 +423,9 @@ router.get('/cont/setari/passkeys/generate-options', async (req, res, next) => {
     if (error.message === 'PASSKEY_LIMIT_REACHED') {
       return res.status(400).json({ error: 'PASSKEY_LIMIT_REACHED' });
     }
+    if (error.message === 'PASSKEY_STORAGE_LIMIT') {
+      return res.status(400).json({ error: 'PASSKEY_ACTION_NOT_ALLOWED' });
+    }
     next(error);
   }
 });
@@ -457,6 +464,9 @@ router.post('/cont/setari/passkeys/verify', async (req, res, next) => {
     }
     if (error.message === 'PASSKEY_LIMIT_REACHED') {
       return res.status(400).json({ error: 'PASSKEY_LIMIT_REACHED' });
+    }
+    if (error.message === 'PASSKEY_STORAGE_LIMIT') {
+      return res.status(400).json({ error: 'PASSKEY_ACTION_NOT_ALLOWED' });
     }
     if (error.message === 'PASSKEY_CHALLENGE_MISSING') {
       return res.status(400).json({ error: 'PASSKEY_CHALLENGE_MISSING' });

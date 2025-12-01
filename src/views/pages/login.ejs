@@ -25,6 +25,27 @@
             </div>
             <button class="btn btn-primary w-100" type="submit">Autentificare</button>
           </form>
+          <div class="text-center text-muted my-3">sau</div>
+          <form action="/autentificare/passkey" method="post" class="vstack gap-3">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <div>
+              <label class="form-label" for="passkeyToken">Passkey</label>
+              <input
+                class="form-control"
+                type="text"
+                id="passkeyToken"
+                name="token"
+                placeholder="Introduceți cheia de acces generată"
+                required
+              />
+              <div class="form-text">Cheia este generată din contul tău și poate fi folosită fără parolă.</div>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="rememberPasskeyDevice" name="rememberDevice" value="1" />
+              <label class="form-check-label" for="rememberPasskeyDevice">Ține-mă minte pe acest dispozitiv</label>
+            </div>
+            <button class="btn btn-outline-primary w-100" type="submit">Autentificare cu Passkey</button>
+          </form>
         </div>
       </div>
     </div>

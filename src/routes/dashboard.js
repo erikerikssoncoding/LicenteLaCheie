@@ -78,6 +78,12 @@ import {
   revokeTrustedDevicesExcept,
   TRUSTED_DEVICE_COOKIE_NAME
 } from '../services/trustedDeviceService.js';
+import {
+  createPasskey,
+  listPasskeysForUser,
+  revokePasskey,
+  PASSKEY_LIMIT_PER_USER
+} from '../services/passkeyService.js';
 import { sendTicketCreatedNotification, sendTicketReplyNotification } from '../services/mailService.js';
 import { listRecentMailEvents } from '../services/notificationLogService.js';
 import { refreshSecurityState } from '../utils/securityState.js';
@@ -221,27 +227,33 @@ router
   .get(async (req, res, next) => {
     try {
       const user = req.session.user;
-      const [profile, tickets, projects, contracts, trustedDevices] = await Promise.all([
+      const [profile, tickets, projects, contracts, trustedDevices, passkeys] = await Promise.all([
         getUserById(user.id),
         listTicketsForUser(user),
         listProjectsForUser(user),
         listContractsForUser(user),
-        listTrustedDevicesForUser(user.id)
+        listTrustedDevicesForUser(user.id),
+        listPasskeysForUser(user.id)
       ]);
       const successKey = typeof req.query.success === 'string' ? req.query.success : null;
       const errorKey = typeof req.query.error === 'string' ? req.query.error : null;
       const requestedTab = typeof req.query.tab === 'string' ? req.query.tab : null;
+      const passkeyFlash = req.session.passkeyFlash || null;
+      delete req.session.passkeyFlash;
       const successMessages = {
         profile: 'Datele tale au fost actualizate.',
         password: 'Parola a fost schimbata cu succes.',
         devices: 'Accesul dispozitivului selectat a fost revocat.',
-        'devices-all': 'Am revocat accesul pentru toate dispozitivele salvate.'
+        'devices-all': 'Am revocat accesul pentru toate dispozitivele salvate.',
+        passkey: 'Passkey-ul a fost generat cu succes. Salveaza cheia afisata mai jos.'
       };
       const errorMessages = {
         'invalid-password': 'Parola curenta nu este corecta.',
         'profile-form': 'Completeaza corect toate campurile obligatorii din profil.',
         'password-form': 'Completeaza corect toate campurile obligatorii pentru parola.',
-        'device-action': 'Nu am putut actualiza dispozitivele de incredere. Te rugam sa reincerci.'
+        'device-action': 'Nu am putut actualiza dispozitivele de incredere. Te rugam sa reincerci.',
+        'passkey-action': 'Nu am putut gestiona passkey-urile. Te rugam sa reincerci.',
+        'passkey-limit': 'Ai atins numarul maxim de 3 passkey-uri active.'
       };
       const feedback = {
         profileSuccess: successKey === 'profile' ? successMessages.profile : null,
@@ -250,6 +262,7 @@ router
           successKey && (successKey === 'devices' || successKey === 'devices-all')
             ? successMessages[successKey]
             : null,
+        passkeySuccess: successKey === 'passkey' ? successMessages.passkey : null,
         profileError: errorKey === 'profile-form' ? errorMessages['profile-form'] : null,
         passwordError:
           errorKey === 'password-form'
@@ -257,7 +270,13 @@ router
             : errorKey === 'invalid-password'
             ? errorMessages['invalid-password']
             : null,
-        deviceError: errorKey === 'device-action' ? errorMessages['device-action'] : null
+        deviceError: errorKey === 'device-action' ? errorMessages['device-action'] : null,
+        passkeyError:
+          errorKey === 'passkey-action'
+            ? errorMessages['passkey-action']
+            : errorKey === 'passkey-limit'
+            ? errorMessages['passkey-limit']
+            : null
       };
       const allowedTabs = new Set(['profile', 'tickets', 'contracts', 'projects', 'security']);
       let activeTab = requestedTab && allowedTabs.has(requestedTab) ? requestedTab : 'profile';
@@ -275,7 +294,10 @@ router
         projects,
         contracts,
         trustedDevices,
+        passkeys,
+        passkeyFlash,
         feedback,
+        passkeyLimit: PASSKEY_LIMIT_PER_USER,
         activeTab,
         projectStatuses: PROJECT_STATUSES,
         projectStatusMap: buildProjectStatusDictionary()
@@ -378,6 +400,53 @@ router.post('/cont/setari/dispozitive', async (req, res, next) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.redirect('/cont/setari?error=device-action&tab=security');
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/setari/passkeys', async (req, res, next) => {
+  try {
+    const schema = z.object({
+      action: z.enum(['create', 'revoke']),
+      name: z.string().trim().min(1).max(150).optional(),
+      passkeyId: z
+        .string()
+        .regex(/^[0-9]+$/)
+        .optional()
+    });
+    const data = schema.parse(req.body);
+    const userId = req.session.user.id;
+
+    if (data.action === 'create') {
+      try {
+        const result = await createPasskey({ userId, label: data.name });
+        req.session.passkeyFlash = { token: result.token, name: result.name };
+        return res.redirect('/cont/setari?success=passkey&tab=security');
+      } catch (error) {
+        if (error.message === 'PASSKEY_LIMIT_REACHED') {
+          return res.redirect('/cont/setari?error=passkey-limit&tab=security');
+        }
+        throw error;
+      }
+    }
+
+    if (data.action === 'revoke') {
+      const passkeyId = data.passkeyId ? Number.parseInt(data.passkeyId, 10) : NaN;
+      if (!Number.isInteger(passkeyId) || passkeyId <= 0) {
+        return res.redirect('/cont/setari?error=passkey-action&tab=security');
+      }
+      const revoked = await revokePasskey({ userId, passkeyId });
+      if (!revoked) {
+        return res.redirect('/cont/setari?error=passkey-action&tab=security');
+      }
+      return res.redirect('/cont/setari?success=passkey&tab=security');
+    }
+
+    return res.redirect('/cont/setari?error=passkey-action&tab=security');
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.redirect('/cont/setari?error=passkey-action&tab=security');
     }
     next(error);
   }
@@ -511,7 +580,7 @@ router.get('/cont/utilizatori/:id', ensureRole('admin', 'superadmin'), async (re
       req.session.flash = { error: 'Utilizator invalid.' };
       return res.redirect('/cont/utilizatori');
     }
-    const { user, trustedDevices, securitySummary } = await getManagedUserProfile({
+    const { user, trustedDevices, passkeys, securitySummary } = await getManagedUserProfile({
       actor: req.session.user,
       userId: targetId
     });
@@ -552,6 +621,7 @@ router.get('/cont/utilizatori/:id', ensureRole('admin', 'superadmin'), async (re
       description: `Administreaza setarile contului pentru ${user.email}.`,
       user,
       trustedDevices,
+      passkeys,
       securitySummary,
       flashMessage: flash.success || null,
       errorMessage: flash.error || null,

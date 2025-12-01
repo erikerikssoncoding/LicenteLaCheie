@@ -419,6 +419,7 @@
         tabindex="0"
       >
         <% const savedDevices = Array.isArray(trustedDevices) ? trustedDevices : []; %>
+        <% const savedPasskeys = Array.isArray(passkeys) ? passkeys : []; %>
         <% const activeTrustedDeviceId =
           typeof currentTrustedDeviceId !== 'undefined' && currentTrustedDeviceId !== null
             ? Number(currentTrustedDeviceId)
@@ -438,6 +439,18 @@
         <% } %>
         <% if (alerts.deviceError) { %>
         <div class="alert alert-danger mb-4"><%= alerts.deviceError %></div>
+        <% } %>
+        <% if (alerts.passkeySuccess) { %>
+        <div class="alert alert-success mb-4">
+          <div class="fw-semibold"><%= alerts.passkeySuccess %></div>
+          <% if (passkeyFlash?.token) { %>
+          <div class="mt-2 small">Cheia ta: <code class="text-break"><%= passkeyFlash.token %></code></div>
+          <div class="text-muted small">Salveaza aceasta cheie intr-un manager de parole. Nu va mai fi afisata ulterior.</div>
+          <% } %>
+        </div>
+        <% } %>
+        <% if (alerts.passkeyError) { %>
+        <div class="alert alert-danger mb-4"><%= alerts.passkeyError %></div>
         <% } %>
         <div class="card shadow-sm">
           <div class="card-body">
@@ -472,6 +485,73 @@
                 <button class="btn btn-outline-primary" type="submit">Actualizeaza parola</button>
               </div>
             </form>
+          </div>
+        </div>
+        <div class="card shadow-sm mt-4">
+          <div class="card-body">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-3">
+              <div>
+                <h2 class="h5 mb-1">Passkey-uri</h2>
+                <p class="text-muted mb-0">
+                  Creeaza o cheie de acces securizata pentru autentificare fara parola. Poti avea maxim <%= passkeyLimit %>
+                  passkey-uri active.
+                </p>
+              </div>
+              <% if (savedPasskeys.length < passkeyLimit) { %>
+              <form action="/cont/setari/passkeys" method="post" class="d-flex gap-2 align-items-center">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <input type="hidden" name="action" value="create" />
+                <input class="form-control" type="text" name="name" placeholder="Ex: Laptop birou" maxlength="150" />
+                <button class="btn btn-outline-primary btn-sm" type="submit">Genereaza passkey</button>
+              </form>
+              <% } %>
+            </div>
+            <% if (savedPasskeys.length) { %>
+            <div class="table-responsive">
+              <table class="table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col">Nume</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Ultima utilizare</th>
+                    <th scope="col" class="text-end">Actiuni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% savedPasskeys.forEach((passkey) => { %>
+                  <tr>
+                    <td>
+                      <div class="fw-semibold"><%= passkey.name %></div>
+                      <div class="text-muted small">Creat: <%= formatDateTime(passkey.createdAt) %></div>
+                    </td>
+                    <td class="text-nowrap">
+                      <% const badgeClass = passkey.status === 'active' ? 'bg-success' : 'bg-secondary'; %>
+                      <span class="badge <%= badgeClass %>"><%= passkey.status === 'active' ? 'Activ' : 'Revocat' %></span>
+                      <% if (passkey.revokedAt) { %>
+                      <div class="text-muted small">Revocat: <%= formatDateTime(passkey.revokedAt) %></div>
+                      <% } %>
+                    </td>
+                    <td><%= passkey.lastUsedAt ? formatDateTime(passkey.lastUsedAt) : 'Nu a fost utilizat' %></td>
+                    <td class="text-end">
+                      <% if (!passkey.revokedAt) { %>
+                      <form action="/cont/setari/passkeys" method="post" class="d-inline">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                        <input type="hidden" name="action" value="revoke" />
+                        <input type="hidden" name="passkeyId" value="<%= passkey.id %>" />
+                        <button class="btn btn-sm btn-outline-danger" type="submit">Revoca</button>
+                      </form>
+                      <% } else { %>
+                      <span class="text-muted small">Nu mai este activ</span>
+                      <% } %>
+                    </td>
+                  </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+            <% } else { %>
+            <p class="text-muted mb-0">Nu ai inca passkey-uri generate pentru autentificare.</p>
+            <% } %>
           </div>
         </div>
         <div class="card shadow-sm mt-4">

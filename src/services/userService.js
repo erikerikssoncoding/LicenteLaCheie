@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import pool from '../config/db.js';
 import { clearTrustedDevicesForUser, listTrustedDevicesForUser } from './trustedDeviceService.js';
+import { listPasskeysForUser } from './passkeyService.js';
 
 export const ROLE_HIERARCHY = {
   client: 1,
@@ -277,6 +278,7 @@ export async function getManagedUserProfile({ actor, userId }) {
   const trustedDevices = isSuperadminProfile
     ? []
     : await listTrustedDevicesForUser(target.id, { includeRevoked: true, includeExpired: true });
+  const passkeys = isSuperadminProfile ? [] : await listPasskeysForUser(target.id);
   const lastActiveDevice = trustedDevices.find((device) => device.lastUsedAt) || trustedDevices[0] || null;
   return {
     user: {
@@ -292,6 +294,7 @@ export async function getManagedUserProfile({ actor, userId }) {
       isProtected
     },
     trustedDevices,
+    passkeys,
     securitySummary: isSuperadminProfile
       ? null
       : {

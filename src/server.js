@@ -50,12 +50,21 @@ const cspMiddleware = helmet.contentSecurityPolicy({
     "default-src": ["'self'"],
     "script-src": [
       "'self'",
-      "'unsafe-inline'",
-      "'unsafe-eval'", // Deseori necesar pentru scripturi complexe
+      "'unsafe-inline'", // Permite scriptul din pagina HTML pentru buton
+      "'unsafe-eval'",   // Necesar uneori pentru biblioteci complexe
       "https://cdn.jsdelivr.net",
       "https://www.googletagmanager.com",
       "https://www.google-analytics.com",
       "https://challenges.cloudflare.com", // Pentru Cloudflare
+      "https://ajax.cloudflare.com"
+    ],
+    "script-src-elem": [ // Directivă specifică pentru scripturi <script>
+      "'self'",
+      "'unsafe-inline'",
+      "https://cdn.jsdelivr.net",
+      "https://www.googletagmanager.com",
+      "https://www.google-analytics.com",
+      "https://challenges.cloudflare.com",
       "https://ajax.cloudflare.com"
     ],
     "style-src": [
@@ -81,7 +90,7 @@ const cspMiddleware = helmet.contentSecurityPolicy({
     "connect-src": [
       "'self'",
       "https://www.google-analytics.com",
-      "https://region1.google-analytics.com", // Aici era blocat Analytics
+      "https://region1.google-analytics.com", // Aici era blocat Analytics în log-uri
       "https://cdn.jsdelivr.net",
       "https://cloudflare.com"
     ],
@@ -90,7 +99,7 @@ const cspMiddleware = helmet.contentSecurityPolicy({
       "https://www.youtube-nocookie.com",
       "https://challenges.cloudflare.com"
     ],
-    "upgrade-insecure-requests": [] // Asigură-te că totul merge pe HTTPS
+    "upgrade-insecure-requests": []
   }
 });
 

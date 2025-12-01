@@ -12,6 +12,7 @@ import {
   revokeTrustedDeviceByToken,
   TRUSTED_DEVICE_COOKIE_NAME
 } from '../services/trustedDeviceService.js';
+import { authenticatePasskey } from '../services/passkeyService.js';
 
 const router = Router();
 
@@ -72,6 +73,51 @@ router.post('/autentificare', async (req, res, next) => {
     }
     return res.redirect('/cont');
   } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/autentificare/passkey', async (req, res, next) => {
+  try {
+    const schema = z.object({
+      token: z.string().min(10),
+      rememberDevice: z.enum(['on', '1', 'true']).optional()
+    });
+    const { token, rememberDevice } = schema.parse(req.body);
+    const result = await authenticatePasskey(token.trim());
+    if (!result) {
+      return res.status(401).render('pages/login', {
+        title: 'Autentificare cont client și echipă',
+        description: 'Cheia de acces nu este validă sau a fost revocată.',
+        error: 'Passkey invalid sau revocat.'
+      });
+    }
+
+    req.session.user = result.user;
+
+    const metadata = collectClientMetadata(req);
+    const { token: deviceToken } = await createTrustedDevice({
+      userId: result.user.id,
+      metadata,
+      label: 'Autentificare cu Passkey'
+    });
+
+    if (rememberDevice && result.user.role !== 'superadmin') {
+      res.cookie(TRUSTED_DEVICE_COOKIE_NAME, deviceToken, getTrustedDeviceCookieOptions());
+    } else {
+      await revokeTrustedDeviceByToken(deviceToken);
+      res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
+    }
+
+    return res.redirect('/cont');
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).render('pages/login', {
+        title: 'Autentificare cont client și echipă',
+        description: 'Completează corect datele pentru autentificare.',
+        error: 'Cheia de acces nu este validă.'
+      });
+    }
     next(error);
   }
 });

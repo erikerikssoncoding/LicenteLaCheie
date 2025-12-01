@@ -243,6 +243,49 @@
             <% } %>
           </div>
         </div>
+
+        <div class="card shadow-sm mt-4">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Passkey-uri active</h2>
+            <% if (!passkeys || !passkeys.length) { %>
+            <p class="text-muted mb-0">Nu exista passkey-uri inregistrate pentru acest cont.</p>
+            <% } else { %>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Nume</th>
+                    <th class="text-nowrap">Status</th>
+                    <th>Ultima utilizare</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% passkeys.forEach((passkey) => { %>
+                  <tr>
+                    <td>
+                      <div class="fw-semibold"><%= passkey.name %></div>
+                      <div class="text-muted small">Creat: <%= formatDateTime(passkey.createdAt, { fallback: 'Indisponibil' }) %></div>
+                    </td>
+                    <td class="text-nowrap">
+                      <% const badgeClass = passkey.status === 'active' ? 'bg-success' : 'bg-secondary'; %>
+                      <span class="badge <%= badgeClass %>">
+                        <%= passkey.status === 'active' ? 'Activ' : 'Revocat' %>
+                      </span>
+                      <% if (passkey.revokedAt) { %>
+                      <div class="text-muted small">Revocat: <%= formatDateTime(passkey.revokedAt) %></div>
+                      <% } %>
+                    </td>
+                    <td>
+                      <%= passkey.lastUsedAt ? formatDateTime(passkey.lastUsedAt, { fallback: 'Indisponibil' }) : 'Nu a fost utilizat' %>
+                    </td>
+                  </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+            <% } %>
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -87,7 +87,6 @@ export async function generatePasskeyRegistrationOptions({ user, rpID, rpName })
     authenticatorSelection: {
       residentKey: 'preferred',
       userVerification: 'preferred',
-      authenticatorAttachment: 'platform'
     }
   });
 }

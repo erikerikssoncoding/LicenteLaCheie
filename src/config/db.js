@@ -14,7 +14,7 @@ const pool = mysql.createPool({
   maxIdle: 10,
   idleTimeout: 60000,
   queueLimit: 0,
-  timezone: '+00:00',
+  timezone: 'local',
   charset: 'utf8mb4_general_ci'
 });
 

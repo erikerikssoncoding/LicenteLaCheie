@@ -443,11 +443,6 @@
         <% if (alerts.passkeySuccess) { %>
         <div class="alert alert-success mb-4">
           <div class="fw-semibold"><%= alerts.passkeySuccess %></div>
-          <% if (passkeyFlash?.token) { %>
-          <div class="text-muted small mt-2">
-            Daca nu vezi promptul de salvare, foloseste managerul de parole preferat pentru a pastra passkey-ul.
-          </div>
-          <% } %>
         </div>
         <% } %>
         <% if (alerts.passkeyError) { %>
@@ -499,14 +494,20 @@
                 </p>
               </div>
               <% if (savedPasskeys.length < passkeyLimit) { %>
-              <form action="/cont/setari/passkeys" method="post" class="d-flex gap-2 align-items-center">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                <input type="hidden" name="action" value="create" />
-                <input class="form-control" type="text" name="name" placeholder="Ex: Laptop birou" maxlength="150" />
-                <button class="btn btn-outline-primary btn-sm" type="submit">Genereaza passkey</button>
-              </form>
+              <div class="d-flex gap-2 align-items-center">
+                <input
+                  class="form-control"
+                  type="text"
+                  id="passkey-name"
+                  name="name"
+                  placeholder="Ex: Laptop birou"
+                  maxlength="150"
+                />
+                <button class="btn btn-outline-primary btn-sm" type="button" id="btn-create-passkey">Genereaza passkey</button>
+              </div>
               <% } %>
             </div>
+            <div id="passkey-status" class="small text-muted"></div>
             <% if (savedPasskeys.length) { %>
             <div class="table-responsive">
               <table class="table align-middle mb-0">
@@ -652,37 +653,72 @@
     </div>
   </div>
 </section>
-<% if (passkeyFlash?.token) { %>
+<script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
 <script>
-  window.addEventListener('DOMContentLoaded', () => {
-    const passkeyData = <%- JSON.stringify({
-      token: passkeyFlash.token,
-      name: passkeyFlash.name || 'Passkey securizat',
-      username: profile?.email || ''
-    }) %>;
+  document.addEventListener('DOMContentLoaded', () => {
+    const createPasskeyButton = document.getElementById('btn-create-passkey');
+    const nameInput = document.getElementById('passkey-name');
+    const statusElement = document.getElementById('passkey-status');
 
-    if (!passkeyData?.token || !navigator?.credentials?.store) {
+    const setStatus = (message, variant = 'muted') => {
+      if (!statusElement) return;
+      statusElement.textContent = message || '';
+      statusElement.className = `small text-${variant}`;
+    };
+
+    if (!createPasskeyButton || !window.SimpleWebAuthnBrowser) {
       return;
     }
 
-    const label = passkeyData.name || 'Passkey securizat';
-    const identifier = passkeyData.username || 'LicenteLaCheie';
-
-    if (typeof PasswordCredential === 'function') {
-      try {
-        const credential = new PasswordCredential({
-          id: identifier,
-          name: label,
-          password: passkeyData.token
-        });
-        navigator.credentials.store(credential).catch((error) => {
-          console.error('Nu am putut salva passkey-ul in managerul de parole.', error);
-        });
-      } catch (error) {
-        console.error('Nu am putut initializa credentialul pentru salvare.', error);
+    createPasskeyButton.addEventListener('click', async () => {
+      const label = nameInput?.value?.trim() || '';
+      const query = new URLSearchParams();
+      if (label) {
+        query.set('name', label);
       }
-    }
+
+      setStatus('Pregatim inregistrarea passkey-ului...');
+      createPasskeyButton.disabled = true;
+
+      try {
+        const optionsResponse = await fetch(
+          `/cont/setari/passkeys/generate-options${query.toString() ? `?${query.toString()}` : ''}`,
+          {
+            headers: {
+              Accept: 'application/json',
+              'X-CSRF-Token': '<%= csrfToken %>'
+            }
+          }
+        );
+
+        if (!optionsResponse.ok) {
+          throw new Error('Nu am putut obtine optiunile de inregistrare.');
+        }
+
+        const options = await optionsResponse.json();
+        const credential = await window.SimpleWebAuthnBrowser.startRegistration(options);
+
+        const verifyResponse = await fetch('/cont/setari/passkeys/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': '<%= csrfToken %>'
+          },
+          body: JSON.stringify({ credential, name: label })
+        });
+
+        if (!verifyResponse.ok) {
+          throw new Error('Verificarea passkey-ului a esuat.');
+        }
+
+        window.location.href = '/cont/setari?success=passkey&tab=security';
+      } catch (error) {
+        console.error('Nu am putut genera passkey-ul', error);
+        setStatus('Nu am putut finaliza inregistrarea passkey-ului. Te rugam sa reincerci.', 'danger');
+      } finally {
+        createPasskeyButton.disabled = false;
+      }
+    });
   });
 </script>
-<% } %>
 <%- include('../partials/footer') %>

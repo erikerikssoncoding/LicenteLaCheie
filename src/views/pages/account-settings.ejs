@@ -444,8 +444,9 @@
         <div class="alert alert-success mb-4">
           <div class="fw-semibold"><%= alerts.passkeySuccess %></div>
           <% if (passkeyFlash?.token) { %>
-          <div class="mt-2 small">Cheia ta: <code class="text-break"><%= passkeyFlash.token %></code></div>
-          <div class="text-muted small">Salveaza aceasta cheie intr-un manager de parole. Nu va mai fi afisata ulterior.</div>
+          <div class="text-muted small mt-2">
+            Daca nu vezi promptul de salvare, foloseste managerul de parole preferat pentru a pastra passkey-ul.
+          </div>
           <% } %>
         </div>
         <% } %>
@@ -464,7 +465,7 @@
                 <label class="form-label" for="currentPassword">Parola curenta</label>
                 <input class="form-control" type="password" id="currentPassword" name="currentPassword" required />
               </div>
-              <div class="row g-3">
+            <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label" for="newPassword">Parola noua</label>
                   <input class="form-control" type="password" id="newPassword" name="newPassword" minlength="8" required />
@@ -651,4 +652,37 @@
     </div>
   </div>
 </section>
+<% if (passkeyFlash?.token) { %>
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const passkeyData = <%- JSON.stringify({
+      token: passkeyFlash.token,
+      name: passkeyFlash.name || 'Passkey securizat',
+      username: profile?.email || ''
+    }) %>;
+
+    if (!passkeyData?.token || !navigator?.credentials?.store) {
+      return;
+    }
+
+    const label = passkeyData.name || 'Passkey securizat';
+    const identifier = passkeyData.username || 'LicenteLaCheie';
+
+    if (typeof PasswordCredential === 'function') {
+      try {
+        const credential = new PasswordCredential({
+          id: identifier,
+          name: label,
+          password: passkeyData.token
+        });
+        navigator.credentials.store(credential).catch((error) => {
+          console.error('Nu am putut salva passkey-ul in managerul de parole.', error);
+        });
+      } catch (error) {
+        console.error('Nu am putut initializa credentialul pentru salvare.', error);
+      }
+    }
+  });
+</script>
+<% } %>
 <%- include('../partials/footer') %>

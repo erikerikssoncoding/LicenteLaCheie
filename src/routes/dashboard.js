@@ -245,7 +245,7 @@ router
         password: 'Parola a fost schimbata cu succes.',
         devices: 'Accesul dispozitivului selectat a fost revocat.',
         'devices-all': 'Am revocat accesul pentru toate dispozitivele salvate.',
-        passkey: 'Passkey-ul a fost generat cu succes. Salveaza cheia afisata mai jos.'
+        passkey: 'Passkey-ul a fost generat cu succes. Il vom salva automat in managerul tau de parole.'
       };
       const errorMessages = {
         'invalid-password': 'Parola curenta nu este corecta.',

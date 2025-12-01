@@ -80,89 +80,53 @@ router.post('/autentificare', async (req, res, next) => {
   }
 });
 
-router.post('/autentificare/passkey', async (req, res, next) => {
+router.get('/autentificare/passkey/options', async (req, res, next) => {
   try {
-    const schema = z.object({
-      credential: z.any(),
-      rememberDevice: z.enum(['on', '1', 'true']).optional(),
-      email: z.string().email().optional()
-    });
-    const { credential, rememberDevice, email } = schema.parse(req.body);
-
-    const expectedChallenge = req.session.passkeyLoginChallenge;
-    const expectedEmail =
-      typeof req.session.passkeyLoginEmail === 'string' ? req.session.passkeyLoginEmail : email || null;
-    const rpID = (req.headers.host || 'localhost').split(':')[0];
-    const origin = `${req.protocol}://${req.get('host')}`;
-
-    const result = await verifyPasskeyAuthentication({
-      credential,
-      expectedChallenge,
-      rpID,
-      origin,
-      expectedEmail
-    });
-
-    req.session.passkeyLoginChallenge = null;
-    req.session.passkeyLoginEmail = null;
-
-    req.session.user = result.user;
-
-    const metadata = collectClientMetadata(req);
-    const { token: deviceToken } = await createTrustedDevice({
-      userId: result.user.id,
-      metadata,
-      label: 'Autentificare cu Passkey'
-    });
-
-    if (rememberDevice && result.user.role !== 'superadmin') {
-      res.cookie(TRUSTED_DEVICE_COOKIE_NAME, deviceToken, getTrustedDeviceCookieOptions());
-    } else {
-      await revokeTrustedDeviceByToken(deviceToken);
-      res.clearCookie(TRUSTED_DEVICE_COOKIE_NAME, getTrustedDeviceCookieClearOptions());
-    }
-
-    return res.json({ ok: true, redirect: '/cont' });
+    const options = await generatePasskeyAuthenticationOptions();
+    req.session.passkeyChallenge = options.challenge;
+    res.json(options);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'INVALID_PASSKEY_PAYLOAD' });
-    }
-    if (
-      error.message === 'PASSKEY_CHALLENGE_MISSING' ||
-      error.message === 'PASSKEY_VERIFICATION_FAILED'
-    ) {
-      return res.status(401).json({ error: error.message });
-    }
-    if (error.message === 'PASSKEY_NOT_FOUND') {
-      return res.status(404).json({ error: error.message });
-    }
-    if (error.message === 'PASSKEY_USER_MISMATCH') {
-      return res.status(403).json({ error: error.message });
-    }
     next(error);
-  } finally {
-    req.session.passkeyLoginChallenge = null;
-    req.session.passkeyLoginEmail = null;
   }
 });
 
-router.post('/autentificare/passkey/options', async (req, res, next) => {
+router.post('/autentificare/passkey/verify', async (req, res, next) => {
   try {
-    const schema = z.object({ email: z.string().email().optional() });
-    const data = schema.parse(req.body || {});
-
     const rpID = (req.headers.host || 'localhost').split(':')[0];
-    const options = await generatePasskeyAuthenticationOptions({ rpID, userEmail: data.email });
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const expectedChallenge = req.session.passkeyChallenge;
 
-    req.session.passkeyLoginChallenge = options.challenge;
-    req.session.passkeyLoginEmail = data.email || null;
-
-    res.json(options);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'INVALID_PASSKEY_PAYLOAD' });
+    if (!expectedChallenge) {
+      return res.status(400).json({ error: 'Sesiune expirată. Reîncarcă pagina.' });
     }
-    next(error);
+
+    const { verified, user } = await verifyPasskeyAuthentication({
+      response: req.body,
+      expectedChallenge,
+      rpID,
+      origin
+    });
+
+    if (verified && user) {
+      if (!user.is_active) {
+        return res.status(401).json({ error: 'Contul este dezactivat.' });
+      }
+
+      req.session.user = {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        phone: user.phone
+      };
+
+      delete req.session.passkeyChallenge;
+
+      return res.json({ success: true, redirect: '/cont' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ error: 'Autentificare eșuată.' });
   }
 });
 

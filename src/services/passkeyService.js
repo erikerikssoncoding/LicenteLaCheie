@@ -117,12 +117,15 @@ export async function generatePasskeyRegistrationOptions({ user, rpID, rpName })
   const userName = user.email || `user-${user.id}`;
   const displayName = user.fullName || user.email || `Utilizator ${user.id}`;
 
+  // Convertim ID-ul utilizatorului în Uint8Array folosind Buffer pentru compatibilitatea cu WebAuthn
+  const userID = new Uint8Array(Buffer.from(String(user.id)));
+
   return generateRegistrationOptions({
     rpName,
     rpID,
     userName,
     userDisplayName: displayName,
-    userID: String(user.id),
+    userID,
     attestationType: 'none',
     excludeCredentials
   });

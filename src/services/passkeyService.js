@@ -1,12 +1,7 @@
-import crypto from 'crypto';
+import { generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server';
 import pool from '../config/db.js';
 
-const PASSKEY_TOKEN_BYTES = 48;
 export const PASSKEY_LIMIT_PER_USER = 3;
-
-function hashToken(token) {
-  return crypto.createHash('sha512').update(token).digest('hex');
-}
 
 function sanitizeLabel(label) {
   if (!label) {
@@ -19,8 +14,24 @@ function sanitizeLabel(label) {
   return trimmed.slice(0, 150);
 }
 
-export function generatePasskeyToken() {
-  return crypto.randomBytes(PASSKEY_TOKEN_BYTES).toString('hex');
+function parseTransports(value) {
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch (error) {
+    return undefined;
+  }
+}
+
+function decodeCredentialId(value) {
+  if (!value) {
+    return null;
+  }
+  try {
+    return Buffer.from(value, 'base64url');
+  } catch (error) {
+    return null;
+  }
 }
 
 export async function countActivePasskeysForUser(userId) {
@@ -34,9 +45,67 @@ export async function countActivePasskeysForUser(userId) {
   return rows[0]?.total || 0;
 }
 
-export async function createPasskey({ userId, label }) {
+async function getActiveCredentialDescriptors(userId) {
+  const [rows] = await pool.query(
+    `SELECT credential_id, transports
+     FROM passkeys
+     WHERE user_id = ?
+       AND revoked_at IS NULL`,
+    [userId]
+  );
+  return rows
+    .map((row) => {
+      const decodedId = decodeCredentialId(row.credential_id);
+      if (!decodedId) {
+        return null;
+      }
+      return {
+        id: decodedId,
+        type: 'public-key',
+        transports: parseTransports(row.transports)
+      };
+    })
+    .filter(Boolean);
+}
+
+export async function generatePasskeyRegistrationOptions({ user, rpID, rpName }) {
+  if (!user?.id) {
+    throw new Error('USER_REQUIRED');
+  }
+  const activeCount = await countActivePasskeysForUser(user.id);
+  if (activeCount >= PASSKEY_LIMIT_PER_USER) {
+    const error = new Error('PASSKEY_LIMIT_REACHED');
+    error.status = 400;
+    throw error;
+  }
+  const excludeCredentials = await getActiveCredentialDescriptors(user.id);
+  const userName = user.email || `user-${user.id}`;
+  const displayName = user.fullName || user.email || `Utilizator ${user.id}`;
+
+  return generateRegistrationOptions({
+    rpName,
+    rpID,
+    userName,
+    userDisplayName: displayName,
+    userID: String(user.id),
+    attestationType: 'none',
+    excludeCredentials
+  });
+}
+
+export async function verifyPasskeyRegistration({
+  userId,
+  response,
+  expectedChallenge,
+  rpID,
+  origin,
+  label
+}) {
   if (!userId) {
     throw new Error('USER_ID_REQUIRED');
+  }
+  if (!expectedChallenge) {
+    throw new Error('PASSKEY_CHALLENGE_MISSING');
   }
   const activeCount = await countActivePasskeysForUser(userId);
   if (activeCount >= PASSKEY_LIMIT_PER_USER) {
@@ -44,15 +113,38 @@ export async function createPasskey({ userId, label }) {
     error.status = 400;
     throw error;
   }
-  const token = generatePasskeyToken();
-  const tokenHash = hashToken(token);
+
+  const verification = await verifyRegistrationResponse({
+    response,
+    expectedChallenge,
+    expectedOrigin: origin,
+    expectedRPID: rpID,
+    requireUserVerification: true
+  });
+
+  if (!verification.verified || !verification.registrationInfo) {
+    const error = new Error('PASSKEY_REGISTRATION_FAILED');
+    error.status = 400;
+    throw error;
+  }
+
+  const { registrationInfo } = verification;
+  const credentialID = registrationInfo.credentialID;
+  const credentialPublicKey = registrationInfo.credentialPublicKey;
+  const credentialCounter = registrationInfo.counter ?? 0;
+  const transports = registrationInfo.transports || response?.response?.transports || [];
+
+  const credentialIdEncoded = Buffer.from(credentialID).toString('base64url');
+  const publicKeyEncoded = Buffer.from(credentialPublicKey).toString('base64');
   const name = sanitizeLabel(label);
-  const [result] = await pool.query(
-    `INSERT INTO passkeys (user_id, name, token_hash, created_at)
-     VALUES (?, ?, ?, NOW())`,
-    [userId, name, tokenHash]
+
+  await pool.query(
+    `INSERT INTO passkeys (user_id, name, credential_id, public_key, counter, transports, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+    [userId, name, credentialIdEncoded, publicKeyEncoded, credentialCounter, transports.length ? JSON.stringify(transports) : null]
   );
-  return { token, passkeyId: result.insertId, name };
+
+  return { verified: true };
 }
 
 export async function listPasskeysForUser(userId, { includeRevoked = true } = {}) {
@@ -111,45 +203,6 @@ export async function revokeAllPasskeysForUser(userId) {
 }
 
 export async function authenticatePasskey(token) {
-  if (!token || typeof token !== 'string' || token.length < 40) {
-    return null;
-  }
-  const tokenHash = hashToken(token);
-  const [rows] = await pool.query(
-    `SELECT p.id AS passkey_id,
-            p.user_id,
-            p.revoked_at,
-            u.id,
-            u.email,
-            u.full_name,
-            u.role,
-            u.phone,
-            u.is_active
-     FROM passkeys p
-     JOIN users u ON u.id = p.user_id
-     WHERE p.token_hash = ?
-       AND p.revoked_at IS NULL
-     LIMIT 1`,
-    [tokenHash]
-  );
-  const match = rows[0];
-  if (!match || !match.is_active) {
-    return null;
-  }
-  await pool.query(
-    `UPDATE passkeys
-     SET last_used_at = NOW()
-     WHERE id = ?`,
-    [match.passkey_id]
-  );
-  return {
-    passkeyId: match.passkey_id,
-    user: {
-      id: match.id,
-      email: match.email,
-      fullName: match.full_name,
-      role: match.role,
-      phone: match.phone
-    }
-  };
+  console.warn('Legacy passkey authentication is no longer supported.');
+  return null;
 }

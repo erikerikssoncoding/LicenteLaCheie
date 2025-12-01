@@ -79,9 +79,10 @@ import {
   TRUSTED_DEVICE_COOKIE_NAME
 } from '../services/trustedDeviceService.js';
 import {
-  createPasskey,
+  generatePasskeyRegistrationOptions,
   listPasskeysForUser,
   revokePasskey,
+  verifyPasskeyRegistration,
   PASSKEY_LIMIT_PER_USER
 } from '../services/passkeyService.js';
 import { sendTicketCreatedNotification, sendTicketReplyNotification } from '../services/mailService.js';
@@ -238,14 +239,12 @@ router
       const successKey = typeof req.query.success === 'string' ? req.query.success : null;
       const errorKey = typeof req.query.error === 'string' ? req.query.error : null;
       const requestedTab = typeof req.query.tab === 'string' ? req.query.tab : null;
-      const passkeyFlash = req.session.passkeyFlash || null;
-      delete req.session.passkeyFlash;
       const successMessages = {
         profile: 'Datele tale au fost actualizate.',
         password: 'Parola a fost schimbata cu succes.',
         devices: 'Accesul dispozitivului selectat a fost revocat.',
         'devices-all': 'Am revocat accesul pentru toate dispozitivele salvate.',
-        passkey: 'Passkey-ul a fost generat cu succes. Il vom salva automat in managerul tau de parole.'
+        passkey: 'Passkey-ul a fost inregistrat cu succes.'
       };
       const errorMessages = {
         'invalid-password': 'Parola curenta nu este corecta.',
@@ -295,7 +294,6 @@ router
         contracts,
         trustedDevices,
         passkeys,
-        passkeyFlash,
         feedback,
         passkeyLimit: PASSKEY_LIMIT_PER_USER,
         activeTab,
@@ -405,45 +403,89 @@ router.post('/cont/setari/dispozitive', async (req, res, next) => {
   }
 });
 
+router.get('/cont/setari/passkeys/generate-options', async (req, res, next) => {
+  try {
+    const user = req.session.user;
+    const rpID = (req.headers.host || 'localhost').split(':')[0];
+    const rpName = 'LicenteLaCheie';
+    const passkeyLabel = typeof req.query.name === 'string' ? req.query.name : '';
+
+    const options = await generatePasskeyRegistrationOptions({ user, rpID, rpName });
+    req.session.passkeyChallenge = options.challenge;
+    req.session.passkeyLabel = passkeyLabel;
+
+    res.json(options);
+  } catch (error) {
+    if (error.message === 'PASSKEY_LIMIT_REACHED') {
+      return res.status(400).json({ error: 'PASSKEY_LIMIT_REACHED' });
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/setari/passkeys/verify', async (req, res, next) => {
+  try {
+    const schema = z.object({
+      credential: z.any(),
+      name: z.string().trim().max(150).optional()
+    });
+    const data = schema.parse(req.body);
+    const userId = req.session.user.id;
+    const rpID = (req.headers.host || 'localhost').split(':')[0];
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const storedLabel = typeof req.session.passkeyLabel === 'string' ? req.session.passkeyLabel : '';
+    const label = data.name?.trim()?.length ? data.name : storedLabel;
+
+    const expectedChallenge = req.session.passkeyChallenge;
+
+    await verifyPasskeyRegistration({
+      userId,
+      response: data.credential,
+      expectedChallenge,
+      rpID,
+      origin,
+      label
+    });
+
+    delete req.session.passkeyChallenge;
+    delete req.session.passkeyLabel;
+
+    res.json({ ok: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'INVALID_PASSKEY_PAYLOAD' });
+    }
+    if (error.message === 'PASSKEY_LIMIT_REACHED') {
+      return res.status(400).json({ error: 'PASSKEY_LIMIT_REACHED' });
+    }
+    if (error.message === 'PASSKEY_CHALLENGE_MISSING') {
+      return res.status(400).json({ error: 'PASSKEY_CHALLENGE_MISSING' });
+    }
+    if (error.message === 'PASSKEY_REGISTRATION_FAILED') {
+      return res.status(400).json({ error: 'PASSKEY_REGISTRATION_FAILED' });
+    }
+    next(error);
+  }
+});
+
 router.post('/cont/setari/passkeys', async (req, res, next) => {
   try {
     const schema = z.object({
-      action: z.enum(['create', 'revoke']),
-      name: z.string().trim().min(1).max(150).optional(),
-      passkeyId: z
-        .string()
-        .regex(/^[0-9]+$/)
-        .optional()
+      action: z.literal('revoke'),
+      passkeyId: z.string().regex(/^[0-9]+$/)
     });
     const data = schema.parse(req.body);
     const userId = req.session.user.id;
 
-    if (data.action === 'create') {
-      try {
-        const result = await createPasskey({ userId, label: data.name });
-        req.session.passkeyFlash = { token: result.token, name: result.name };
-        return res.redirect('/cont/setari?success=passkey&tab=security');
-      } catch (error) {
-        if (error.message === 'PASSKEY_LIMIT_REACHED') {
-          return res.redirect('/cont/setari?error=passkey-limit&tab=security');
-        }
-        throw error;
-      }
+    const passkeyId = Number.parseInt(data.passkeyId, 10);
+    if (!Number.isInteger(passkeyId) || passkeyId <= 0) {
+      return res.redirect('/cont/setari?error=passkey-action&tab=security');
     }
-
-    if (data.action === 'revoke') {
-      const passkeyId = data.passkeyId ? Number.parseInt(data.passkeyId, 10) : NaN;
-      if (!Number.isInteger(passkeyId) || passkeyId <= 0) {
-        return res.redirect('/cont/setari?error=passkey-action&tab=security');
-      }
-      const revoked = await revokePasskey({ userId, passkeyId });
-      if (!revoked) {
-        return res.redirect('/cont/setari?error=passkey-action&tab=security');
-      }
-      return res.redirect('/cont/setari?success=passkey&tab=security');
+    const revoked = await revokePasskey({ userId, passkeyId });
+    if (!revoked) {
+      return res.redirect('/cont/setari?error=passkey-action&tab=security');
     }
-
-    return res.redirect('/cont/setari?error=passkey-action&tab=security');
+    return res.redirect('/cont/setari?success=passkey&tab=security');
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.redirect('/cont/setari?error=passkey-action&tab=security');

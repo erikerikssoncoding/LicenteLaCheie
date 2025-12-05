@@ -1,0 +1,38 @@
+<svg width="520" height="420" viewBox="0 0 520 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ilustrație colaborare">
+  <defs>
+    <linearGradient id="bgGradient" x1="40" y1="30" x2="460" y2="380" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB" stop-opacity="0.16" />
+      <stop offset="1" stop-color="#7C3AED" stop-opacity="0.32" />
+    </linearGradient>
+    <linearGradient id="cardGradient" x1="60" y1="120" x2="440" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity="0.95" />
+      <stop offset="1" stop-color="#EEF2FF" stop-opacity="0.98" />
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="472" height="372" rx="28" fill="url(#bgGradient)" />
+  <rect x="56" y="110" width="408" height="214" rx="22" fill="url(#cardGradient)" stroke="#E5E7EB" stroke-width="2" />
+  <rect x="82" y="142" width="140" height="18" rx="9" fill="#2563EB" opacity="0.1" />
+  <rect x="82" y="172" width="180" height="12" rx="6" fill="#CBD5E1" />
+  <rect x="82" y="194" width="152" height="12" rx="6" fill="#E2E8F0" />
+  <rect x="82" y="216" width="124" height="12" rx="6" fill="#EEF2FF" />
+  <rect x="286" y="142" width="140" height="18" rx="9" fill="#7C3AED" opacity="0.1" />
+  <rect x="286" y="172" width="164" height="12" rx="6" fill="#CBD5E1" />
+  <rect x="286" y="194" width="148" height="12" rx="6" fill="#E2E8F0" />
+  <rect x="286" y="216" width="118" height="12" rx="6" fill="#EEF2FF" />
+  <circle cx="158" cy="275" r="34" fill="#EEF2FF" stroke="#E5E7EB" stroke-width="2" />
+  <circle cx="158" cy="267" r="14" fill="#2563EB" opacity="0.15" />
+  <path d="M140 302C142 286 150 278 158 278C166 278 174 286 176 302" stroke="#2563EB" stroke-width="4" stroke-linecap="round" />
+  <circle cx="256" cy="275" r="34" fill="#EEF2FF" stroke="#E5E7EB" stroke-width="2" />
+  <circle cx="256" cy="267" r="14" fill="#7C3AED" opacity="0.18" />
+  <path d="M238 302C240 286 248 278 256 278C264 278 272 286 274 302" stroke="#7C3AED" stroke-width="4" stroke-linecap="round" />
+  <circle cx="354" cy="275" r="34" fill="#EEF2FF" stroke="#E5E7EB" stroke-width="2" />
+  <circle cx="354" cy="267" r="14" fill="#14B8A6" opacity="0.2" />
+  <path d="M336 302C338 286 346 278 354 278C362 278 370 286 372 302" stroke="#0EA5E9" stroke-width="4" stroke-linecap="round" />
+  <path d="M160 134C196 114 232 112 268 128" stroke="#A5B4FC" stroke-width="4" stroke-linecap="round" />
+  <path d="M268 128C301 140 328 160 348 188" stroke="#C4B5FD" stroke-width="4" stroke-linecap="round" />
+  <path d="M166 132L150 114" stroke="#7C3AED" stroke-width="5" stroke-linecap="round" />
+  <path d="M268 126L286 108" stroke="#2563EB" stroke-width="5" stroke-linecap="round" />
+  <rect x="92" y="82" width="98" height="28" rx="10" fill="#0EA5E9" opacity="0.18" />
+  <rect x="208" y="70" width="142" height="22" rx="11" fill="#7C3AED" opacity="0.18" />
+  <rect x="368" y="92" width="72" height="22" rx="11" fill="#2563EB" opacity="0.12" />
+</svg>

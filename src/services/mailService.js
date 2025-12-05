@@ -112,7 +112,7 @@ function prepareAttachments(attachments = []) {
   );
 }
 
-function buildMimeMessage({ from, to, subject, text, attachments }) {
+function buildMimeMessage({ from, to, subject, text, attachments, replyTo = null }) {
   const headers = [
     `From: ${from}`,
     `To: ${Array.isArray(to) ? to.join(', ') : to}`,
@@ -120,6 +120,10 @@ function buildMimeMessage({ from, to, subject, text, attachments }) {
     `Date: ${formatDateHeader()}`,
     'MIME-Version: 1.0'
   ];
+
+  if (replyTo) {
+    headers.push(`Reply-To: ${replyTo}`);
+  }
 
   if (attachments.length === 0) {
     headers.push('Content-Type: text/plain; charset="utf-8"', 'Content-Transfer-Encoding: 8bit', '', text || '', '');
@@ -386,7 +390,7 @@ function isImapConfigured() {
   return Boolean(MAIL_IMAP_HOST && MAIL_USER && MAIL_PASSWORD);
 }
 
-async function sendRawMail({ to, subject, text, attachments, eventType = 'generic', context = null }) {
+async function sendRawMail({ to, subject, text, attachments, replyTo = null, eventType = 'generic', context = null }) {
   const recipients = normalizeAddressList(to);
   if (!isMailConfigured()) {
     console.info('Mail service is not configured. Skipping send.');
@@ -405,7 +409,14 @@ async function sendRawMail({ to, subject, text, attachments, eventType = 'generi
     return false;
   }
   const preparedAttachments = await prepareAttachments(attachments);
-  const mimeMessage = buildMimeMessage({ from: MAIL_FROM, to: recipients, subject, text, attachments: preparedAttachments });
+  const mimeMessage = buildMimeMessage({
+    from: MAIL_FROM,
+    to: recipients,
+    subject,
+    text,
+    attachments: preparedAttachments,
+    replyTo
+  });
   const senderAddress = extractAddress(MAIL_FROM);
   const connection = await createConnection({ host: MAIL_HOST, port: MAIL_PORT, secure: MAIL_SECURE });
   try {
@@ -841,6 +852,7 @@ export async function sendTicketCreatedNotification({ ticket, author, clientEmai
       subject: `[Ticket #${ticket.display_code}] Ticket nou: ${ticket.subject}`,
       text: adminText,
       attachments: [],
+      replyTo: normalizedClientEmail,
       eventType: 'ticket_created_admin',
       context: baseContext
     });
@@ -913,6 +925,7 @@ export async function sendTicketReplyNotification({
       subject: `[Ticket #${ticket.display_code}] Raspuns nou ${isClientAuthor ? 'de la client' : 'din echipa'}`,
       text: adminText,
       attachments: [],
+      replyTo: isClientAuthor ? senderEmail : null,
       eventType: 'ticket_reply_admin',
       context: baseContext
     });

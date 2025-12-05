@@ -2221,6 +2221,53 @@ router.post(
 );
 
 router.get(
+  '/cont/tichete/:id/contract/continut',
+  ensureRole('client', 'admin', 'superadmin'),
+  async (req, res, next) => {
+    try {
+      const ticketId = Number(req.params.id);
+      const { ticket } = await getTicketWithReplies(ticketId);
+
+      if (!ticket || ticket.kind !== 'contract') {
+        return res.status(404).json({ error: 'Ticketul solicitat nu a fost gasit.' });
+      }
+
+      const user = req.session.user;
+      if (user.role === 'client' && ticket.created_by !== user.id) {
+        return res.status(403).json({ error: 'Nu aveti acces la acest contract.' });
+      }
+
+      if (
+        user.role === 'admin' &&
+        ticket.project_id &&
+        ticket.assigned_admin_id &&
+        ticket.assigned_admin_id !== user.id &&
+        ticket.assigned_editor_id !== user.id
+      ) {
+        return res.status(403).json({ error: 'Nu sunteti responsabil de acest ticket.' });
+      }
+
+      const contractDetails = await getContractDetailsByTicket(ticketId);
+      if (!contractDetails || !contractDetails.contractDraft) {
+        return res
+          .status(404)
+          .json({ error: 'Contractul nu este disponibil pentru vizualizare in acest moment.' });
+      }
+
+      if (contractDetails.contractStage !== 'completed') {
+        return res
+          .status(400)
+          .json({ error: 'Contractul poate fi vizualizat dupa semnarea de catre ambele parti.' });
+      }
+
+      return res.json({ contractHtml: contractDetails.contractDraft });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
   '/cont/tichete/:id/contract/descarca',
   ensureRole('client', 'admin', 'superadmin'),
   async (req, res, next) => {

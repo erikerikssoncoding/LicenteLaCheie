@@ -403,9 +403,27 @@
     <% if (ticket.kind === 'contract' && contractDetails?.contractDraft) { %>
     <div class="glass-card mb-4" id="contract-draft">
       <h3 class="h6 mb-3">Draft contract</h3>
+      <% const shouldLazyLoadContract = contractStage === 'completed'; %>
+      <% if (shouldLazyLoadContract) { %>
+      <% const contractContentId = `contract-content-${ticket.id}`; %>
+      <div class="d-flex flex-column flex-md-row gap-2 align-items-md-center">
+        <button
+          class="btn btn-outline-secondary"
+          type="button"
+          data-contract-toggle
+          data-ticket-id="<%= ticket.id %>"
+          data-contract-target="<%= contractContentId %>"
+        >
+          Afiseaza contractul
+        </button>
+        <p class="mb-0 text-muted small">Contractul semnat este ascuns pentru a evita derularea inutila.</p>
+      </div>
+      <div class="contract-preview d-none mt-3" id="<%= contractContentId %>" data-contract-content></div>
+      <% } else { %>
       <div class="contract-preview">
         <%- contractDetails.contractDraft %>
       </div>
+      <% } %>
       <% if (['client', 'admin', 'superadmin'].includes(currentUser.role) && contractStage === 'completed') { %>
       <form
         action="/cont/tichete/<%= ticket.id %>/contract/descarca"
@@ -737,6 +755,63 @@
         if (hiddenInput) {
           hiddenInput.value = canvas.toDataURL('image/png');
         }
+      });
+    });
+
+    const contractButtons = document.querySelectorAll('[data-contract-toggle]');
+    contractButtons.forEach((button) => {
+      const targetId = button.getAttribute('data-contract-target');
+      const container = targetId ? document.getElementById(targetId) : null;
+      const ticketId = button.getAttribute('data-ticket-id');
+      if (!container || !ticketId) {
+        return;
+      }
+
+      let hasLoaded = false;
+      let isLoading = false;
+
+      async function loadContract() {
+        if (hasLoaded || isLoading) {
+          return;
+        }
+        isLoading = true;
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Se incarca...';
+        try {
+          const response = await fetch(`/cont/tichete/${encodeURIComponent(ticketId)}/contract/continut`, {
+            headers: {
+              Accept: 'application/json'
+            }
+          });
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          const data = await response.json();
+          if (typeof data.contractHtml !== 'string') {
+            throw new Error('Contract content missing');
+          }
+          container.innerHTML = data.contractHtml;
+          hasLoaded = true;
+        } catch (error) {
+          window.alert('Nu am putut incarca contractul. Incearca din nou.');
+        } finally {
+          button.disabled = false;
+          button.textContent = originalText;
+          isLoading = false;
+        }
+      }
+
+      button.addEventListener('click', async () => {
+        if (!hasLoaded) {
+          await loadContract();
+          if (!hasLoaded) {
+            return;
+          }
+        }
+        container.classList.toggle('d-none');
+        const isHidden = container.classList.contains('d-none');
+        button.textContent = isHidden ? 'Afiseaza contractul' : 'Ascunde contractul';
       });
     });
 

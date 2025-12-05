@@ -43,6 +43,12 @@
         <% if (!currentUser) { %>
         <li class="nav-item"><a class="nav-link" href="/autentificare">Autentificare</a></li>
         <li class="nav-item"><a class="btn btn-gradient" href="/inregistrare">Creează cont</a></li>
+        <li class="nav-item d-flex align-items-center">
+          <a class="btn btn-outline-primary phone-call-link" href="tel:+40756856395">
+            <span aria-hidden="true">📞</span>
+            <span class="ms-2">0756 856 395</span>
+          </a>
+        </li>
         <% } else { %>
         <li class="nav-item"><a class="nav-link" href="/cont/setari">Cont</a></li>
         <li class="nav-item">

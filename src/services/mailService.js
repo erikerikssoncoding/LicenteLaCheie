@@ -5,6 +5,7 @@ import { promises as fs } from 'fs';
 import crypto from 'crypto';
 import { ImapFlow } from 'imapflow';
 import { logMailEvent } from './notificationLogService.js';
+import { createOneTimeLoginLink } from './loginLinkService.js';
 
 const MAIL_HOST = process.env.MAIL_HOST || null;
 const MAIL_PORT = Number(process.env.MAIL_PORT || 465);
@@ -22,6 +23,7 @@ const MAIL_IMAP_SENT_FOLDER = process.env.MAIL_IMAP_SENT_FOLDER || 'Sent';
 
 const MAX_EMAIL_RECIPIENTS = 10;
 const CLIENT_HOSTNAME = os.hostname();
+const PUBLIC_WEB_BASE_URL = process.env.PUBLIC_WEB_BASE_URL || 'https://www.academiadelicente.ro';
 
 async function safeLogMailEvent(payload) {
   try {
@@ -130,6 +132,12 @@ function buildMimeMessage({ from, to, subject, text, attachments }) {
   });
   lines.push(`--${boundary}--`, '');
   return lines.join('\r\n');
+}
+
+function buildPublicUrl(pathname = '/') {
+  const base = PUBLIC_WEB_BASE_URL.replace(/\/$/, '');
+  const safePath = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  return `${base}${safePath}`;
 }
 
 function dotStuff(value) {
@@ -547,12 +555,16 @@ export async function sendContactSubmissionEmails({ payload, attachments, client
   }
 }
 
-export async function sendRegistrationCredentialsEmail({ fullName, email, password }) {
+export async function sendRegistrationCredentialsEmail({ fullName, email, password, userId = null }) {
   if (!isMailConfigured() || !email || !password) {
     return;
   }
   const normalizedEmail = String(email).toLowerCase();
   const safeName = fullName ? String(fullName).trim() : 'client';
+  const loginLink =
+    userId && typeof userId === 'number'
+      ? buildPublicUrl(`/autentificare/link/${createOneTimeLoginLink({ userId }).token}`)
+      : null;
   const clientText = [
     `Bună, ${safeName}!`,
     '',
@@ -561,8 +573,9 @@ export async function sendRegistrationCredentialsEmail({ fullName, email, passwo
     `Email: ${normalizedEmail}`,
     `Parolă: ${password}`,
     '',
+    loginLink ? `Buton de logare rapidă: ${loginLink}` : 'Intră în cont din pagina de autentificare.',
     'Din motive de securitate, te rugăm să schimbi parola după prima autentificare din Setările contului.',
-    'Poți accesa pagina de autentificare la https://www.academiadelicente.ro/autentificare.',
+    `Acces rapid la autentificare: ${buildPublicUrl('/autentificare')}`,
     '',
     'Îți mulțumim!',
     'Echipa Academia de Licențe'
@@ -574,7 +587,125 @@ export async function sendRegistrationCredentialsEmail({ fullName, email, passwo
     text: clientText,
     attachments: [],
     eventType: 'client_registration_credentials',
-    context: { email: normalizedEmail }
+    context: { email: normalizedEmail, loginLink }
+  });
+}
+
+export async function sendProjectStatusUpdateEmail({ project, statusInfo, notes = null }) {
+  if (!isMailConfigured() || !project?.client_email) {
+    return;
+  }
+  const statusLabel = statusInfo?.label || project.status || 'status proiect';
+  const clientMessage = notes || statusInfo?.clientMessage || statusInfo?.description || null;
+  const projectLink = buildPublicUrl(`/cont/proiecte/${project.id}`);
+  const clientText = [
+    `Bună, ${project.client_name || 'client'}!`,
+    '',
+    `Statusul proiectului tău (${project.project_code || project.title || 'fără titlu'}) este acum: ${statusLabel}.`,
+    ...(clientMessage ? ['', clientMessage] : []),
+    '',
+    `Poți urmări evoluția și documentele aici: ${projectLink}`,
+    'Dacă ai nevoie de clarificări, răspunde direct la acest email.',
+    '',
+    'Îți mulțumim!',
+    'Echipa Academia de Licențe'
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  await sendRawMail({
+    to: project.client_email,
+    subject: `Actualizare proiect – ${statusLabel}`,
+    text: clientText,
+    attachments: [],
+    eventType: 'project_status_client',
+    context: { projectId: project.id, status: project.status, statusLabel }
+  });
+}
+
+export async function sendOfferReadyEmail({ offer, ticket, client }) {
+  if (!isMailConfigured() || !offer || !ticket) {
+    return;
+  }
+  const recipient = client?.email || offer.email;
+  if (!recipient) {
+    return;
+  }
+  const amountLabel = offer.offer_amount ? `${Number(offer.offer_amount).toFixed(2)} RON` : 'calcul în curs';
+  const expiresLabel = offer.expires_at ? new Date(offer.expires_at).toLocaleString('ro-RO') : null;
+  const ticketLink = buildPublicUrl(`/cont/tichete/${ticket.id}`);
+  const clientText = [
+    `Bună, ${offer.client_name || client?.fullName || client?.full_name || 'client'}!`,
+    '',
+    'Ți-am pregătit oferta de preț și draftul de contract în contul tău.',
+    `Valoare propusă: ${amountLabel}.`,
+    expiresLabel ? `Oferta este valabilă până la: ${expiresLabel}.` : null,
+    `Referință ticket: #${ticket.display_code}.`,
+    '',
+    `Vezi detaliile și răspunde direct din cont: ${ticketLink}`,
+    'Poți accepta, trimite o contraofertă sau cere clarificări din același loc.',
+    '',
+    'Îți mulțumim!',
+    'Echipa Academia de Licențe'
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  await sendRawMail({
+    to: recipient,
+    subject: `Oferta ta este gata – ticket #${ticket.display_code}`,
+    text: clientText,
+    attachments: [],
+    eventType: 'offer_ready_client',
+    context: { offerId: offer.id, ticketId: ticket.id }
+  });
+}
+
+export async function sendContractStageEmail({ ticket, client, stage, contractNumber = null }) {
+  if (!isMailConfigured() || !ticket) {
+    return;
+  }
+  const recipient = client?.email || null;
+  if (!recipient) {
+    return;
+  }
+  const ticketLink = buildPublicUrl(`/cont/tichete/${ticket.id}#contract-draft`);
+  const baseLines = [`Referință ticket: #${ticket.display_code}.`, `Acces rapid: ${ticketLink}`];
+
+  let subject = `Actualizare contract – ticket #${ticket.display_code}`;
+  let lead = 'Am actualizat etapa contractului tău.';
+  if (stage === 'draft') {
+    lead = 'Contractul este pregătit pentru semnare.';
+    subject = `Contract de semnat – ticket #${ticket.display_code}`;
+  } else if (stage === 'awaiting_admin') {
+    lead = 'Am primit semnătura ta. Verificăm și semnăm documentul final.';
+  } else if (stage === 'completed') {
+    lead = 'Contractul a fost semnat de ambele părți.';
+    subject = `Contract semnat – ticket #${ticket.display_code}`;
+  }
+
+  const clientText = [
+    `Bună, ${client?.fullName || client?.full_name || 'client'}!`,
+    '',
+    lead,
+    contractNumber ? `Număr contract: ${contractNumber}.` : null,
+    ...baseLines,
+    '',
+    'Dacă ai întrebări, răspunde direct la acest email.',
+    '',
+    'Îți mulțumim!',
+    'Echipa Academia de Licențe'
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  await sendRawMail({
+    to: recipient,
+    subject,
+    text: clientText,
+    attachments: [],
+    eventType: `contract_stage_${stage || 'update'}`,
+    context: { ticketId: ticket.id, stage, contractNumber }
   });
 }
 

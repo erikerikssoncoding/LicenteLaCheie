@@ -4,8 +4,11 @@ import os from 'os';
 import { promises as fs } from 'fs';
 import crypto from 'crypto';
 import { ImapFlow } from 'imapflow';
+import { simpleParser } from 'mailparser';
 import { logMailEvent } from './notificationLogService.js';
 import { createOneTimeLoginLink } from './loginLinkService.js';
+import { addReply, getTicketByDisplayCode } from './ticketService.js';
+import { findUserByEmail } from './userService.js';
 
 const MAIL_HOST = process.env.MAIL_HOST || null;
 const MAIL_PORT = Number(process.env.MAIL_PORT || 465);
@@ -20,10 +23,15 @@ const MAIL_IMAP_HOST = process.env.MAIL_IMAP_HOST || null;
 const MAIL_IMAP_PORT = Number(process.env.MAIL_IMAP_PORT || 993);
 const MAIL_IMAP_SECURE = String(process.env.MAIL_IMAP_SECURE || 'true').toLowerCase() !== 'false';
 const MAIL_IMAP_SENT_FOLDER = process.env.MAIL_IMAP_SENT_FOLDER || 'Sent';
+const MAIL_IMAP_INBOX = process.env.MAIL_IMAP_INBOX || 'INBOX';
+const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(60000, Number(process.env.MAIL_TICKET_SYNC_INTERVAL_MS || 300000));
 
 const MAX_EMAIL_RECIPIENTS = 10;
 const CLIENT_HOSTNAME = os.hostname();
 const PUBLIC_WEB_BASE_URL = process.env.PUBLIC_WEB_BASE_URL || 'https://www.academiadelicente.ro';
+
+let ticketSyncTimer = null;
+let ticketSyncInProgress = false;
 
 async function safeLogMailEvent(payload) {
   try {
@@ -142,6 +150,66 @@ function buildPublicUrl(pathname = '/') {
 
 function dotStuff(value) {
   return value.replace(/(^|\r\n)\./g, '$1..');
+}
+
+function extractTicketCodeFromSubject(subject) {
+  if (!subject) {
+    return null;
+  }
+  const match = String(subject).match(/\[\s*Ticket\s*#([A-Z0-9]+)\s*\]/iu);
+  return match ? match[1].toUpperCase() : null;
+}
+
+function normalizeEmail(value) {
+  return value ? String(value).trim().toLowerCase() : null;
+}
+
+function canUserReplyToTicket(ticket, user) {
+  if (!ticket || !user) {
+    return false;
+  }
+  if (user.role === 'client') {
+    return ticket.created_by === user.id;
+  }
+  if (user.role === 'redactor') {
+    return ticket.project_id && ticket.assigned_editor_id === user.id;
+  }
+  if (user.role === 'admin' || user.role === 'superadmin') {
+    if (!ticket.project_id) {
+      return true;
+    }
+    return ticket.assigned_admin_id === user.id || ticket.assigned_editor_id === user.id;
+  }
+  return false;
+}
+
+function sanitizeHtmlToText(value) {
+  if (!value) {
+    return '';
+  }
+  return value
+    .replace(/<\s*br\s*\/?>/giu, '\n')
+    .replace(/<\s*\/p\s*>/giu, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function trimQuotedConversation(text) {
+  if (!text) {
+    return '';
+  }
+  const patterns = [
+    /^On .+ wrote:/imu,
+    /^De la:/imu,
+    /^From:/imu,
+    /^-----Original Message-----/imu
+  ];
+  const indexes = patterns
+    .map((pattern) => text.search(pattern))
+    .filter((index) => index >= 0);
+  const cutoff = indexes.length ? Math.min(...indexes) : text.length;
+  return text.slice(0, cutoff).trim();
 }
 
 class SmtpConnection {
@@ -872,4 +940,128 @@ export async function sendTicketReplyNotification({
       context: baseContext
     });
   }
+}
+
+async function extractMessageBodyFromSource(source) {
+  if (!source) {
+    return '';
+  }
+  const parsed = await simpleParser(source);
+  const plainText = parsed.text?.trim() || sanitizeHtmlToText(parsed.html);
+  return trimQuotedConversation(plainText);
+}
+
+export async function syncTicketRepliesFromInbox() {
+  if (!isImapConfigured()) {
+    return { processed: 0, skipped: 0, errors: ['IMAP_NOT_CONFIGURED'] };
+  }
+
+  const summary = { processed: 0, skipped: 0, errors: [] };
+  const client = new ImapFlow({
+    host: MAIL_IMAP_HOST,
+    port: MAIL_IMAP_PORT,
+    secure: MAIL_IMAP_SECURE,
+    logger: false,
+    tls: { rejectUnauthorized: !MAIL_ALLOW_INVALID_CERTS },
+    auth: {
+      user: MAIL_USER,
+      pass: MAIL_PASSWORD
+    }
+  });
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock(MAIL_IMAP_INBOX);
+
+    try {
+      for await (const message of client.fetch({ seen: false }, { envelope: true, uid: true, source: true })) {
+        let shouldMarkSeen = false;
+        try {
+          const subject = message.envelope?.subject || '';
+          const ticketCode = extractTicketCodeFromSubject(subject);
+          const fromEnvelope = message.envelope?.from?.[0];
+          const fromAddress = normalizeEmail(extractAddress(fromEnvelope?.address || fromEnvelope?.name));
+
+          if (!ticketCode || !fromAddress) {
+            summary.skipped += 1;
+            shouldMarkSeen = true;
+            continue;
+          }
+
+          const ticket = await getTicketByDisplayCode(ticketCode);
+          const user = await findUserByEmail(fromAddress);
+
+          if (!ticket || !user || !canUserReplyToTicket(ticket, user)) {
+            summary.skipped += 1;
+            shouldMarkSeen = true;
+            continue;
+          }
+
+          const messageBody = await extractMessageBodyFromSource(message.source);
+          if (!messageBody) {
+            summary.skipped += 1;
+            shouldMarkSeen = true;
+            continue;
+          }
+
+          await addReply({ ticketId: ticket.id, userId: user.id, message: messageBody });
+          summary.processed += 1;
+          shouldMarkSeen = true;
+        } catch (processingError) {
+          summary.errors.push(processingError?.message || 'UNKNOWN_PROCESSING_ERROR');
+        } finally {
+          if (shouldMarkSeen) {
+            try {
+              await client.messageFlagsAdd(message.uid, ['\\Seen']);
+            } catch (flagError) {
+              summary.errors.push(flagError?.message || 'FLAG_UPDATE_FAILED');
+            }
+          }
+        }
+      }
+    } finally {
+      lock.release();
+    }
+  } catch (error) {
+    summary.errors.push(error?.message || 'UNKNOWN_IMAP_SYNC_ERROR');
+  } finally {
+    try {
+      await client.logout();
+    } catch (logoutError) {
+      summary.errors.push(logoutError?.message || 'LOGOUT_FAILED');
+    }
+  }
+
+  return summary;
+}
+
+export function startTicketInboxSync() {
+  if (!isImapConfigured()) {
+    return false;
+  }
+  if (ticketSyncTimer) {
+    return true;
+  }
+
+  const runSync = async () => {
+    if (ticketSyncInProgress) {
+      return;
+    }
+    ticketSyncInProgress = true;
+    try {
+      const result = await syncTicketRepliesFromInbox();
+      if (result.errors.length) {
+        console.error('Erori la sincronizarea raspunsurilor din inbox:', result.errors);
+      }
+    } catch (error) {
+      console.error('Nu s-a putut sincroniza inbox-ul pentru tickete:', error);
+    } finally {
+      ticketSyncInProgress = false;
+    }
+  };
+
+  runSync().catch((error) => console.error('Nu s-a putut porni sincronizarea initiala a ticketelor:', error));
+  ticketSyncTimer = setInterval(runSync, MAIL_TICKET_SYNC_INTERVAL_MS);
+
+  return true;
 }

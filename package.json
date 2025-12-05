@@ -34,6 +34,7 @@
     "express-session": "^1.17.3",
     "helmet": "^7.0.0",
     "imapflow": "^1.0.156",
+    "mailparser": "^3.9.0",
     "mysql2": "^3.9.7",
     "morgan": "^1.10.0",
     "nanoid": "^4.0.2",

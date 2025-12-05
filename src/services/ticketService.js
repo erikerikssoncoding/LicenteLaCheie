@@ -142,6 +142,24 @@ export async function getTicketById(ticketId) {
   return rows[0] || null;
 }
 
+export async function getTicketByDisplayCode(displayCode) {
+  if (!displayCode) {
+    return null;
+  }
+  const [rows] = await pool.query(
+    `SELECT t.*, u.full_name AS author_name, u.role AS author_role, p.title AS project_title, p.project_code AS project_code,
+            p.assigned_admin_id, p.assigned_editor_id, merged.display_code AS merged_into_display_code
+       FROM tickets t
+       LEFT JOIN users u ON u.id = t.created_by
+       LEFT JOIN projects p ON p.id = t.project_id
+       LEFT JOIN tickets merged ON merged.id = t.merged_into_ticket_id
+      WHERE t.display_code = ?`,
+    [displayCode]
+  );
+
+  return rows[0] || null;
+}
+
 export async function getTicketWithReplies(ticketId) {
   const [ticket, [replyRows]] = await Promise.all([
     getTicketById(ticketId),

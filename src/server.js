@@ -11,6 +11,7 @@ import publicRoutes from './routes/public.js';
 import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
 import { injectUser } from './middleware/auth.js';
+import { startTicketInboxSync } from './services/mailService.js';
 import simpleCookieParser from './middleware/simpleCookieParser.js';
 import csrfProtection from './middleware/csrfProtection.js';
 import { initializeSecurityState, getSecurityState } from './utils/securityState.js';
@@ -137,6 +138,8 @@ app.use((req, res, next) => {
 app.use('/', publicRoutes);
 app.use('/', authRoutes);
 app.use('/', dashboardRoutes);
+
+startTicketInboxSync();
 
 app.use((req, res) => {
   res.status(404).render('pages/404', {

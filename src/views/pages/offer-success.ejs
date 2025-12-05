@@ -4,12 +4,23 @@
   <div class="container">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h1 class="h3 mb-3">Solicitarea de ofertă a fost înregistrată</h1>
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+          <h1 class="h3 mb-0">Solicitarea de ofertă a fost înregistrată</h1>
+          <img
+            src="/img/logo-white.svg"
+            alt="Sigla Academia de Licențe"
+            width="56"
+            height="56"
+            class="flex-shrink-0"
+          />
+        </div>
         <p>
           Codul tău de referință este <strong><%= offerCode %></strong>. Îl poți folosi pentru a urmări contractul și discuțiile în contul tău.
         </p>
         <p>
-          Ți-am trimis și un email de confirmare cu detaliile ticketului. În maximum <strong><%= defaultExpiration %> ore</strong> un administrator îți va trimite oferta cu prețul final și termenul de valabilitate direct în ticketul creat automat.
+          Ți-am trimis și un email de confirmare cu detaliile ticketului. În maximum <strong><%= defaultExpiration %> ore</strong>
+un administrator îți va trimite oferta cu prețul final și termenul de valabilitate direct în ticketul creat automat, dar și
+telefonic sau pe WhatsApp.
         </p>
         <div class="alert alert-info mt-4">
           <p class="mb-1">Ticketul tău dedicat poate fi accesat după autentificare din panoul „Tichetele mele”.</p>

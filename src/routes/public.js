@@ -68,10 +68,10 @@ const OFFER_PAGE_TITLE = 'Solicită o ofertă personalizată pentru lucrarea ta'
 const OFFER_PAGE_DESCRIPTION =
   'Completează formularul, iar platforma va genera un draft de contract pentru redactarea, corectura și pregătirea lucrării tale.';
 
-const OFFER_WORK_TYPES = [
+export const OFFER_WORK_TYPES = [
   'lucrare de licență',
   'lucrare de grad',
-  'lucrare de disertatie',
+  'lucrare de disertație',
   'lucrare de doctorat',
   'proiect'
 ];
@@ -139,6 +139,36 @@ const renderOfferPage = (res, extra = {}, status = 200) =>
     minDeliveryDate: formatDateForInput(getMinimumDeliveryDate()),
     ...extra
   });
+
+export const offerSubmissionSchema = z.object({
+  clientName: z.string().trim().min(3, 'Introduce un nume complet valid.'),
+  email: z.string().trim().email('Te rugăm să introduci o adresă de email validă.'),
+  phone: z
+    .string()
+    .min(6)
+    .transform((value) => sanitizePhoneValue(value))
+    .refine((value) => isSupportedInternationalPhone(value), 'Introdu un număr de telefon internațional cu prefix valid.')
+    .refine((value) => !hasInvalidRepetition(value), 'Numărul de telefon nu poate avea toate cifrele identice.'),
+  program: z.string().trim().min(3, 'Programul de studii trebuie să aibă cel puțin 3 caractere.'),
+  topic: z.string().trim().min(5, 'Tema lucrării trebuie să fie mai detaliată.'),
+  workType: z.enum(OFFER_WORK_TYPES),
+  deliveryDate: z
+    .string()
+    .regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u, 'Selectează o dată de livrare validă (format AAAA-LL-ZZ).')
+    .refine((value) => {
+      const parsed = parseDateInput(value);
+      if (!parsed) {
+        return false;
+      }
+      const minimum = getMinimumDeliveryDate();
+      return parsed >= minimum;
+    }, `Data dorită de livrare trebuie să fie la cel puțin ${MINIMUM_DELIVERY_LEAD_DAYS} zile distanță de astăzi.`),
+  notes: z
+    .string()
+    .max(2000)
+    .transform((value) => value.trim())
+    .optional()
+});
 
 const renderContactPage = (res, extra = {}, status = 200) =>
   res.status(status).render('pages/contact', {
@@ -499,36 +529,7 @@ async function handleOfferPost(req, res, next) {
 async function handleOfferSubmission(req, res) {
   setResponseCsrfToken(req, res);
   const isAuthenticated = Boolean(req.session?.user);
-  const schema = z.object({
-    clientName: z.string().trim().min(3, 'Introduce un nume complet valid.'),
-    email: z.string().trim().email('Te rugăm să introduci o adresă de email validă.'),
-    phone: z
-      .string()
-      .min(6)
-      .transform((value) => sanitizePhoneValue(value))
-      .refine((value) => isSupportedInternationalPhone(value), 'Introdu un număr de telefon internațional cu prefix valid.')
-      .refine((value) => !hasInvalidRepetition(value), 'Numărul de telefon nu poate avea toate cifrele identice.'),
-    program: z.string().trim().min(3, 'Programul de studii trebuie să aibă cel puțin 3 caractere.'),
-    topic: z.string().trim().min(5, 'Tema lucrării trebuie să fie mai detaliată.'),
-    workType: z.enum(OFFER_WORK_TYPES),
-    deliveryDate: z
-      .string()
-      .regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u, 'Selectează o dată de livrare validă (format AAAA-LL-ZZ).')
-      .refine((value) => {
-        const parsed = parseDateInput(value);
-        if (!parsed) {
-          return false;
-        }
-        const minimum = getMinimumDeliveryDate();
-        return parsed >= minimum;
-      }, `Data dorită de livrare trebuie să fie la cel puțin ${MINIMUM_DELIVERY_LEAD_DAYS} zile distanță de astăzi.`),
-    notes: z
-      .string()
-      .max(2000)
-      .transform((value) => value.trim())
-      .optional()
-  });
-  const payload = schema.parse(req.body);
+  const payload = offerSubmissionSchema.parse(req.body);
   const attachments = Array.isArray(req.files) ? req.files : [];
   let generatedPassword = null;
   let userId;

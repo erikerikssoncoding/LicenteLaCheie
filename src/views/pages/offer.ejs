@@ -148,9 +148,9 @@
                   data-required-message="Selectează tipul lucrării."
                 >
                   <option value="" disabled <%= request.body?.workType ? '' : 'selected' %>>Selectează tipul lucrării</option>
-                  <option value="lucrare de licenta" <%= request.body?.workType === 'lucrare de licenta' ? 'selected' : '' %>>Lucrare de licență</option>
+                  <option value="lucrare de licență" <%= request.body?.workType === 'lucrare de licență' ? 'selected' : '' %>>Lucrare de licență</option>
                   <option value="lucrare de grad" <%= request.body?.workType === 'lucrare de grad' ? 'selected' : '' %>>Lucrare de grad</option>
-                  <option value="lucrare de disertatie" <%= request.body?.workType === 'lucrare de disertatie' ? 'selected' : '' %>>Lucrare de disertație</option>
+                  <option value="lucrare de disertație" <%= request.body?.workType === 'lucrare de disertație' ? 'selected' : '' %>>Lucrare de disertație</option>
                   <option value="lucrare de doctorat" <%= request.body?.workType === 'lucrare de doctorat' ? 'selected' : '' %>>Lucrare de doctorat</option>
                   <option value="proiect" <%= request.body?.workType === 'proiect' ? 'selected' : '' %>>Proiect</option>
                 </select>

@@ -406,7 +406,7 @@
       <% const shouldLazyLoadContract = contractStage === 'completed'; %>
       <% if (shouldLazyLoadContract) { %>
       <% const contractContentId = `contract-content-${ticket.id}`; %>
-      <div class="d-flex flex-column flex-md-row gap-2 align-items-md-center">
+      <div class="d-flex flex-column flex-md-row gap-2 align-items-md-center flex-wrap">
         <button
           class="btn btn-outline-secondary"
           type="button"
@@ -416,7 +416,12 @@
         >
           Afiseaza contractul
         </button>
-        <p class="mb-0 text-muted small">Contractul semnat este ascuns pentru a evita derularea inutila.</p>
+        <% if (['client', 'admin', 'superadmin'].includes(currentUser.role) && contractStage === 'completed') { %>
+        <form action="/cont/tichete/<%= ticket.id %>/contract/descarca" method="post" class="mb-0">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button class="btn btn-outline-primary" type="submit">Descarca contractul</button>
+        </form>
+        <% } %>
       </div>
       <div class="contract-preview d-none mt-3" id="<%= contractContentId %>" data-contract-content></div>
       <% } else { %>
@@ -425,14 +430,6 @@
       </div>
       <% } %>
       <% if (['client', 'admin', 'superadmin'].includes(currentUser.role) && contractStage === 'completed') { %>
-      <form
-        action="/cont/tichete/<%= ticket.id %>/contract/descarca"
-        method="post"
-        class="mt-3 d-flex flex-column flex-md-row align-items-md-center gap-2"
-      >
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-        <button class="btn btn-outline-primary" type="submit">Descarca contractul</button>
-      </form>
       <p class="text-muted small mt-2 mb-0">Contractul va fi descarcat in format PDF.</p>
       <% } else if (['client', 'admin', 'superadmin'].includes(currentUser.role)) { %>
       <p class="text-muted small mt-3 mb-0">Contractul va fi disponibil pentru descarcare dupa semnarea de catre ambele parti.</p>

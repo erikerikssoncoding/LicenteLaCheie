@@ -4,10 +4,10 @@
   <div class="container" style="max-width: 800px;">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h1 class="h4">Creaza proiect nou</h1>
+        <h1 class="h4">Creează proiect nou</h1>
         <% if (clients.length === 0) { %>
         <div class="alert alert-warning">
-          Nu exista clienti inregistrati. Invitati clientul sa isi creeze cont sau adaugati unul manual pentru a continua.
+          Nu există clienți înregistrați. Invită clientul să își creeze cont sau adaugă unul manual pentru a continua.
         </div>
         <% } %>
         <% const hasErrors = formErrors && Object.keys(formErrors).length > 0; %>
@@ -22,7 +22,7 @@
         }; %>
         <% if (hasErrors) { %>
         <div class="alert alert-danger">
-          <p class="mb-1"><%= formErrors.general || 'Verifica informatiile introduse in formular.' %></p>
+          <p class="mb-1"><%= formErrors.general || 'Verifică informațiile introduse în formular.' %></p>
           <% const specificErrors = Object.entries(formErrors).filter(([key]) => key !== 'general'); %>
           <% if (specificErrors.length) { %>
           <ul class="mb-0 ps-3">
@@ -150,7 +150,7 @@
             <% } %>
           </div>
           <div class="col-12 text-end">
-            <button class="btn btn-primary" type="submit" <%= clients.length === 0 ? 'disabled' : '' %>>Creaza proiectul</button>
+            <button class="btn btn-primary" type="submit" <%= clients.length === 0 ? 'disabled' : '' %>>Creează proiectul</button>
           </div>
         </form>
       </div>

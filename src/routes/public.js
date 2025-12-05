@@ -69,7 +69,7 @@ const OFFER_PAGE_DESCRIPTION =
   'Completează formularul, iar platforma va genera un draft de contract pentru redactarea, corectura și pregătirea lucrării tale.';
 
 const OFFER_WORK_TYPES = [
-  'lucrare de licenta',
+  'lucrare de licență',
   'lucrare de grad',
   'lucrare de disertatie',
   'lucrare de doctorat',
@@ -213,7 +213,7 @@ const mapContactUploadError = (error) => {
 const CONTACT_PAGE_PROPS = {
   title: 'Contact Academia de Licențe',
   description:
-    'Scrie-ne pentru a afla cum te putem ajuta cu redactarea lucrarii de licenta sau a proiectului tau academic.'
+    'Scrie-ne pentru a afla cum te putem ajuta cu redactarea lucrării de licență sau a proiectului tău academic.'
 };
 
 const sanitizePhoneValue = (value) => {
@@ -251,49 +251,49 @@ const isSupportedInternationalPhone = (value) =>
 
 router.get('/', (req, res) => {
   res.render('pages/home', {
-    title: 'Lucrari de licenta premium redactate de experti',
+    title: 'Lucrări de licență premium redactate de experți',
     description:
-      'Academia de Licențe ofera servicii profesionale de redactare, consultanta si verificare pentru lucrari de licenta, dizertatii si proiecte academice.'
+      'Academia de Licențe oferă servicii profesionale de redactare, consultanță și verificare pentru lucrări de licență, disertații și proiecte academice.'
   });
 });
 
 router.get('/despre-noi', (req, res) => {
   res.render('pages/about', {
-    title: 'Despre echipa noastra',
+    title: 'Despre echipa noastră',
     description:
-      'Afla cum echipa Academia de Licențe ii ghideaza pe studenti catre finalizarea cu succes a lucrarilor de licenta si a proiectelor de absolvire.'
+      'Află cum echipa Academia de Licențe îi ghidează pe studenți către finalizarea cu succes a lucrărilor de licență și a proiectelor de absolvire.'
   });
 });
 
 router.get('/servicii', (req, res) => {
   res.render('pages/services', {
-    title: 'Servicii pentru lucrari de licenta si proiecte academice',
+    title: 'Servicii pentru lucrări de licență și proiecte academice',
     description:
-      'Consultanta, redactare personalizata si verificari antiplagiat pentru lucrari de licenta si disertatii.'
+      'Consultanță, redactare personalizată și verificări antiplagiat pentru lucrări de licență și disertații.'
   });
 });
 
 router.get('/termeni-si-conditii', (req, res) => {
   res.render('pages/terms', {
-    title: 'Termeni si conditii - Academia de Licente',
+    title: 'Termeni și condiții - Academia de Licențe',
     description:
-      'Aflati conditiile de utilizare ale platformei Academia de Licente, responsabilitatile partilor si regulile de furnizare a serviciilor.'
+      'Aflați condițiile de utilizare ale platformei Academia de Licențe, responsabilitățile părților și regulile de furnizare a serviciilor.'
   });
 });
 
 router.get('/politica-confidentialitate', (req, res) => {
   res.render('pages/privacy', {
-    title: 'Politica de confidentialitate - Academia de Licente',
+    title: 'Politica de confidentialitate - Academia de Licențe',
     description:
-      'Informatii despre modul in care colectam, folosim si protejam datele personale in platforma Academia de Licente.'
+      'Informații despre modul în care colectăm, folosim și protejăm datele personale în platforma Academia de Licențe.'
   });
 });
 
 router.get('/politica-cookie', (req, res) => {
   res.render('pages/cookies', {
-    title: 'Politica privind cookies - Academia de Licente',
+    title: 'Politica privind cookies - Academia de Licențe',
     description:
-      'Detalii privind tipurile de cookie-uri folosite pe site-ul academiadelicente.ro si optiunile de control disponibile utilizatorilor.'
+      'Detalii privind tipurile de cookie-uri folosite pe site-ul academiadelicențe.ro și opțiunile de control disponibile utilizatorilor.'
   });
 });
 
@@ -628,7 +628,7 @@ router.get('/contract/:code', async (req, res, next) => {
     }
     return res.render('pages/contract', {
       title: `Contract ${offer.offer_code}`,
-      description: 'Contract personalizat pentru serviciile de redactare licenta.',
+      description: 'Contract personalizat pentru serviciile de redactare licență.',
       offer
     });
   } catch (error) {

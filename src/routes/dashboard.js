@@ -164,8 +164,8 @@ const PROJECT_FORM_DEFAULTS = {
 async function renderProjectCreatePage(res, { formData = {}, formErrors = {} } = {}, status = 200) {
   const [clients, team] = await Promise.all([listClients(), listTeamMembers()]);
   return res.status(status).render('pages/project-create', {
-    title: 'Creaza proiect nou',
-    description: 'Inregistreaza o lucrare de licenta si aloca echipa.',
+    title: 'Creează proiect nou',
+    description: 'Înregistrează o lucrare de licență și alocă echipa.',
     clients,
     team,
     formData: { ...PROJECT_FORM_DEFAULTS, ...formData },
@@ -288,7 +288,7 @@ router
       }
       res.render('pages/account-settings', {
         title: 'Cont',
-        description: 'Gestioneaza datele personale, proiectele si securitatea accesului tau.',
+        description: 'Gestioneaza datele personale, proiectele și securitatea accesului tau.',
         profile,
         tickets,
         projects,
@@ -409,7 +409,7 @@ router.get('/cont/setari/passkeys/generate-options', async (req, res, next) => {
   try {
     const user = req.session.user;
     const rpID = (req.headers.host || 'localhost').split(':')[0];
-    const rpName = 'LicenteLaCheie';
+    const rpName = 'LicențeLaCheie';
     const passkeyLabel = typeof req.query.name === 'string' ? req.query.name : '';
 
     const options = await generatePasskeyRegistrationOptions({ user, rpID, rpName });
@@ -506,7 +506,7 @@ router.get('/cont', async (req, res, next) => {
 
     const viewModel = {
       title: 'Panou de control',
-      description: 'Monitorizeaza proiectele, contractele si discutiile cu echipa Academia de Licențe.',
+      description: 'Monitorizeaza proiectele, contractele și discutiile cu echipa Academia de Licențe.',
       projects,
       tickets,
       offers: [],
@@ -578,7 +578,7 @@ router.get('/cont/proiecte', requireActiveLicense(), async (req, res, next) => {
     const projects = await listProjectsForUser(user);
     res.render('pages/project-list', {
       title: 'Proiecte',
-      description: 'Vizualizeaza proiectele alocate si acceseaza rapid detaliile fiecaruia.',
+      description: 'Vizualizeaza proiectele alocate și acceseaza rapid detaliile fiecaruia.',
       projects,
       projectStatusMap: buildProjectStatusDictionary()
     });
@@ -604,7 +604,7 @@ router.get('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, r
     delete req.session.flash;
     res.render('pages/user-management', {
       title: 'Gestionare utilizatori',
-      description: 'Creeaza conturi pentru echipa si gestioneaza accesul clientilor.',
+      description: 'Creeaza conturi pentru echipa și gestioneaza accesul clientilor.',
       users,
       filters,
       flashMessage: flash.success || null,
@@ -704,7 +704,7 @@ router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, 
     });
     res.render('pages/ticket-management', {
       title: 'Gestionare tichete',
-      description: 'Vizualizeaza rapid solicitarile clientilor si actualizeaza statusurile direct din panoul de control.',
+      description: 'Vizualizeaza rapid solicitarile clientilor și actualizeaza statusurile direct din panoul de control.',
       tickets: filteredTickets,
       filters
     });
@@ -728,14 +728,14 @@ router.post('/cont/securitate', ensureRole('superadmin'), async (req, res, next)
     await refreshSecurityState();
     req.session.securityFlash = {
       type: 'success',
-      message: 'Setarea de securitate a fost actualizata.'
+      message: 'Setarea de securitate a fost actualizată.'
     };
     res.redirect('/cont#securitate');
   } catch (error) {
     if (error instanceof z.ZodError) {
       req.session.securityFlash = {
         type: 'error',
-        message: 'Solicitarea trimisa nu este valida.'
+        message: 'Solicitarea trimisă nu este valida.'
       };
       return res.redirect('/cont#securitate');
     }
@@ -750,7 +750,7 @@ router.post('/cont/securitate', ensureRole('superadmin'), async (req, res, next)
   }
 });
 
-router.post('/cont/securitate/licenta', ensureRole('superadmin'), async (req, res, next) => {
+router.post('/cont/securitate/licență', ensureRole('superadmin'), async (req, res, next) => {
   try {
     const schema = z.object({
       paidUntil: z
@@ -760,21 +760,21 @@ router.post('/cont/securitate/licenta', ensureRole('superadmin'), async (req, re
         .transform((value) => (value && value.length ? value : null))
         .refine(
           (value) => value === null || /^\d{4}-\d{2}-\d{2}$/.test(value),
-          'Data invalida pentru licenta.'
+          'Data invalidă pentru licență.'
         )
     });
     const data = schema.parse(req.body);
     await updateLicensePaidUntil(data.paidUntil);
     req.session.securityFlash = {
       type: 'success',
-      message: 'Data de expirare a licentei a fost actualizata.'
+      message: 'Data de expirare a licenței a fost actualizată.'
     };
     res.redirect('/cont#securitate');
   } catch (error) {
     if (error instanceof z.ZodError) {
       req.session.securityFlash = {
         type: 'error',
-        message: 'Completeaza o data valida in format AAAA-LL-ZZ.'
+        message: 'Completează o dată validă în format AAAA-LL-ZZ.'
       };
       return res.redirect('/cont#securitate');
     }
@@ -808,7 +808,7 @@ router.post('/cont/utilizatori', ensureRole('admin', 'superadmin'), async (req, 
     res.redirect('/cont/utilizatori');
   } catch (error) {
     if (error instanceof z.ZodError) {
-      req.session.flash = { error: 'Verifica datele introduse in formular.' };
+      req.session.flash = { error: 'Verifică datele introduse în formular.' };
       return res.redirect('/cont/utilizatori');
     }
     if (error.message === 'EMAIL_EXISTS') {
@@ -878,11 +878,11 @@ router.post('/cont/utilizatori/:id/detalii', ensureRole('admin', 'superadmin'), 
       return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'PROTECTED_USER') {
-      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi modificat.' };
+      req.session.flash = { error: 'Acest utilizator este protejat și nu poate fi modificat.' };
       return res.redirect('/cont/utilizatori');
     }
     if (error.message === 'SELF_MODIFICATION') {
-      req.session.flash = { error: 'Nu iti poti edita contul din aceasta sectiune.' };
+      req.session.flash = { error: 'Nu iti poți edita contul din aceasta sectiune.' };
       return res.redirect('/cont/utilizatori');
     }
     if (error.message === 'USER_NOT_FOUND') {
@@ -901,11 +901,11 @@ router.post('/cont/utilizatori/:id/rol', ensureRole('admin', 'superadmin'), asyn
       return res.redirect('/cont/utilizatori');
     }
     if (targetId === PROTECTED_USER_ID) {
-      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi modificat.' };
+      req.session.flash = { error: 'Acest utilizator este protejat și nu poate fi modificat.' };
       return res.redirect('/cont/utilizatori');
     }
     if (targetId === req.session.user.id) {
-      req.session.flash = { error: 'Nu iti poti modifica propriul rol.' };
+      req.session.flash = { error: 'Nu iti poți modifica propriul rol.' };
       return res.redirect('/cont/utilizatori');
     }
     const schema = z.object({ role: z.enum(['client', 'redactor', 'admin', 'superadmin']) });
@@ -923,7 +923,7 @@ router.post('/cont/utilizatori/:id/rol', ensureRole('admin', 'superadmin'), asyn
       return res.redirect('/cont/utilizatori');
     }
     if (error.message === 'PROTECTED_USER') {
-      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi modificat.' };
+      req.session.flash = { error: 'Acest utilizator este protejat și nu poate fi modificat.' };
       return res.redirect('/cont/utilizatori');
     }
     if (error.message === 'INSUFFICIENT_PRIVILEGES') {
@@ -946,11 +946,11 @@ router.post('/cont/utilizatori/:id/status', ensureRole('admin', 'superadmin'), a
       return res.redirect('/cont/utilizatori');
     }
     if (targetId === PROTECTED_USER_ID && req.session.user.id !== PROTECTED_USER_ID) {
-      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi dezactivat.' };
+      req.session.flash = { error: 'Acest utilizator este protejat și nu poate fi dezactivat.' };
       return res.redirect('/cont/utilizatori');
     }
     if (targetId === req.session.user.id) {
-      req.session.flash = { error: 'Nu iti poti dezactiva propriul cont.' };
+      req.session.flash = { error: 'Nu iti poți dezactiva propriul cont.' };
       return res.redirect('/cont/utilizatori');
     }
     const schema = z.object({ isActive: z.enum(['0', '1']) });
@@ -965,7 +965,7 @@ router.post('/cont/utilizatori/:id/status', ensureRole('admin', 'superadmin'), a
       return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'PROTECTED_USER') {
-      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi dezactivat.' };
+      req.session.flash = { error: 'Acest utilizator este protejat și nu poate fi dezactivat.' };
       return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'INSUFFICIENT_PRIVILEGES') {
@@ -994,7 +994,7 @@ router.post('/cont/utilizatori/:id/parola', ensureRole('admin', 'superadmin'), a
       userId: targetId,
       newPassword
     });
-    req.session.flash = { success: 'Parola utilizatorului a fost actualizata.' };
+    req.session.flash = { success: 'Parola utilizatorului a fost actualizată.' };
     return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1006,7 +1006,7 @@ router.post('/cont/utilizatori/:id/parola', ensureRole('admin', 'superadmin'), a
       return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'SELF_MODIFICATION') {
-      req.session.flash = { error: 'Nu iti poti schimba parola din aceasta sectiune.' };
+      req.session.flash = { error: 'Nu iti poți schimba parola din aceasta sectiune.' };
       return res.redirect('/cont/utilizatori');
     }
     if (error.message === 'INSUFFICIENT_PRIVILEGES') {
@@ -1034,11 +1034,11 @@ router.post('/cont/utilizatori/:id/securitate/reset', ensureRole('superadmin'), 
     return res.redirect(redirectTo);
   } catch (error) {
     if (error.message === 'PROTECTED_USER') {
-      req.session.flash = { error: 'Acest utilizator este protejat si nu poate fi modificat.' };
+      req.session.flash = { error: 'Acest utilizator este protejat și nu poate fi modificat.' };
       return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     if (error.message === 'SELF_MODIFICATION') {
-      req.session.flash = { error: 'Nu iti poti curata propriile date de securitate din aceasta sectiune.' };
+      req.session.flash = { error: 'Nu iti poți curata propriile date de securitate din aceasta sectiune.' };
       return res.redirect('/cont/utilizatori');
     }
     if (error.message === 'INSUFFICIENT_PRIVILEGES') {
@@ -1284,7 +1284,7 @@ router.get('/cont/tichete/:id/timeline', requireActiveLicense(), async (req, res
   }
 });
 
-router.post('/cont/tichete/:id/raspuns', requireActiveLicense(), async (req, res, next) => {
+router.post('/cont/tichete/:id/răspuns', requireActiveLicense(), async (req, res, next) => {
   try {
     const schema = z.object({
       message: z.string().min(2)
@@ -1318,7 +1318,7 @@ router.post('/cont/tichete/:id/raspuns', requireActiveLicense(), async (req, res
     }
     if (ticket.merged_into_ticket_id) {
       req.session.ticketFeedback = {
-        error: 'Acest ticket a fost fuzionat in altul si nu mai permite raspunsuri.'
+        error: 'Acest ticket a fost fuzionat în altul și nu mai permite răspunsuri.'
       };
       return res.redirect(`/cont/tichete/${req.params.id}`);
     }
@@ -1349,7 +1349,7 @@ router.post('/cont/tichete/:id/raspuns', requireActiveLicense(), async (req, res
       clientEmail: ticketAuthor?.email || null,
       adminEmails: projectAdmins,
       projectTitle: project?.title || null
-    }).catch((error) => console.error('Nu s-a putut trimite notificarea de raspuns ticket:', error));
+    }).catch((error) => console.error('Nu s-a putut trimite notificarea de răspuns ticket:', error));
     res.redirect(`/cont/tichete/${req.params.id}`);
   } catch (error) {
     next(error);
@@ -1428,7 +1428,7 @@ router.post(
         return res.redirect(`/cont/tichete/${req.params.id}`);
       }
       if (error.message === 'OFFER_LOCKED') {
-        req.session.ticketFeedback = { error: 'Oferta a fost deja transmisa si nu mai poate fi modificata.' };
+        req.session.ticketFeedback = { error: 'Oferta a fost deja transmisa și nu mai poate fi modificata.' };
         return res.redirect(`/cont/tichete/${req.params.id}`);
       }
       if (error.message === 'OFFER_NOT_FOUND') {
@@ -1459,7 +1459,7 @@ router.post('/cont/tichete/:id/oferta/accepta', async (req, res, next) => {
     }
     const offer = await getOfferByTicketId(ticketId);
     if (!offer || offer.status !== 'sent') {
-      req.session.ticketFeedback = { error: 'Oferta nu mai poate fi acceptata.' };
+      req.session.ticketFeedback = { error: 'Oferta nu mai poate fi acceptată.' };
       return res.redirect(`/cont/tichete/${ticketId}`);
     }
     await acceptOffer(offer.id);
@@ -1467,7 +1467,7 @@ router.post('/cont/tichete/:id/oferta/accepta', async (req, res, next) => {
     await addReply({
       ticketId,
       userId: user.id,
-      message: 'Oferta a fost acceptata si a fost deschisa etapa de semnare a contractului.'
+      message: 'Oferta a fost acceptată și a fost deschisa etapa de semnare a contractului.'
     });
     req.session.ticketFeedback = {
       success: 'Ai acceptat oferta. Completeaza datele contractului pentru a continua semnarea.'
@@ -1504,7 +1504,7 @@ router.post('/cont/tichete/:id/oferta/refuza', async (req, res, next) => {
     await addReply({
       ticketId,
       userId: user.id,
-      message: 'Oferta a fost refuzata. Voi trimite o contraoferta in cel mai scurt timp.'
+      message: 'Oferta a fost refuzată. Voi trimite o contraofertă în cel mai scurt timp.'
     });
     req.session.ticketFeedback = {
       success: 'Ai refuzat oferta. Ai 30 de minute pentru a trimite o contraoferta.'
@@ -1552,7 +1552,7 @@ router.post('/cont/tichete/:id/oferta/contraoferta', async (req, res, next) => {
       userId: user.id,
       message: `Contraoferta propusa: ${amount.toFixed(2)} RON.`
     });
-    req.session.ticketFeedback = { success: 'Contraoferta a fost trimisa administratorului.' };
+    req.session.ticketFeedback = { success: 'Contraoferta a fost trimisă administratorului.' };
     res.redirect(`/cont/tichete/${ticketId}`);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1608,7 +1608,7 @@ router.post(
     await addReply({
       ticketId,
       userId: user.id,
-      message: 'Contraoferta clientului a fost acceptata. Pregatim contractul final.'
+      message: 'Contraoferta clientului a fost acceptată. Pregatim contractul final.'
     });
     req.session.ticketFeedback = {
       success: 'Ai acceptat contraoferta clientului. Poti continua cu semnarea contractului.'
@@ -1703,7 +1703,7 @@ router.post(
     }
     const offer = await getOfferByTicketId(ticketId);
     if (!offer || offer.status !== 'accepted') {
-      req.session.ticketFeedback = { error: 'Oferta trebuie sa fie acceptata inainte de a incepe semnarea.' };
+      req.session.ticketFeedback = { error: 'Oferta trebuie sa fie acceptată inainte de a incepe semnarea.' };
       return res.redirect(`/cont/tichete/${ticketId}`);
     }
     await markTicketAsContract(ticketId);
@@ -1741,7 +1741,7 @@ router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
     }
     const offer = await getOfferByTicketId(ticketId);
     if (!offer || offer.status !== 'accepted') {
-      req.session.ticketFeedback = { error: 'Oferta trebuie acceptata pentru a completa datele de contract.' };
+      req.session.ticketFeedback = { error: 'Oferta trebuie acceptată pentru a completa datele de contract.' };
       return res.redirect(`/cont/tichete/${ticketId}`);
     }
     const existingContract = await getContractDetailsByTicket(ticketId);
@@ -1789,7 +1789,7 @@ router.post('/cont/tichete/:id/contract-date', async (req, res, next) => {
       message: 'Datele personale pentru contract au fost completate.'
     });
     req.session.ticketFeedback = {
-      success: 'Datele pentru contract au fost salvate si draftul contractului a fost generat.'
+      success: 'Datele pentru contract au fost salvate și draftul contractului a fost generat.'
     };
     res.redirect(`/cont/tichete/${ticketId}#contract-draft`);
   } catch (error) {
@@ -1829,7 +1829,7 @@ router.post(
     }
     if (ticket.merged_into_ticket_id) {
       req.session.ticketFeedback = {
-        error: 'Acest ticket a fost deja fuzionat in altul si nu poate primi alte tickete.'
+        error: 'Acest ticket a fost deja fuzionat în altul și nu poate primi alte tickete.'
       };
       return res.redirect(`/cont/tichete/${ticketId}`);
     }
@@ -1871,8 +1871,8 @@ router.post(
     req.session.ticketFeedback = {
       success:
         sources.length === 1
-          ? `Ticketul ${mergedCodes} a fost fuzionat in conversatia curenta.`
-          : `Ticketele ${mergedCodes} au fost fuzionate in conversatia curenta.`
+          ? `Ticketul ${mergedCodes} a fost fuzionat în conversația curentă.`
+          : `Ticketele ${mergedCodes} au fost fuzionate în conversația curentă.`
     };
     res.redirect(`/cont/tichete/${ticketId}`);
   } catch (error) {
@@ -1884,10 +1884,10 @@ router.post(
     }
     const handledErrors = new Map([
       ['MERGE_TARGET_NOT_FOUND', 'Ticketul tinta nu a fost gasit.'],
-      ['MERGE_TARGET_ALREADY_MERGED', 'Ticketul tinta este deja fuzionat in alt ticket.'],
+      ['MERGE_TARGET_ALREADY_MERGED', 'Ticketul țintă este deja fuzionat în alt ticket.'],
       ['MERGE_SOURCE_NOT_FOUND', 'Unul dintre ticketele selectate nu a fost gasit.'],
       ['MERGE_SOURCE_ALREADY_MERGED', 'Unul dintre ticketele selectate este deja fuzionat.'],
-      ['MERGE_DIFFERENT_OWNER', 'Ticketele selectate apartin unui alt client si nu pot fi unite.'],
+      ['MERGE_DIFFERENT_OWNER', 'Ticketele selectate apartin unui alt client și nu pot fi unite.'],
       ['MERGE_NO_TICKETS_SELECTED', 'Selecteaza cel putin un ticket eligibil pentru a realiza merge.'],
       ['MERGE_ACTOR_REQUIRED', 'Utilizatorul curent nu poate efectua aceasta actiune.']
     ]);
@@ -1919,7 +1919,7 @@ router.post('/cont/tichete/:id/contract/semnatura-client', async (req, res, next
     }
     const offer = await getOfferByTicketId(ticketId);
     if (!offer || offer.status !== 'accepted') {
-      req.session.ticketFeedback = { error: 'Oferta trebuie acceptata pentru a semna contractul.' };
+      req.session.ticketFeedback = { error: 'Oferta trebuie acceptată pentru a semna contractul.' };
       return res.redirect(`/cont/tichete/${ticketId}`);
     }
     const schema = z.object({ signatureData: z.string().min(20) });
@@ -1930,7 +1930,7 @@ router.post('/cont/tichete/:id/contract/semnatura-client', async (req, res, next
     } catch (signatureError) {
       if (signatureError.message === 'INVALID_CONTRACT_STAGE') {
         req.session.ticketFeedback = {
-          error: 'Contractul nu poate fi semnat in acest stadiu.'
+          error: 'Contractul nu poate fi semnat în acest stadiu.'
         };
         return res.redirect(`/cont/tichete/${ticketId}`);
       }
@@ -1985,7 +1985,7 @@ router.post(
       }
       const offer = await getOfferByTicketId(ticketId);
       if (!offer || offer.status !== 'accepted') {
-        req.session.ticketFeedback = { error: 'Oferta trebuie sa fie acceptata pentru a finaliza contractul.' };
+        req.session.ticketFeedback = { error: 'Oferta trebuie sa fie acceptată pentru a finaliza contractul.' };
         return res.redirect(`/cont/tichete/${ticketId}`);
       }
       const schema = z.object({ signatureData: z.string().min(20) });
@@ -2062,7 +2062,7 @@ router.post(
           actor: user
         });
         req.session.projectFeedback = {
-          success: `Proiectul ${projectCode} a fost creat si este gata pentru organizarea etapelor.`
+          success: `Proiectul ${projectCode} a fost creat și este gata pentru organizarea etapelor.`
         };
         return res.redirect(`/cont/proiecte/${projectId}`);
       } catch (error) {
@@ -2116,7 +2116,7 @@ router.post(
       const contractDetails = await getContractDetailsByTicket(ticketId);
       if (!contractDetails || !contractDetails.contractDraft) {
         req.session.ticketFeedback = {
-          error: 'Contractul nu este disponibil pentru descarcare in acest moment.'
+          error: 'Contractul nu este disponibil pentru descărcare în acest moment.'
         };
         return res.redirect(`/cont/tichete/${ticketId}`);
       }
@@ -2170,7 +2170,7 @@ router.get(
       const contractDetails = await getContractDetailsByTicket(ticketId);
       if (!contractDetails || !contractDetails.contractDraft) {
         req.session.ticketFeedback = {
-          error: 'Contractul nu este disponibil pentru descarcare in acest moment.'
+          error: 'Contractul nu este disponibil pentru descărcare în acest moment.'
         };
         return res.redirect(`/cont/tichete/${ticketId}`);
       }
@@ -2249,7 +2249,7 @@ router.post(
       }
       if (ticket.merged_into_ticket_id) {
         req.session.ticketFeedback = {
-          error: 'Ticketul este fuzionat in altul si nu mai poate avea statusul modificat.'
+          error: 'Ticketul este fuzionat în altul și nu mai poate avea statusul modificat.'
         };
         return res.redirect(`/cont/tichete/${req.params.id}`);
       }
@@ -2471,7 +2471,7 @@ router
           {
             formData: fallbackFormData,
             formErrors: {
-              general: 'Nu am putut salva proiectul deoarece unele selectii nu sunt valide. Verifica informatiile si reincearca.'
+              general: 'Nu am putut salva proiectul deoarece unele selectii nu sunt valide. Verifica informatiile și reincearca.'
             }
           },
           400
@@ -2481,21 +2481,21 @@ router
     }
   });
 
-router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, next) => {
+router.post('/cont/proiecte/:id/fișiere', requireActiveLicense(), (req, res, next) => {
   projectFileUpload.array('files', STAFF_MAX_PROJECT_FILES)(req, res, async (err) => {
     const projectId = Number(req.params.id);
-    const redirectToFiles = () => res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
+    const redirectToFiles = () => res.redirect(`/cont/proiecte/${projectId}?tab=fișiere`);
 
     if (err) {
       const errorMessage =
         err.message === 'INVALID_FILE_TYPE'
-          ? 'Formatele permise sunt DOCX, PDF, JPG si PNG.'
+          ? 'Formatele permise sunt DOCX, PDF, JPG și PNG.'
           : err.code === 'LIMIT_FILE_SIZE'
-          ? 'Unul dintre fisiere depaseste dimensiunea maxima admisa.'
-          : 'Incarcarea fisierelor a esuat. Incearca din nou.';
+          ? 'Unul dintre fișiere depaseste dimensiunea maxima admisa.'
+          : 'Încărcarea fișierelor a esuat. Incearca din nou.';
       req.session.projectFeedback = {
         error: errorMessage,
-        activeTab: 'fisiere'
+        activeTab: 'fișiere'
       };
       return redirectToFiles();
     }
@@ -2503,8 +2503,8 @@ router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, nex
     const files = Array.isArray(req.files) ? req.files : [];
     if (!files.length) {
       req.session.projectFeedback = {
-        error: 'Selecteaza cel putin un fisier pentru incarcare.',
-        activeTab: 'fisiere'
+        error: 'Selecteaza cel putin un fisier pentru încarcăre.',
+        activeTab: 'fișiere'
       };
       return redirectToFiles();
     }
@@ -2514,7 +2514,7 @@ router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, nex
         files.map((file) =>
           fs.unlink(file.path).catch((unlinkError) => {
             if (unlinkError.code !== 'ENOENT') {
-              console.error('Nu s-a putut sterge fisierul incarcat temporar', unlinkError);
+              console.error('Nu s-a putut sterge fisierul încarcăt temporar', unlinkError);
             }
           })
         )
@@ -2538,7 +2538,7 @@ router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, nex
         await cleanupFiles();
         return res.status(403).render('pages/403', {
           title: 'Acces restrictionat',
-          description: 'Nu aveti permisiunea de a incarca fisiere in acest proiect.'
+          description: 'Nu aveți permisiunea de a încărca fișiere în acest proiect.'
         });
       }
 
@@ -2573,9 +2573,9 @@ router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, nex
         req.session.projectFeedback = {
           error:
             origin === 'client'
-              ? `Ai atins limita de ${CLIENT_MAX_PROJECT_FILES} fisiere. Sterge un fisier existent sau contacteaza administratorul.`
-              : `Limita de ${STAFF_MAX_PROJECT_FILES} fisiere a fost depasita pentru acest proiect.`,
-          activeTab: 'fisiere'
+              ? `Ai atins limita de ${CLIENT_MAX_PROJECT_FILES} fișiere. Sterge un fisier existent sau contactează administratorul.`
+              : `Limita de ${STAFF_MAX_PROJECT_FILES} fișiere a fost depasita pentru acest proiect.`,
+          activeTab: 'fișiere'
         };
         return redirectToFiles();
       }
@@ -2588,7 +2588,7 @@ router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, nex
           req.session.projectFeedback = {
             error:
               'In acest moment nu se accepta documentatie suplimentara. Asteapta solicitarea echipei.',
-            activeTab: 'fisiere'
+            activeTab: 'fișiere'
           };
           return redirectToFiles();
         }
@@ -2602,7 +2602,7 @@ router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, nex
             origin === 'client'
               ? 'Fiecare fisier trebuie sa aiba maximum 5 MB.'
               : 'Fiecare fisier trebuie sa aiba maximum 30 MB.',
-          activeTab: 'fisiere'
+          activeTab: 'fișiere'
         };
         return redirectToFiles();
       }
@@ -2625,8 +2625,8 @@ router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, nex
 
       const uploadMessagePrefix =
         userRole === 'client'
-          ? 'Clientul a incarcat documentatia'
-          : 'Echipa a incarcat un fisier pentru client';
+          ? 'Clientul a încarcăt documentatia'
+          : 'Echipa a încarcăt un fisier pentru client';
       const visibility = userRole === 'client' ? 'internal' : 'public';
       const timelineMessage = `${uploadMessagePrefix}: ${uploadedNames.join(', ')}.`;
       await addProjectComment({
@@ -2639,9 +2639,9 @@ router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, nex
       req.session.projectFeedback = {
         success:
           uploadedNames.length === 1
-            ? `Fisierul "${uploadedNames[0]}" a fost incarcat cu succes.`
-            : `${uploadedNames.length} fisiere au fost incarcate cu succes.`,
-        activeTab: 'fisiere'
+            ? `Fisierul "${uploadedNames[0]}" a fost încarcăt cu succes.`
+            : `${uploadedNames.length} fișiere au fost încarcăte cu succes.`,
+        activeTab: 'fișiere'
       };
       return redirectToFiles();
     } catch (error) {
@@ -2652,13 +2652,13 @@ router.post('/cont/proiecte/:id/fisiere', requireActiveLicense(), (req, res, nex
 });
 
 router.post(
-  '/cont/proiecte/:id/fisiere/:fileId/sterge',
+  '/cont/proiecte/:id/fișiere/:fileId/sterge',
   ensureRole('admin', 'superadmin', 'redactor'),
   async (req, res, next) => {
     try {
       const projectId = Number(req.params.id);
       const fileId = Number(req.params.fileId);
-      const redirectToFiles = () => res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
+      const redirectToFiles = () => res.redirect(`/cont/proiecte/${projectId}?tab=fișiere`);
 
       const project = await getProjectById(projectId);
       if (!project) {
@@ -2686,7 +2686,7 @@ router.post(
       if (!file || file.project_id !== projectId) {
         req.session.projectFeedback = {
           error: 'Fișierul solicitat nu există sau a fost deja șters.',
-          activeTab: 'fisiere'
+          activeTab: 'fișiere'
         };
         return redirectToFiles();
       }
@@ -2697,7 +2697,7 @@ router.post(
       if (isClientFile && user.role !== 'superadmin') {
         req.session.projectFeedback = {
           error: 'Doar superadministratorii pot șterge fișiere încărcate de client.',
-          activeTab: 'fisiere'
+          activeTab: 'fișiere'
         };
         return redirectToFiles();
       }
@@ -2705,7 +2705,7 @@ router.post(
       if (!isClientFile && !isStaffFile) {
         req.session.projectFeedback = {
           error: 'Fișierul selectat nu poate fi gestionat din această interfață.',
-          activeTab: 'fisiere'
+          activeTab: 'fișiere'
         };
         return redirectToFiles();
       }
@@ -2724,7 +2724,7 @@ router.post(
       if (!canDelete) {
         req.session.projectFeedback = {
           error: 'Nu aveți permisiunea de a șterge acest fișier.',
-          activeTab: 'fisiere'
+          activeTab: 'fișiere'
         };
         return redirectToFiles();
       }
@@ -2743,7 +2743,7 @@ router.post(
 
       req.session.projectFeedback = {
         success: `Fișierul „${file.original_name}” a fost șters.`,
-        activeTab: 'fisiere'
+        activeTab: 'fișiere'
       };
       return redirectToFiles();
     } catch (error) {
@@ -2797,17 +2797,17 @@ router.post(
       });
 
       req.session.projectFeedback = {
-        success: 'Solicitarea pentru documentatie suplimentara a fost trimisa catre client.',
-        activeTab: 'fisiere'
+        success: 'Solicitarea pentru documentatie suplimentara a fost trimisă catre client.',
+        activeTab: 'fișiere'
       };
-      return res.redirect(`/cont/proiecte/${projectId}?tab=fisiere#request-${requestId}`);
+      return res.redirect(`/cont/proiecte/${projectId}?tab=fișiere#request-${requestId}`);
     } catch (error) {
       if (error instanceof z.ZodError) {
         req.session.projectFeedback = {
           error: 'Completeaza mesajul pentru documentatia necesara.',
-          activeTab: 'fisiere'
+          activeTab: 'fișiere'
         };
-        return res.redirect(`/cont/proiecte/${req.params.id}?tab=fisiere`);
+        return res.redirect(`/cont/proiecte/${req.params.id}?tab=fișiere`);
       }
       return next(error);
     }
@@ -2845,16 +2845,16 @@ router.post(
       if (!request || request.project_id !== projectId) {
         req.session.projectFeedback = {
           error: 'Solicitarea de documentatie nu a fost gasita.',
-          activeTab: 'fisiere'
+          activeTab: 'fișiere'
         };
-        return res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
+        return res.redirect(`/cont/proiecte/${projectId}?tab=fișiere`);
       }
       if (request.status === 'closed') {
         req.session.projectFeedback = {
           error: 'Aceasta solicitare este deja marcata ca rezolvata.',
-          activeTab: 'fisiere'
+          activeTab: 'fișiere'
         };
-        return res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
+        return res.redirect(`/cont/proiecte/${projectId}?tab=fișiere`);
       }
 
       await closeDocumentRequest({ requestId, closedBy: user.id });
@@ -2867,16 +2867,16 @@ router.post(
 
       req.session.projectFeedback = {
         success: 'Solicitarea a fost marcata ca rezolvata.',
-        activeTab: 'fisiere'
+        activeTab: 'fișiere'
       };
-      return res.redirect(`/cont/proiecte/${projectId}?tab=fisiere`);
+      return res.redirect(`/cont/proiecte/${projectId}?tab=fișiere`);
     } catch (error) {
       return next(error);
     }
   }
 );
 
-router.get('/cont/proiecte/:id/fisiere/:fileId/descarca', async (req, res, next) => {
+router.get('/cont/proiecte/:id/fișiere/:fileId/descarca', async (req, res, next) => {
   try {
     const projectId = Number(req.params.id);
     const fileId = Number(req.params.fileId);
@@ -3035,7 +3035,7 @@ router
           const targetLevel = ROLE_HIERARCHY[redactorUser.role] || 0;
           if (targetLevel >= actorLevel) {
             req.session.projectFeedback = {
-              error: 'Nu poti aloca proiectul catre un membru cu acelasi grad sau cu grad superior.',
+              error: 'Nu poți aloca proiectul catre un membru cu acelasi grad sau cu grad superior.',
               activeTab: 'detalii'
             };
             return res.redirect(`/cont/proiecte/${project.id}`);
@@ -3132,7 +3132,7 @@ router.get('/cont/proiecte/:id', requireActiveLicense(), async (req, res, next) 
     delete projectFeedback.activeTab;
     delete req.session.projectFeedback;
 
-    const allowedTabs = new Set(['detalii', 'timeline', 'fisiere']);
+    const allowedTabs = new Set(['detalii', 'timeline', 'fișiere']);
     const requestedTab = typeof req.query.tab === 'string' ? req.query.tab : null;
     let activeTab = 'detalii';
     if (feedbackActiveTab && allowedTabs.has(feedbackActiveTab)) {
@@ -3154,7 +3154,7 @@ router.get('/cont/proiecte/:id', requireActiveLicense(), async (req, res, next) 
 
     res.render('pages/project-detail', {
       title: `Proiect ${project.title}`,
-      description: 'Detalii actualizate despre stadiul lucrarii de licenta.',
+      description: 'Detalii actualizate despre stadiul lucrarii de licență.',
       project,
       team,
       projectStatuses: PROJECT_STATUSES,
@@ -3303,7 +3303,7 @@ router.post('/cont/proiecte/:id/mesaj', requireActiveLicense(), async (req, res,
   } catch (error) {
     if (error instanceof z.ZodError || error.message === 'EMPTY_MESSAGE') {
       req.session.projectFeedback = {
-        error: 'Te rugam sa introduci un mesaj pentru a-l trimite in timeline.'
+        error: 'Te rugăm să introduci un mesaj pentru a-l trimite în timeline.'
       };
       return res.redirect(`/cont/proiecte/${req.params.id}`);
     }

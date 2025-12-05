@@ -505,6 +505,37 @@ export async function sendContactSubmissionEmails({ payload, attachments, client
   }
 }
 
+export async function sendRegistrationCredentialsEmail({ fullName, email, password }) {
+  if (!isMailConfigured() || !email || !password) {
+    return;
+  }
+  const normalizedEmail = String(email).toLowerCase();
+  const safeName = fullName ? String(fullName).trim() : 'client';
+  const clientText = [
+    `Bună, ${safeName}!`,
+    '',
+    'Ți-am creat contul în Academia de Licențe.',
+    'Poți accesa platforma folosind credențialele de mai jos:',
+    `Email: ${normalizedEmail}`,
+    `Parolă: ${password}`,
+    '',
+    'Din motive de securitate, te rugăm să schimbi parola după prima autentificare din Setările contului.',
+    'Poți accesa pagina de autentificare la https://www.academiadelicente.ro/autentificare.',
+    '',
+    'Îți mulțumim!',
+    'Echipa Academia de Licențe'
+  ].join('\n');
+
+  await sendRawMail({
+    to: normalizedEmail,
+    subject: 'Datele tale de acces în Academia de Licențe',
+    text: clientText,
+    attachments: [],
+    eventType: 'client_registration_credentials',
+    context: { email: normalizedEmail }
+  });
+}
+
 function sanitizeEmailList(values = [], exclude = []) {
   const exclusions = new Set(exclude.map((item) => String(item || '').toLowerCase()).filter(Boolean));
   return [...new Set(values.map((item) => String(item || '').toLowerCase()).filter((item) => item && !exclusions.has(item)))];

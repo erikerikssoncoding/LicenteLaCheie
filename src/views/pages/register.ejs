@@ -13,23 +13,62 @@
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <div class="col-12">
               <label class="form-label" for="fullName">Nume complet</label>
-              <input class="form-control" type="text" id="fullName" name="fullName" required />
+              <input
+                class="form-control"
+                type="text"
+                id="fullName"
+                name="fullName"
+                minlength="3"
+                required
+                data-required-message="Te rugăm să introduci numele complet."
+              />
             </div>
             <div class="col-md-6">
               <label class="form-label" for="email">Email</label>
-              <input class="form-control" type="email" id="email" name="email" required />
+              <input
+                class="form-control"
+                type="email"
+                id="email"
+                name="email"
+                required
+                data-required-message="Te rugăm să introduci adresa de email."
+              />
             </div>
             <div class="col-md-6">
               <label class="form-label" for="phone">Telefon</label>
-              <input class="form-control" type="tel" id="phone" name="phone" required />
+              <input
+                class="form-control"
+                type="tel"
+                id="phone"
+                name="phone"
+                minlength="6"
+                required
+                data-required-message="Te rugăm să introduci numărul de telefon."
+              />
             </div>
             <div class="col-md-6">
               <label class="form-label" for="password">Parolă</label>
-              <input class="form-control" type="password" id="password" name="password" required />
+              <input
+                class="form-control"
+                type="password"
+                id="password"
+                name="password"
+                minlength="8"
+                required
+                data-required-message="Te rugăm să setezi o parolă."
+              />
             </div>
             <div class="col-md-6">
               <label class="form-label" for="confirmPassword">Confirmă parola</label>
-              <input class="form-control" type="password" id="confirmPassword" name="confirmPassword" required />
+              <input
+                class="form-control"
+                type="password"
+                id="confirmPassword"
+                name="confirmPassword"
+                minlength="8"
+                required
+                data-required-message="Te rugăm să confirmi parola aleasă."
+              />
             </div>
             <div class="col-12 text-end">
               <button class="btn btn-primary" type="submit">Creează cont</button>

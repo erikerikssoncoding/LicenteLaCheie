@@ -27,7 +27,7 @@ const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(60000, Number(process.env.MAIL_TIC
 
 const MAX_EMAIL_RECIPIENTS = 10;
 const CLIENT_HOSTNAME = os.hostname();
-const PUBLIC_WEB_BASE_URL = process.env.PUBLIC_WEB_BASE_URL || 'https://www.academiadelicente.ro';
+const PUBLIC_WEB_BASE_URL = process.env.PUBLIC_WEB_BASE_URL || 'https://academiadelicente.ro';
 
 let ticketSyncTimer = null;
 let ticketSyncInProgress = false;

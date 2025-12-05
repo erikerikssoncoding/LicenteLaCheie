@@ -53,7 +53,13 @@ import {
   markTicketAsContract,
   addTicketLog
 } from '../services/ticketService.js';
-import { sendTestMail, isMailConfigured } from '../services/mailService.js';
+import {
+  isMailConfigured,
+  sendContractStageEmail,
+  sendOfferReadyEmail,
+  sendProjectStatusUpdateEmail,
+  sendTestMail
+} from '../services/mailService.js';
 import {
   listTeamMembers,
   listClients,
@@ -1453,7 +1459,7 @@ router.post(
           description: 'Nu exista o oferta asociata acestui ticket.'
         });
       }
-      await attachOfferDetails(offer.id, {
+      const updatedOffer = await attachOfferDetails(offer.id, {
         amount,
         expiresInHours,
         notes: data.message,
@@ -1462,6 +1468,12 @@ router.post(
         deliveryDate: offer.delivery_date,
         clientName: offer.client_name
       });
+      const ticketAuthor = ticket.created_by ? await getUserById(ticket.created_by) : null;
+      sendOfferReadyEmail({
+        offer: updatedOffer,
+        ticket,
+        client: ticketAuthor
+      }).catch((error) => console.error('Nu s-a putut trimite emailul cu oferta:', error));
       if (data.message && data.message.trim().length > 0) {
         await addReply({
           ticketId,
@@ -1518,6 +1530,11 @@ router.post('/cont/tichete/:id/oferta/accepta', async (req, res, next) => {
       userId: user.id,
       message: 'Oferta a fost acceptată și a fost deschisa etapa de semnare a contractului.'
     });
+    sendContractStageEmail({
+      ticket,
+      client: { email: user.email, fullName: user.fullName },
+      stage: 'draft'
+    }).catch((error) => console.error('Nu s-a putut trimite emailul pentru contract:', error));
     req.session.ticketFeedback = {
       success: 'Ai acceptat oferta. Completeaza datele contractului pentru a continua semnarea.'
     };
@@ -1761,6 +1778,12 @@ router.post(
       userId: user.id,
       message: 'Ticketul a fost transformat pentru semnarea contractului. Te rugam sa completezi datele personale.'
     });
+    const ticketAuthor = ticket.created_by ? await getUserById(ticket.created_by) : null;
+    sendContractStageEmail({
+      ticket,
+      client: ticketAuthor,
+      stage: 'draft'
+    }).catch((error) => console.error('Nu s-a putut trimite emailul de activare contract:', error));
     req.session.ticketFeedback = {
       success: 'Ai activat etapa de semnare. Clientul poate completa acum datele pentru contract.'
     };
@@ -1993,6 +2016,11 @@ router.post('/cont/tichete/:id/contract/semnatura-client', async (req, res, next
       userId: user.id,
       message: 'Beneficiarul a semnat contractul electronic.'
     });
+    sendContractStageEmail({
+      ticket,
+      client: { email: user.email, fullName: user.fullName },
+      stage: 'awaiting_admin'
+    }).catch((error) => console.error('Nu s-a putut trimite notificarea pentru semnatura clientului:', error));
     req.session.ticketFeedback = {
       success: 'Semnatura a fost aplicata. Contractul asteapta aprobarea administratorului.'
     };
@@ -2057,6 +2085,13 @@ router.post(
         userId: user.id,
         message: 'Administratorul a semnat contractul electronic.'
       });
+      const ticketAuthor = ticket.created_by ? await getUserById(ticket.created_by) : null;
+      sendContractStageEmail({
+        ticket,
+        client: ticketAuthor,
+        stage: 'completed',
+        contractNumber: draftUpdate.contractNumber
+      }).catch((error) => console.error('Nu s-a putut trimite notificarea de contract finalizat:', error));
       req.session.ticketFeedback = {
         success: `Contractul a fost finalizat. Numar: ${draftUpdate.contractNumber}.`
       };
@@ -2399,6 +2434,7 @@ router
         }
       }
 
+      const statusInfo = getProjectStatusById(targetStatus);
       await updateProjectStatus({
         projectId: project.id,
         status: targetStatus,
@@ -2406,7 +2442,14 @@ router
         actor: user
       });
 
-      const statusInfo = getProjectStatusById(targetStatus);
+      if (project.client_email) {
+        sendProjectStatusUpdateEmail({
+          project: { ...project, status: targetStatus },
+          statusInfo,
+          notes: data.notes || null
+        }).catch((error) => console.error('Nu s-a putut trimite notificarea de status proiect:', error));
+      }
+
       const statusLabel = statusInfo?.label || targetStatus;
       req.session.projectFeedback = {
         success: `Statusul proiectului a fost actualizat la „${statusLabel}”.`

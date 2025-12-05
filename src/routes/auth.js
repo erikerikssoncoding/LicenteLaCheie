@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { createClient, findUserByEmail, validatePassword } from '../services/userService.js';
+import { createClient, findUserByEmail, getUserById, validatePassword } from '../services/userService.js';
 import { ensureAuthenticated } from '../middleware/auth.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
 import { getSessionCookieClearOptions, SESSION_COOKIE_NAME } from '../config/session.js';
@@ -17,6 +17,7 @@ import {
   verifyPasskeyAuthentication
 } from '../services/passkeyService.js';
 import { sendRegistrationCredentialsEmail } from '../services/mailService.js';
+import { consumeOneTimeLoginToken } from '../services/loginLinkService.js';
 
 const router = Router();
 
@@ -28,6 +29,37 @@ router.get('/autentificare', (req, res) => {
     title: 'Autentificare cont client și echipă',
     description: 'Accesează panoul tău personalizat pentru a urmări proiectele de licență și comunicările.'
   });
+});
+
+router.get('/autentificare/link/:token', async (req, res, next) => {
+  try {
+    const payload = consumeOneTimeLoginToken(req.params.token);
+    if (!payload) {
+      return res.status(410).render('pages/login', {
+        title: 'Autentificare cont client și echipă',
+        description: 'Linkul de acces nu mai este disponibil.',
+        error: 'Linkul de autentificare nu mai este valid. Te rugăm să folosești emailul și parola.'
+      });
+    }
+    const user = await getUserById(payload.userId);
+    if (!user || !user.is_active) {
+      return res.status(410).render('pages/login', {
+        title: 'Autentificare cont client și echipă',
+        description: 'Contul asociat linkului nu mai este activ.',
+        error: 'Contul este dezactivat sau inexistent.'
+      });
+    }
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      fullName: user.full_name,
+      role: user.role,
+      phone: user.phone
+    };
+    return res.redirect('/cont');
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.post('/autentificare', async (req, res, next) => {
@@ -161,11 +193,12 @@ router.post('/inregistrare', async (req, res, next) => {
         error: 'Emailul este deja folosit.'
       });
     }
-    await createClient(payload);
+    const userId = await createClient(payload);
     await sendRegistrationCredentialsEmail({
       fullName: payload.fullName,
       email: payload.email,
-      password: payload.password
+      password: payload.password,
+      userId
     }).catch((error) => console.error('Nu s-a putut trimite emailul cu credențiale:', error));
     return res.render('pages/register-success', {
       title: 'Cont creat cu succes',

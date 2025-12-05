@@ -22,7 +22,6 @@ const MAIL_ALLOW_INVALID_CERTS = String(process.env.MAIL_ALLOW_INVALID_CERTS || 
 const MAIL_IMAP_HOST = process.env.MAIL_IMAP_HOST || null;
 const MAIL_IMAP_PORT = Number(process.env.MAIL_IMAP_PORT || 993);
 const MAIL_IMAP_SECURE = String(process.env.MAIL_IMAP_SECURE || 'true').toLowerCase() !== 'false';
-const MAIL_IMAP_SENT_FOLDER = process.env.MAIL_IMAP_SENT_FOLDER || 'Sent';
 const MAIL_IMAP_INBOX = process.env.MAIL_IMAP_INBOX || 'INBOX';
 const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(60000, Number(process.env.MAIL_TICKET_SYNC_INTERVAL_MS || 300000));
 
@@ -441,38 +440,6 @@ async function sendRawMail({ to, subject, text, attachments, replyTo = null, eve
     await connection.command('QUIT', 221);
     await safeLogMailEvent({ eventType, subject, recipients, status: 'sent', context });
 
-    if (isImapConfigured()) {
-      const client = new ImapFlow({
-        host: MAIL_IMAP_HOST,
-        port: MAIL_IMAP_PORT,
-        secure: MAIL_IMAP_SECURE,
-        logger: false,
-        tls: { rejectUnauthorized: !MAIL_ALLOW_INVALID_CERTS },
-        auth: {
-          user: MAIL_USER,
-          pass: MAIL_PASSWORD
-        }
-      });
-      try {
-        await client.connect();
-        await client.append(MAIL_IMAP_SENT_FOLDER, mimeMessage);
-      } catch (imapError) {
-        await safeLogMailEvent({
-          eventType,
-          subject,
-          recipients,
-          status: 'sent_but_not_saved',
-          errorMessage: imapError?.message || 'UNKNOWN_IMAP_ERROR',
-          context
-        });
-      } finally {
-        try {
-          await client.logout();
-        } catch (logoutError) {
-          console.error('Nu s-a putut inchide conexiunea IMAP:', logoutError?.message || logoutError);
-        }
-      }
-    }
     return true;
   } catch (error) {
     await safeLogMailEvent({ eventType, subject, recipients, status: 'error', errorMessage: error.message, context });
@@ -900,7 +867,10 @@ export async function sendTicketReplyNotification({
   const senderEmail = author.email ? String(author.email).toLowerCase() : null;
   const baseContext = { ticketId: ticket.id, displayCode: ticket.display_code, authorId: author.id };
 
-  const adminRecipients = sanitizeEmailList(getAdminNotificationRecipients(adminEmails), [senderEmail, normalizedClientEmail].filter(Boolean));
+  const adminRecipients = sanitizeEmailList(
+    getAdminNotificationRecipients(adminEmails),
+    normalizedClientEmail ? [normalizedClientEmail] : []
+  );
   const clientRecipients = normalizedClientEmail && senderEmail !== normalizedClientEmail ? [normalizedClientEmail] : [];
   const replySummary = message.length > 500 ? `${message.slice(0, 500)}…` : message;
   const isClientAuthor = author.role === 'client';

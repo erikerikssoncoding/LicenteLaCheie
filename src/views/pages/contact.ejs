@@ -8,24 +8,36 @@
         <h1 class="section-title mt-3">Discută cu echipa noastră</h1>
         <p class="section-subtitle section-subtitle-start">Hai să povestim despre proiectul tău și să găsim împreună cea mai bună soluție.</p>
         <div class="glass-card mt-4 h-100">
-          <ul class="list-unstyled mb-0 vstack gap-3">
-            <li>
-              <strong>Adresă</strong>
-              <p class="mb-0 text-muted">Bd. Pipera nr. 1/I, construcția C2, et. 7, biroul 10, compartiment 12, Voluntari, Ilfov</p>
-            </li>
-            <li>
-              <strong>Email</strong>
-              <p class="mb-0 text-muted"><a class="link-dark text-decoration-none" href="mailto:office@academiadelicente.ro">office@academiadelicente.ro</a></p>
-            </li>
-            <li>
-              <strong>Telefon</strong>
-              <p class="mb-0 text-muted"><a class="link-dark text-decoration-none" href="tel:+40756856395">0756856395</a></p>
-            </li>
-            <li>
-              <strong>Program</strong>
-              <p class="mb-0 text-muted">Luni – Vineri · 09:00 – 18:00</p>
-            </li>
-          </ul>
+          <div class="row align-items-center g-4 h-100">
+            <div class="col-sm-7">
+              <ul class="list-unstyled mb-0 vstack gap-3">
+                <li>
+                  <strong>Adresă</strong>
+                  <p class="mb-0 text-muted">Bd. Pipera nr. 1/I, construcția C2, et. 7, biroul 10, compartiment 12, Voluntari, Ilfov</p>
+                </li>
+                <li>
+                  <strong>Email</strong>
+                  <p class="mb-0 text-muted"><a class="link-dark text-decoration-none" href="mailto:office@academiadelicente.ro">office@academiadelicente.ro</a></p>
+                </li>
+                <li>
+                  <strong>Telefon</strong>
+                  <p class="mb-0 text-muted"><a class="link-dark text-decoration-none" href="tel:+40756856395">0756856395</a></p>
+                </li>
+                <li>
+                  <strong>Program</strong>
+                  <p class="mb-0 text-muted">Luni – Duminică · 09:00 – 23:00</p>
+                </li>
+              </ul>
+            </div>
+            <div class="col-sm-5 text-center">
+              <img
+                src="/img/agent-mark.svg"
+                class="img-fluid h-100 object-fit-contain"
+                style="max-height: 220px"
+                alt="Echipă pregătită să preia solicitarea ta"
+              />
+            </div>
+          </div>
         </div>
       </div>
       <div class="col-lg-7 d-flex flex-column">
@@ -41,8 +53,8 @@
                   </svg>
                 </span>
                 <span class="text-body flex-grow-1">
-                  <strong>Vrei o ofertă personalizată mai rapid?</strong>
-                  Cere oferta direct și îți răspundem în maximum 30 de minute în timpul programului de lucru.
+                  <strong class="d-block">Vrei o ofertă personalizată mai rapid?</strong>
+                  <span class="d-block">Cere oferta direct și îți răspundem în maximum 30 de minute în timpul programului de lucru.</span>
                 </span>
                 <a class="btn btn-success ms-auto" href="/oferta">Apasă aici</a>
               </div>
@@ -67,6 +79,7 @@
                 value="<%= request.body?.fullName || currentUser?.fullName || '' %>"
                 <%= currentUser ? 'readonly' : '' %>
                 required
+                data-required-message="Te rugăm să introduci numele complet."
               />
             </div>
             <div class="col-md-6">
@@ -79,6 +92,7 @@
                 value="<%= request.body?.email || currentUser?.email || '' %>"
                 <%= currentUser ? 'readonly' : '' %>
                 required
+                data-required-message="Te rugăm să introduci adresa de email."
               />
             </div>
             <div class="col-12">
@@ -96,13 +110,21 @@
                   title="Introdu un număr de telefon internațional valid, începând cu + și prefixul țării."
                   required
                   data-phone-message="Completează numărul cu prefixul internațional al țării tale (ex: +4917..., +4074...)."
+                  data-required-message="Te rugăm să introduci numărul de telefon."
                   data-phone-input
                 />
               </div>
             </div>
             <div class="col-12">
               <label class="form-label" for="message">Mesaj</label>
-              <textarea class="form-control" id="message" name="message" rows="5" required><%= request.body?.message || '' %></textarea>
+              <textarea
+                class="form-control"
+                id="message"
+                name="message"
+                rows="5"
+                required
+                data-required-message="Scrie mesajul pe care dorești să ni-l transmiți."
+              ><%= request.body?.message || '' %></textarea>
             </div>
             <div class="col-12">
               <label class="form-label" for="attachment">Atașament (opțional)</label>
@@ -124,6 +146,7 @@
                   id="acceptTerms"
                   name="acceptTerms"
                   required
+                  data-required-message="Trebuie să îți exprimi acordul pentru termeni și confidențialitate."
                 />
                 <label class="form-check-label" for="acceptTerms">
                   Sunt de acord cu <a class="link-primary" href="/termeni-si-conditii" target="_blank">Termenii și Condițiile</a>

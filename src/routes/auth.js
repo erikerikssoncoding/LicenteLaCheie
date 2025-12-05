@@ -16,6 +16,7 @@ import {
   generatePasskeyAuthenticationOptions,
   verifyPasskeyAuthentication
 } from '../services/passkeyService.js';
+import { sendRegistrationCredentialsEmail } from '../services/mailService.js';
 
 const router = Router();
 
@@ -161,6 +162,11 @@ router.post('/inregistrare', async (req, res, next) => {
       });
     }
     await createClient(payload);
+    await sendRegistrationCredentialsEmail({
+      fullName: payload.fullName,
+      email: payload.email,
+      password: payload.password
+    }).catch((error) => console.error('Nu s-a putut trimite emailul cu credențiale:', error));
     return res.render('pages/register-success', {
       title: 'Cont creat cu succes',
       description: 'Contul tău a fost creat. Te poți autentifica pentru a gestiona proiectele.'

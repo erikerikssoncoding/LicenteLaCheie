@@ -1333,7 +1333,7 @@ router.get('/cont/tichete/:id/timeline', requireActiveLicense(), async (req, res
   }
 });
 
-router.post('/cont/tichete/:id/răspuns', requireActiveLicense(), async (req, res, next) => {
+router.post('/cont/tichete/:id/raspuns', requireActiveLicense(), async (req, res, next) => {
   try {
     const schema = z.object({
       message: z.string().min(2)
@@ -1367,7 +1367,7 @@ router.post('/cont/tichete/:id/răspuns', requireActiveLicense(), async (req, re
     }
     if (ticket.merged_into_ticket_id) {
       req.session.ticketFeedback = {
-        error: 'Acest ticket a fost fuzionat în altul și nu mai permite răspunsuri.'
+        error: 'Acest ticket a fost fuzionat in altul si nu mai permite raspunsuri.'
       };
       return res.redirect(`/cont/tichete/${req.params.id}`);
     }
@@ -1398,7 +1398,7 @@ router.post('/cont/tichete/:id/răspuns', requireActiveLicense(), async (req, re
       clientEmail: ticketAuthor?.email || null,
       adminEmails: projectAdmins,
       projectTitle: project?.title || null
-    }).catch((error) => console.error('Nu s-a putut trimite notificarea de răspuns ticket:', error));
+    }).catch((error) => console.error('Nu s-a putut trimite notificarea de raspuns ticket:', error));
     res.redirect(`/cont/tichete/${req.params.id}`);
   } catch (error) {
     next(error);

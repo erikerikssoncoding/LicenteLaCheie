@@ -53,6 +53,7 @@ import {
   markTicketAsContract,
   addTicketLog
 } from '../services/ticketService.js';
+import { sendTestMail, isMailConfigured } from '../services/mailService.js';
 import {
   listTeamMembers,
   listClients,
@@ -779,6 +780,54 @@ router.post('/cont/securitate/licență', ensureRole('superadmin'), async (req, 
       return res.redirect('/cont#securitate');
     }
     next(error);
+  }
+});
+
+router.post('/cont/securitate/test-mail', ensureRole('superadmin'), async (req, res) => {
+  try {
+    const schema = z.object({
+      recipient: z
+        .string()
+        .trim()
+        .email()
+        .optional()
+        .transform((value) => (value && value.length ? value : null))
+    });
+    const data = schema.parse(req.body);
+    const chosenRecipient = data.recipient || req.session.user.email || process.env.MAIL_NOTIFICATIONS_TO || null;
+
+    if (!chosenRecipient) {
+      req.session.securityFlash = {
+        type: 'error',
+        message: 'Nu există o adresă de email disponibilă pentru test.'
+      };
+      return res.redirect('/cont#securitate');
+    }
+
+    if (!isMailConfigured()) {
+      req.session.securityFlash = {
+        type: 'error',
+        message: 'Sistemul de email nu este configurat (MAIL_HOST/MAIL_FROM lipsesc).'
+      };
+      return res.redirect('/cont#securitate');
+    }
+
+    await sendTestMail({ recipient: chosenRecipient, actor: req.session.user });
+    req.session.securityFlash = {
+      type: 'success',
+      message: `Emailul de test a fost trimis către ${chosenRecipient}. Verifică inboxul.`
+    };
+    return res.redirect('/cont#securitate');
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      req.session.securityFlash = { type: 'error', message: 'Introdu o adresă de email validă pentru test.' };
+      return res.redirect('/cont#securitate');
+    }
+    req.session.securityFlash = {
+      type: 'error',
+      message: `Trimiterea emailului de test a eșuat: ${error?.message || 'eroare necunoscută'}`
+    };
+    return res.redirect('/cont#securitate');
   }
 });
 

@@ -151,6 +151,19 @@
                             <%= user.is_active ? 'Dezactiveaza' : 'Activeaza' %>
                           </button>
                         </form>
+                        <% if (currentUser.role === 'superadmin' && user.id !== currentUser.id && !user.is_protected) { %>
+                        <form action="/cont/utilizatori/<%= user.id %>/sterge" method="post" class="d-inline">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                          <input type="hidden" name="returnTo" value="/cont/utilizatori" />
+                          <button
+                            class="btn btn-sm btn-outline-dark"
+                            type="submit"
+                            onclick="return confirm('Ești sigur că vrei să ștergi definitiv acest utilizator? Aceasta acțiune nu poate fi anulată.')"
+                          >
+                            Șterge
+                          </button>
+                        </form>
+                        <% } %>
                       </div>
                     </td>
                   </tr>

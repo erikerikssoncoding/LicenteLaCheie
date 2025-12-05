@@ -107,6 +107,20 @@
               </li>
             </ul>
           </div>
+          <% if (currentUser.role === 'superadmin') { %>
+          <div class="d-flex gap-2 ms-lg-auto">
+            <form action="/cont/proiecte/<%= project.id %>/sterge" method="post">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <button
+                class="btn btn-outline-danger"
+                type="submit"
+                onclick="return confirm('Ești sigur că vrei să ștergi definitiv acest proiect și toate datele aferente?')"
+              >
+                Șterge proiectul
+              </button>
+            </form>
+          </div>
+          <% } %>
         </div>
         <% if (totalStatuses || deadlineIso) { %>
         <div class="project-progress-summary mt-4">

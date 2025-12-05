@@ -25,6 +25,33 @@
             </div>
             <button class="btn btn-primary w-100" type="submit">Autentificare</button>
           </form>
+          <div class="text-center mt-3">
+            <button class="btn btn-link text-decoration-none" type="button" id="toggle-reset">Ai uitat parola?</button>
+          </div>
+          <div id="reset-card" class="card mt-3 shadow-sm" style="display: none;">
+            <div class="card-body">
+              <h2 class="h6 mb-3">Resetare parolă securizată</h2>
+              <div id="reset-request-feedback" class="alert alert-info" role="alert">
+                Introdu emailul pentru a primi un link securizat de resetare. Nu vom afișa dacă adresa există sau nu.
+              </div>
+              <form id="reset-request-form" class="vstack gap-2 mb-3">
+                <label class="form-label" for="resetEmail">Email</label>
+                <input class="form-control" type="email" id="resetEmail" name="email" placeholder="Emailul tău" />
+                <button class="btn btn-outline-primary" type="submit">Trimite link de resetare</button>
+              </form>
+              <hr />
+              <form id="reset-confirm-form" class="vstack gap-2">
+                <label class="form-label" for="resetTokenInput">Cod resetare din email</label>
+                <input class="form-control" type="text" id="resetTokenInput" name="token" placeholder="Token de resetare" />
+                <label class="form-label" for="newPassword">Parolă nouă</label>
+                <input class="form-control" type="password" id="newPassword" name="password" placeholder="Parola nouă" />
+                <label class="form-label" for="confirmNewPassword">Confirmă parola</label>
+                <input class="form-control" type="password" id="confirmNewPassword" name="confirmPassword" placeholder="Confirmă parola" />
+                <button class="btn btn-success" type="submit">Resetează parola</button>
+              </form>
+              <div id="reset-confirm-feedback" class="mt-3"></div>
+            </div>
+          </div>
           <div class="text-center text-muted my-3">sau</div>
           <div class="d-grid gap-2">
             <button id="btn-login-passkey" class="btn btn-outline-primary btn-lg d-flex align-items-center justify-content-center gap-2" type="button">
@@ -74,5 +101,88 @@
       errorEl.style.display = 'block';
     }
   });
+
+  const resetCard = document.getElementById('reset-card');
+  const toggleReset = document.getElementById('toggle-reset');
+  const resetRequestForm = document.getElementById('reset-request-form');
+  const resetConfirmForm = document.getElementById('reset-confirm-form');
+  const resetRequestFeedback = document.getElementById('reset-request-feedback');
+  const resetConfirmFeedback = document.getElementById('reset-confirm-feedback');
+  const presetResetToken = '<%= resetToken || "" %>';
+  const csrfToken = document.querySelector('input[name="_csrf"]').value;
+
+  function showResetMessage(element, message, type = 'info') {
+    element.className = `alert alert-${type}`;
+    element.textContent = message;
+    element.style.display = 'block';
+  }
+
+  toggleReset.addEventListener('click', () => {
+    resetCard.style.display = resetCard.style.display === 'none' ? 'block' : 'none';
+  });
+
+  resetRequestForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const email = document.getElementById('resetEmail').value.trim();
+    showResetMessage(resetRequestFeedback, 'Se trimite cererea...', 'info');
+    try {
+      const response = await fetch('/autentificare/resetare', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({ email })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Nu am putut trimite cererea.');
+      }
+      showResetMessage(resetRequestFeedback, payload.message || 'Dacă există un cont, vei primi curând instrucțiunile.', 'success');
+    } catch (error) {
+      showResetMessage(resetRequestFeedback, error.message || 'Nu am putut trimite cererea.', 'danger');
+    }
+  });
+
+  resetConfirmForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const token = document.getElementById('resetTokenInput').value.trim();
+    const password = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmNewPassword').value;
+    if (!token || !password) {
+      showResetMessage(resetConfirmFeedback, 'Completează tokenul și parola nouă.', 'danger');
+      return;
+    }
+    if (password !== confirmPassword) {
+      showResetMessage(resetConfirmFeedback, 'Parolele nu coincid.', 'danger');
+      return;
+    }
+    try {
+      const response = await fetch('/autentificare/resetare/confirma', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({ token, password })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Resetarea parolei a eșuat.');
+      }
+      showResetMessage(
+        resetConfirmFeedback,
+        payload.message || 'Parola a fost resetată. Te poți autentifica cu noua parolă.',
+        'success'
+      );
+    } catch (error) {
+      showResetMessage(resetConfirmFeedback, error.message || 'Resetarea parolei a eșuat.', 'danger');
+    }
+  });
+
+  if (presetResetToken) {
+    resetCard.style.display = 'block';
+    document.getElementById('resetTokenInput').value = presetResetToken;
+  }
 </script>
 <%- include('../partials/footer') %>

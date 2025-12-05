@@ -546,14 +546,14 @@ a:hover {
 }
 
 .service-icon {
-  width: 56px;
-  height: 56px;
+  width: 68px;
+  height: 68px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.2);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.75rem;
+  font-size: 2rem;
 }
 
 .benefit-card {
@@ -574,6 +574,58 @@ a:hover {
   justify-content: center;
   font-size: 1.25rem;
   margin-bottom: 0.5rem;
+}
+
+.brand-showcase {
+  margin-top: 3rem;
+}
+
+.brand-showcase-panel {
+  background: var(--surface-strong);
+  border: 1px solid var(--border-color);
+  border-radius: 22px;
+  padding: 2rem;
+  min-height: 190px;
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.12);
+}
+
+.brand-showcase-gradient {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.12), transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(37, 99, 235, 0.18), transparent 50%);
+  pointer-events: none;
+}
+
+.brand-showcase-logo {
+  position: absolute;
+  right: 1.75rem;
+  bottom: 1.25rem;
+  max-width: 360px;
+  height: auto;
+  filter: drop-shadow(0 12px 28px rgba(15, 23, 42, 0.12));
+}
+
+.resource-card {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  padding: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+}
+
+.resource-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgba(37, 99, 235, 0.1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
 }
 
 .process-flow {
@@ -755,6 +807,21 @@ a:hover {
   padding: 1.25rem;
 }
 
+.about-photo-frame {
+  background: var(--surface);
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  padding: 1rem;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.1);
+}
+
+.about-photo {
+  border-radius: 16px;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .about-stats {
   display: flex;
   flex-wrap: wrap;
@@ -769,9 +836,23 @@ a:hover {
   padding: 1rem;
   font-size: 0.95rem;
   color: var(--text-secondary);
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
 }
 
-.about-stat span {
+.about-stat-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: rgba(37, 99, 235, 0.16);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.about-stat-number {
   display: block;
   font-size: 1.4rem;
   font-weight: 700;

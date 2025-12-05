@@ -83,7 +83,6 @@ const cspMiddleware = helmet.contentSecurityPolicy({
       "'self'",
       "data:",
       "https://images.unsplash.com",
-      "https://i.ytimg.com",
       "https://www.googletagmanager.com",
       "https://www.google-analytics.com"
     ],
@@ -96,7 +95,6 @@ const cspMiddleware = helmet.contentSecurityPolicy({
     ],
     "frame-src": [
       "'self'",
-      "https://www.youtube-nocookie.com",
       "https://challenges.cloudflare.com"
     ],
     "upgrade-insecure-requests": []

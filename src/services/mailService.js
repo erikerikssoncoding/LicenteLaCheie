@@ -3,6 +3,7 @@ import tls from 'tls';
 import os from 'os';
 import { promises as fs } from 'fs';
 import crypto from 'crypto';
+import { ImapFlow } from 'imapflow';
 import { logMailEvent } from './notificationLogService.js';
 
 const MAIL_HOST = process.env.MAIL_HOST || null;
@@ -14,6 +15,10 @@ const MAIL_PASSWORD = process.env.MAIL_PASSWORD || null;
 const MAIL_FROM = process.env.MAIL_FROM || null;
 const MAIL_NOTIFICATIONS_TO = process.env.MAIL_NOTIFICATIONS_TO || null;
 const MAIL_ALLOW_INVALID_CERTS = String(process.env.MAIL_ALLOW_INVALID_CERTS || 'false').toLowerCase() === 'true';
+const MAIL_IMAP_HOST = process.env.MAIL_IMAP_HOST || null;
+const MAIL_IMAP_PORT = Number(process.env.MAIL_IMAP_PORT || 993);
+const MAIL_IMAP_SECURE = String(process.env.MAIL_IMAP_SECURE || 'true').toLowerCase() !== 'false';
+const MAIL_IMAP_SENT_FOLDER = process.env.MAIL_IMAP_SENT_FOLDER || 'Sent';
 
 const MAX_EMAIL_RECIPIENTS = 10;
 const CLIENT_HOSTNAME = os.hostname();
@@ -298,7 +303,11 @@ async function createConnection({ host, port, secure }) {
 }
 
 export function isMailConfigured() {
-  return Boolean(MAIL_HOST && MAIL_FROM);
+  return Boolean(MAIL_HOST && MAIL_FROM && MAIL_USER && MAIL_PASSWORD);
+}
+
+function isImapConfigured() {
+  return Boolean(MAIL_IMAP_HOST && MAIL_USER && MAIL_PASSWORD);
 }
 
 async function sendRawMail({ to, subject, text, attachments, eventType = 'generic', context = null }) {
@@ -344,6 +353,39 @@ async function sendRawMail({ to, subject, text, attachments, eventType = 'generi
     await connection.sendData(`${mimeMessage}\r\n`);
     await connection.command('QUIT', 221);
     await safeLogMailEvent({ eventType, subject, recipients, status: 'sent', context });
+
+    if (isImapConfigured()) {
+      const client = new ImapFlow({
+        host: MAIL_IMAP_HOST,
+        port: MAIL_IMAP_PORT,
+        secure: MAIL_IMAP_SECURE,
+        logger: false,
+        tls: { rejectUnauthorized: !MAIL_ALLOW_INVALID_CERTS },
+        auth: {
+          user: MAIL_USER,
+          pass: MAIL_PASSWORD
+        }
+      });
+      try {
+        await client.connect();
+        await client.append(MAIL_IMAP_SENT_FOLDER, mimeMessage);
+      } catch (imapError) {
+        await safeLogMailEvent({
+          eventType,
+          subject,
+          recipients,
+          status: 'sent_but_not_saved',
+          errorMessage: imapError?.message || 'UNKNOWN_IMAP_ERROR',
+          context
+        });
+      } finally {
+        try {
+          await client.logout();
+        } catch (logoutError) {
+          console.error('Nu s-a putut inchide conexiunea IMAP:', logoutError?.message || logoutError);
+        }
+      }
+    }
     return true;
   } catch (error) {
     await safeLogMailEvent({ eventType, subject, recipients, status: 'error', errorMessage: error.message, context });

@@ -84,6 +84,12 @@ Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari 
 
    In `.env` este setat `ENFORCE_HTTPS=true`, astfel incat traficul HTTP este redirectionat automat.
 
+## Configurare e-mail
+
+- SMTP-ul se configureaza prin variabilele existente (`MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`/`MAIL_STARTTLS`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_ALLOW_INVALID_CERTS`).
+- Pentru a salva mesajele trimise si in folderul „Sent”, defineste conexiunea IMAP: `MAIL_IMAP_HOST`, `MAIL_IMAP_PORT`, `MAIL_IMAP_SECURE`, `MAIL_IMAP_SENT_FOLDER` (ex. `Sent`). Se folosesc aceleasi credentiale `MAIL_USER`/`MAIL_PASSWORD`.
+- Salvarea in „Sent” este optionala: daca IMAP nu este configurat, e-mailul este trimis dar nu se incearca arhivarea; daca arhivarea esueaza, evenimentul este logat cu status `sent_but_not_saved`.
+
 ## Structura proiectului
 
 ```

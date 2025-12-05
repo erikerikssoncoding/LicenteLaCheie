@@ -25,6 +25,13 @@
       </form>
     </div>
 
+    <% if (feedback && feedback.success) { %>
+    <div class="alert alert-success" role="alert"><%= feedback.success %></div>
+    <% } %>
+    <% if (feedback && feedback.error) { %>
+    <div class="alert alert-danger" role="alert"><%= feedback.error %></div>
+    <% } %>
+
     <% if (licenseRestricted) { %>
     <div class="alert alert-warning" role="alert">
       Accesul la funcțiile de gestionare este limitat deoarece licența platformei a expirat. Poți vizualiza tichetele, dar nu le poți deschide sau actualiza până la reînnoirea licenței.

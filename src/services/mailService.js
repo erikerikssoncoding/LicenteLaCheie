@@ -637,6 +637,35 @@ export async function sendRegistrationCredentialsEmail({ fullName, email, passwo
   });
 }
 
+export async function sendPasswordResetEmail({ user, token, expiresAt }) {
+  if (!isMailConfigured() || !user?.email || !token) {
+    return;
+  }
+  const normalizedEmail = String(user.email).toLowerCase();
+  const resetLink = buildPublicUrl(`/autentificare?resetToken=${encodeURIComponent(token)}`);
+  const expiresLabel = expiresAt ? new Date(expiresAt).toLocaleString('ro-RO') : null;
+  const clientText = [
+    `Bună, ${user.full_name || user.fullName || 'utilizator'}!`,
+    '',
+    'Am primit o cerere de resetare a parolei pentru contul tău din Academia de Licențe.',
+    `Accesează linkul securizat pentru a seta o parolă nouă: ${resetLink}`,
+    expiresLabel ? `Linkul expiră la: ${expiresLabel}.` : 'Linkul este valabil timp limitat.',
+    '',
+    'Dacă nu ai inițiat această solicitare, poți ignora mesajul și parola ta va rămâne neschimbată.',
+    '',
+    'Echipa Academia de Licențe'
+  ].join('\n');
+
+  await sendRawMail({
+    to: normalizedEmail,
+    subject: 'Instrucțiuni resetare parolă – Academia de Licențe',
+    text: clientText,
+    attachments: [],
+    eventType: 'password_reset_request',
+    context: { userId: user.id }
+  });
+}
+
 export async function sendProjectStatusUpdateEmail({ project, statusInfo, notes = null }) {
   if (!isMailConfigured() || !project?.client_email) {
     return;

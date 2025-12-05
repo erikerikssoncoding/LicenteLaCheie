@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import pool from '../config/db.js';
 import { clearTrustedDevicesForUser, listTrustedDevicesForUser } from './trustedDeviceService.js';
 import { listPasskeysForUser } from './passkeyService.js';
+import { deleteProjectById, deleteTicketById } from './dangerousDeleteService.js';
 
 export const ROLE_HIERARCHY = {
   client: 1,
@@ -399,4 +400,79 @@ export async function updateManagedUserDetails({
     [fullName, normalizedEmail, phone || null, role, nextMustReset, nextStatus, targetId]
   );
   return true;
+}
+
+export async function resetPasswordWithToken({ userId, newPassword }) {
+  const targetId = Number(userId);
+  if (Number.isNaN(targetId)) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await pool.query(
+    `UPDATE users
+        SET password_hash = ?,
+            must_reset_password = 0,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?`,
+    [passwordHash, targetId]
+  );
+  await clearTrustedDevicesForUser(targetId);
+}
+
+export async function deleteUserCompletely({ actor, userId }) {
+  if (!actor) {
+    throw new Error('UNAUTHORIZED');
+  }
+  if (actor.role !== 'superadmin') {
+    throw new Error('INSUFFICIENT_PRIVILEGES');
+  }
+  const targetId = Number(userId);
+  if (Number.isNaN(targetId)) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  if (targetId === PROTECTED_USER_ID) {
+    throw new Error('PROTECTED_USER');
+  }
+  if (actor.id === targetId) {
+    throw new Error('SELF_MODIFICATION');
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.query('SELECT * FROM users WHERE id = ?', [targetId]);
+    const target = rows[0] || null;
+    if (!target) {
+      throw new Error('USER_NOT_FOUND');
+    }
+    const actorLevel = ROLE_HIERARCHY[actor.role] || 0;
+    const targetLevel = ROLE_HIERARCHY[target.role] || 0;
+    if (targetLevel >= actorLevel) {
+      throw new Error('INSUFFICIENT_PRIVILEGES');
+    }
+
+    await connection.query('UPDATE offers SET user_id = NULL WHERE user_id = ?', [targetId]);
+    await connection.query('UPDATE projects SET assigned_admin_id = NULL WHERE assigned_admin_id = ?', [targetId]);
+    await connection.query('UPDATE projects SET assigned_editor_id = NULL WHERE assigned_editor_id = ?', [targetId]);
+    await connection.query('UPDATE project_timeline_entries SET created_by = NULL WHERE created_by = ?', [targetId]);
+
+    const [projectRows] = await connection.query('SELECT id FROM projects WHERE client_id = ?', [targetId]);
+    for (const row of projectRows) {
+      await deleteProjectById({ projectId: row.id, actor, connection });
+    }
+
+    const [ticketRows] = await connection.query('SELECT id FROM tickets WHERE created_by = ?', [targetId]);
+    for (const row of ticketRows) {
+      await deleteTicketById({ ticketId: row.id, actor, connection });
+    }
+
+    await connection.query('DELETE FROM users WHERE id = ?', [targetId]);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }

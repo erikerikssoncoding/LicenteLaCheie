@@ -75,8 +75,10 @@ import {
   forceChangeUserPassword,
   getManagedUserProfile,
   updateManagedUserDetails,
-  clearUserSecurityData
+  clearUserSecurityData,
+  deleteUserCompletely
 } from '../services/userService.js';
+import { deleteProjectById, deleteTicketById } from '../services/dangerousDeleteService.js';
 import { listSecuritySettings, updateSecuritySetting } from '../services/securityService.js';
 import {
   getTrustedDeviceCookieClearOptions,
@@ -583,13 +585,36 @@ router.get('/cont/proiecte', requireActiveLicense(), async (req, res, next) => {
   try {
     const user = req.session.user;
     const projects = await listProjectsForUser(user);
+    const flash = req.session.flash || {};
+    delete req.session.flash;
     res.render('pages/project-list', {
       title: 'Proiecte',
       description: 'Vizualizeaza proiectele alocate și acceseaza rapid detaliile fiecaruia.',
       projects,
-      projectStatusMap: buildProjectStatusDictionary()
+      projectStatusMap: buildProjectStatusDictionary(),
+      flashMessage: flash.success || null,
+      errorMessage: flash.error || null
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/proiecte/:id/sterge', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const projectId = Number(req.params.id);
+    if (Number.isNaN(projectId)) {
+      req.session.flash = { error: 'Proiect invalid.' };
+      return res.redirect('/cont/proiecte');
+    }
+    await deleteProjectById({ projectId, actor: req.session.user });
+    req.session.flash = { success: 'Proiectul a fost șters definitiv.' };
+    return res.redirect('/cont/proiecte');
+  } catch (error) {
+    if (error.message === 'INSUFFICIENT_PRIVILEGES') {
+      req.session.flash = { error: 'Doar superadministratorii pot șterge proiecte.' };
+      return res.redirect('/cont/proiecte');
+    }
     next(error);
   }
 });
@@ -709,13 +734,35 @@ router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, 
       const kindMatch = filters.kind === 'all' || ticket.kind === filters.kind;
       return statusMatch && kindMatch;
     });
+    const feedback = req.session.ticketFeedback || {};
+    delete req.session.ticketFeedback;
     res.render('pages/ticket-management', {
       title: 'Gestionare tichete',
       description: 'Vizualizeaza rapid solicitarile clientilor și actualizeaza statusurile direct din panoul de control.',
       tickets: filteredTickets,
-      filters
+      filters,
+      feedback
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/:id/sterge', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.id);
+    if (Number.isNaN(ticketId)) {
+      req.session.ticketFeedback = { error: 'Ticket invalid.' };
+      return res.redirect('/cont/tichete');
+    }
+    await deleteTicketById({ ticketId, actor: req.session.user });
+    req.session.ticketFeedback = { success: 'Ticketul a fost șters definitiv.' };
+    return res.redirect('/cont/tichete');
+  } catch (error) {
+    if (error.message === 'INSUFFICIENT_PRIVILEGES') {
+      req.session.ticketFeedback = { error: 'Doar superadministratorii pot șterge tichete.' };
+      return res.redirect('/cont/tichete');
+    }
     next(error);
   }
 });
@@ -1102,6 +1149,29 @@ router.post('/cont/utilizatori/:id/securitate/reset', ensureRole('superadmin'), 
     }
     if (error.message === 'USER_NOT_FOUND') {
       req.session.flash = { error: 'Utilizatorul selectat nu exista.' };
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
+    }
+    next(error);
+  }
+});
+
+router.post('/cont/utilizatori/:id/sterge', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.id);
+    if (Number.isNaN(targetId)) {
+      req.session.flash = { error: 'Utilizator invalid.' };
+      return res.redirect('/cont/utilizatori');
+    }
+    await deleteUserCompletely({ actor: req.session.user, userId: targetId });
+    req.session.flash = { success: 'Utilizatorul a fost șters definitiv.' };
+    return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
+  } catch (error) {
+    if (error.message === 'INSUFFICIENT_PRIVILEGES') {
+      req.session.flash = { error: 'Nu aveți dreptul de a șterge acest utilizator.' };
+      return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
+    }
+    if (['USER_NOT_FOUND', 'PROTECTED_USER', 'SELF_MODIFICATION'].includes(error.message)) {
+      req.session.flash = { error: 'Utilizatorul selectat nu poate fi șters.' };
       return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
     }
     next(error);

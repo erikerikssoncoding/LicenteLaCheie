@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { createClient, findUserByEmail, getUserById, validatePassword } from '../services/userService.js';
+import {
+  createClient,
+  findUserByEmail,
+  getUserById,
+  validatePassword,
+  resetPasswordWithToken
+} from '../services/userService.js';
 import { ensureAuthenticated } from '../middleware/auth.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
 import { getSessionCookieClearOptions, SESSION_COOKIE_NAME } from '../config/session.js';
@@ -18,6 +24,8 @@ import {
 } from '../services/passkeyService.js';
 import { sendRegistrationCredentialsEmail } from '../services/mailService.js';
 import { consumeOneTimeLoginToken } from '../services/loginLinkService.js';
+import { createPasswordResetToken, consumePasswordResetToken } from '../services/passwordResetService.js';
+import { sendPasswordResetEmail } from '../services/mailService.js';
 
 const router = Router();
 
@@ -25,9 +33,11 @@ router.get('/autentificare', (req, res) => {
   if (req.session?.user) {
     return res.redirect('/cont');
   }
+  const resetToken = req.query.resetToken || req.query.token || '';
   res.render('pages/login', {
     title: 'Autentificare cont client și echipă',
-    description: 'Accesează panoul tău personalizat pentru a urmări proiectele de licență și comunicările.'
+    description: 'Accesează panoul tău personalizat pentru a urmări proiectele de licență și comunicările.',
+    resetToken
   });
 });
 
@@ -109,6 +119,57 @@ router.post('/autentificare', async (req, res, next) => {
     }
     return res.redirect('/cont');
   } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/autentificare/resetare', async (req, res, next) => {
+  try {
+    const schema = z.object({ email: z.string().email() });
+    const { email } = schema.parse(req.body);
+    const normalizedEmail = email.toLowerCase();
+    const user = await findUserByEmail(normalizedEmail);
+    const genericResponse = {
+      success: true,
+      message: 'Dacă există un cont activ, vei primi un email cu instrucțiuni de resetare.'
+    };
+    if (!user || !user.is_active) {
+      return res.json(genericResponse);
+    }
+    const { token, expiresAt } = createPasswordResetToken(user.id);
+    await sendPasswordResetEmail({ user, token, expiresAt }).catch((error) =>
+      console.error('Nu s-a putut trimite emailul de resetare:', error)
+    );
+    return res.json(genericResponse);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Te rugăm să introduci un email valid.' });
+    }
+    next(error);
+  }
+});
+
+router.post('/autentificare/resetare/confirma', async (req, res, next) => {
+  try {
+    const schema = z.object({
+      token: z.string().min(10),
+      password: z.string().min(8)
+    });
+    const { token, password } = schema.parse(req.body);
+    const payload = consumePasswordResetToken(token);
+    if (!payload) {
+      return res.status(400).json({ error: 'Linkul de resetare nu mai este valid sau a expirat.' });
+    }
+    const user = await getUserById(payload.userId);
+    if (!user || !user.is_active) {
+      return res.status(400).json({ error: 'Contul nu este activ.' });
+    }
+    await resetPasswordWithToken({ userId: user.id, newPassword: password });
+    return res.json({ success: true, message: 'Parola a fost actualizată. Te poți autentifica cu noua parolă.' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Datele trimise nu sunt valide.' });
+    }
     next(error);
   }
 });

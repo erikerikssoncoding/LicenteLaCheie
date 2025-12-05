@@ -536,6 +536,38 @@ export async function sendRegistrationCredentialsEmail({ fullName, email, passwo
   });
 }
 
+export async function sendTestMail({ recipient, actor = null } = {}) {
+  if (!isMailConfigured()) {
+    throw new Error('MAIL_NOT_CONFIGURED');
+  }
+
+  const normalizedRecipient = normalizeAddressList(recipient ? [recipient] : []).shift();
+  if (!normalizedRecipient) {
+    throw new Error('NO_RECIPIENT');
+  }
+
+  const actorName = actor?.fullName || actor?.full_name || 'administrator';
+  const actorEmail = actor?.email || null;
+  const testMessage = [
+    'Salut!',
+    '',
+    'Acesta este un email de test trimis din panoul de administrare Academia de Licențe.',
+    actorEmail ? `Solicitat de: ${actorName} (${actorEmail})` : `Solicitat de: ${actorName}`,
+    `Host: ${CLIENT_HOSTNAME}`,
+    '',
+    'Dacă ai primit acest mesaj, configurarea SMTP din .env este funcțională.'
+  ].join('\n');
+
+  await sendRawMail({
+    to: normalizedRecipient,
+    subject: '[Licente] Test configurare email',
+    text: testMessage,
+    attachments: [],
+    eventType: 'mail_test',
+    context: { recipient: normalizedRecipient, actorId: actor?.id || null }
+  });
+}
+
 function sanitizeEmailList(values = [], exclude = []) {
   const exclusions = new Set(exclude.map((item) => String(item || '').toLowerCase()).filter(Boolean));
   return [...new Set(values.map((item) => String(item || '').toLowerCase()).filter((item) => item && !exclusions.has(item)))];

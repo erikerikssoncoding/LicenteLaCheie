@@ -33,7 +33,7 @@
         <h1 class="h3">Bun venit, <%= currentUser.fullName %></h1>
         <p class="text-muted mb-1">Rol: <span class="badge bg-secondary text-uppercase"><%= currentUser.role %></span></p>
         <% if (currentUser.role === 'admin' && licenseState?.paidUntilDisplay) { %>
-        <p class="text-muted small mb-0">Licenta platita pana pe <span class="fw-semibold"><%= licenseState.paidUntilDisplay %></span></p>
+        <p class="text-muted small mb-0">Licență plătită până pe <span class="fw-semibold"><%= licenseState.paidUntilDisplay %></span></p>
         <% } %>
       </div>
       <% if (isManager) { %>
@@ -42,7 +42,7 @@
         href="<%= staffLinksDisabled ? '#' : '/cont/proiecte/creeaza' %>"
         <%= staffLinksDisabled ? 'tabindex="-1" aria-disabled="true"' : '' %>
       >
-        Creaza proiect
+        Creează proiect
       </a>
       <% } %>
     </div>
@@ -50,21 +50,21 @@
     <% if (licenseRestricted) { %>
     <div class="alert alert-warning d-flex flex-column flex-lg-row align-items-start gap-3 mb-4" role="alert">
       <div>
-        <h2 class="h6 mb-1 text-warning-emphasis">Licenta platformei a expirat</h2>
+        <h2 class="h6 mb-1 text-warning-emphasis">Licența platformei a expirat</h2>
         <p class="mb-2 small text-muted">
-          Functionalitatile echipei sunt limitate pana la reinnoirea licentei. Contacteaza un superadmin pentru a reactiva accesul complet.
+          Funcționalitățile echipei sunt limitate până la reînnoirea licenței. Contactează un superadmin pentru a reactiva accesul complet.
         </p>
         <ul class="mb-0 small ps-3">
-          <li>Nu poti accesa detaliile tichetelelor sau raspunde in conversatii.</li>
-          <li>Nu poti deschide proiectele alocate pentru a vedea timeline-ul sau fisierele.</li>
-          <li>Nu poti crea proiecte noi sau converti tichete in proiecte.</li>
-          <li>Actualizarea statusurilor proiectelor si tichetelelor este blocata.</li>
-          <li>Incarcarea si gestionarea fisierelor de proiect este dezactivata.</li>
+          <li>Nu poți accesa detaliile tichetelor sau răspunde în conversații.</li>
+          <li>Nu poți deschide proiectele alocate pentru a vedea timeline-ul sau fișierele.</li>
+          <li>Nu poți crea proiecte noi sau converti tichete în proiecte.</li>
+          <li>Actualizarea statusurilor proiectelor și tichetelor este blocată.</li>
+          <li>Încărcarea și gestionarea fișierelor de proiect este dezactivată.</li>
         </ul>
       </div>
       <% if (licenseState?.paidUntilDisplay) { %>
       <div class="ms-lg-auto small text-muted">
-        <span class="d-block">Licenta a fost activa pana la</span>
+        <span class="d-block">Licența a fost activă până la</span>
         <span class="fw-semibold text-dark"><%= licenseState.paidUntilDisplay %></span>
       </div>
       <% } %>
@@ -75,7 +75,7 @@
     <div class="row g-4 mb-4">
       <div class="col-lg-4 col-md-6">
         <%- include('../partials/dashboard/cards/summary-card', {
-          title: 'Urmatorul deadline',
+          title: 'Următorul deadline',
           badge: clientHighlights.nextDeadline ? clientHighlights.nextDeadline.deadline?.toISOString ? clientHighlights.nextDeadline.deadline.toISOString().slice(0,10) : clientHighlights.nextDeadline.deadline : null,
           items: clientHighlights.nextDeadline
             ? [{
@@ -87,12 +87,12 @@
                   : 'Deadline confirmat'
               }]
             : [],
-          emptyMessage: 'Nu exista un deadline stabilit.'
+          emptyMessage: 'Nu există un deadline stabilit.'
         }) %>
       </div>
       <div class="col-lg-4 col-md-6">
         <%- include('../partials/dashboard/cards/summary-card', {
-          title: 'Echipa alocata',
+          title: 'Echipă alocată',
           badge: `${clientHighlights.admins.length + clientHighlights.redactors.length} membri`,
           items: [
             ...clientHighlights.admins.map((member) => ({
@@ -104,17 +104,17 @@
               subtitle: 'Redactor asignat'
             }))
           ],
-          emptyMessage: 'Inca nu a fost alocata o echipa.'
+          emptyMessage: 'Încă nu a fost alocată o echipă.'
         }) %>
       </div>
       <% const offerStatusLabels = {
-        pending: 'In pregatire',
-        sent: 'Trimisa',
-        accepted: 'Acceptata',
-        refused: 'Refuzata',
-        expired: 'Expirata',
-        counter_pending: 'Contraoferta in asteptare',
-        counter_submitted: 'Contraoferta trimisa'
+        pending: 'În pregătire',
+        sent: 'Trimisă',
+        accepted: 'Acceptată',
+        refused: 'Refuzată',
+        expired: 'Expirată',
+        counter_pending: 'Contraofertă în așteptare',
+        counter_submitted: 'Contraofertă trimisă'
       }; %>
       <div class="col-lg-4 col-md-6">
         <div class="card shadow-sm h-100">
@@ -124,7 +124,7 @@
               <a class="btn btn-sm btn-outline-primary" href="/cont/tichete/creeaza">Deschide ticket</a>
             </div>
             <% if (!offers || offers.length === 0) { %>
-            <p class="text-muted mb-0">Nu exista oferte active.</p>
+            <p class="text-muted mb-0">Nu există oferte active.</p>
             <% } else { %>
             <ul class="list-group list-group-flush">
               <% offers.slice(0, 3).forEach((offer) => { %>
@@ -156,13 +156,13 @@
       </div>
       <div class="col-lg-6">
         <%- include('../partials/dashboard/cards/summary-card', {
-          title: 'Livrari apropiate',
+          title: 'Livrări apropiate',
           badge: redactorHighlights.upcomingDeadlines.length ? `${redactorHighlights.upcomingDeadlines.length} proiecte` : null,
           items: redactorHighlights.upcomingDeadlines.map((project) => ({
             title: project.title,
             subtitle: project.deadline?.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline
           })),
-          emptyMessage: 'Nu sunt livrari in perioada urmatoare.'
+          emptyMessage: 'Nu sunt livrări în perioada următoare.'
         }) %>
       </div>
     </div>
@@ -177,7 +177,7 @@
             label: item.status,
             total: item.total
           })),
-          emptyMessage: 'Nu exista proiecte in portofoliul tau.'
+          emptyMessage: 'Nu există proiecte în portofoliul tău.'
         }) %>
       </div>
       <div class="col-xl-6">
@@ -186,7 +186,7 @@
           badge: adminHighlights.recentProjects.length ? `${adminHighlights.recentProjects.length} proiecte` : null,
           items: adminHighlights.recentProjects.map((project) => ({
             title: project.title,
-            subtitle: `${project.client_name || 'Client nealocat'} • ${project.deadline ? (project.deadline.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline) : 'Fara deadline'}`
+            subtitle: `${project.client_name || 'Client nealocat'} • ${project.deadline ? (project.deadline.toISOString ? project.deadline.toISOString().slice(0,10) : project.deadline) : 'Fără deadline'}`
           })),
           emptyMessage: 'Nu ai proiecte alocate recent.'
         }) %>
@@ -195,7 +195,7 @@
     <div class="card shadow-sm mb-4">
       <div class="card-body">
         <h2 class="h5 mb-3">Instrumente rapide</h2>
-        <p class="text-muted">Acceseaza rapid zonele dedicate supervizarii echipei si a clientilor.</p>
+        <p class="text-muted">Accesează rapid zonele dedicate supervizării echipei și a clienților.</p>
         <div class="d-flex flex-wrap gap-2">
           <a class="btn btn-outline-primary" href="/cont/utilizatori">Utilizatori</a>
           <a
@@ -210,14 +210,14 @@
             href="<%= staffLinksDisabled ? '#' : '/cont/proiecte/creeaza' %>"
             <%= staffLinksDisabled ? 'tabindex="-1" aria-disabled="true"' : '' %>
           >
-            Creaza proiect
+            Creează proiect
           </a>
           <a
             class="btn btn-outline-primary <%= staffLinksDisabled ? 'disabled' : '' %>"
             href="<%= staffLinksDisabled ? '#' : '/cont' %>"
             <%= staffLinksDisabled ? 'tabindex="-1" aria-disabled="true"' : '' %>
           >
-            Vizualizeaza proiectele active
+            Vizualizează proiectele active
           </a>
         </div>
       </div>
@@ -227,8 +227,8 @@
       <div class="card-body">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-3">
           <div>
-            <h2 class="h5 mb-1">Securitate platforma</h2>
-            <p class="text-muted mb-0">Activeaza sau dezactiveaza politicile critice de protectie pentru aplicatie.</p>
+            <h2 class="h5 mb-1">Securitate platformă</h2>
+            <p class="text-muted mb-0">Activează sau dezactivează politicile critice de protecție pentru aplicație.</p>
           </div>
           <% if (securityFlash) { %>
           <div class="flex-shrink-0">
@@ -239,11 +239,11 @@
           <% } %>
         </div>
         <div class="vstack gap-3">
-          <form method="post" action="/cont/securitate/licenta" class="border rounded-3 p-3 bg-body-tertiary">
+          <form method="post" action="/cont/securitate/licență" class="border rounded-3 p-3 bg-body-tertiary">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <div class="row g-3 align-items-end">
               <div class="col-lg-6">
-                <label class="form-label small text-uppercase text-muted" for="paidUntil">Licenta platita pana la</label>
+                <label class="form-label small text-uppercase text-muted" for="paidUntil">Licență plătită până la</label>
                 <input
                   type="date"
                   class="form-control"
@@ -254,9 +254,9 @@
                 />
               </div>
               <div class="col-lg-6 text-lg-end">
-                <button class="btn btn-outline-primary" type="submit">Actualizeaza licenta</button>
+                <button class="btn btn-outline-primary" type="submit">Actualizează licență</button>
                 <p class="small text-muted mt-2 mb-0">
-                  Lasa campul necompletat si salveaza pentru a marca licenta ca neplatita.
+                  Lasă câmpul necompletat și salvează pentru a marca licența ca neplătită.
                 </p>
               </div>
             </div>
@@ -277,7 +277,7 @@
                 </span>
                 <div>
                   <button class="btn <%= setting.isEnabled ? 'btn-outline-danger' : 'btn-outline-success' %>" type="submit">
-                    <%= setting.isEnabled ? 'Dezactiveaza' : 'Activeaza' %>
+                    <%= setting.isEnabled ? 'Dezactivează' : 'Activează' %>
                   </button>
                 </div>
               </div>
@@ -366,7 +366,7 @@
       <div class="col-lg-6 col-xl-4">
         <div class="card shadow-sm h-100">
           <div class="card-body">
-            <h2 class="h6 mb-3">Oferte in asteptare</h2>
+            <h2 class="h6 mb-3">Oferte în așteptare</h2>
             <ul class="list-group list-group-flush">
               <% pendingOffers.forEach((offer) => { %>
               <li class="list-group-item">
@@ -403,10 +403,10 @@
             <% if (projects.length === 0) { %>
             <p class="text-muted">
               <%= isClient
-                ? 'Momentan nu exista proiecte active.'
+                ? 'Momentan nu există proiecte active.'
                 : isRedactor
-                ? 'Nu ai proiecte asignate in acest moment.'
-                : 'Nu exista proiecte in portofoliul tau momentan.'
+                ? 'Nu ai proiecte asignate în acest moment.'
+                : 'Nu există proiecte în portofoliul tău momentan.'
               %>
             </p>
             <% } else { %>

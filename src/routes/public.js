@@ -66,7 +66,7 @@ const PHONE_PREFIX_CODES = PHONE_PREFIXES.map((entry) => entry.code).sort((a, b)
 const INTERNATIONAL_PHONE_PATTERN = /^\+[1-9][0-9]{5,14}$/u;
 const OFFER_PAGE_TITLE = 'Solicită o ofertă personalizată pentru lucrarea ta';
 const OFFER_PAGE_DESCRIPTION =
-  'Completează formularul iar platforma va genera un draft de contract pentru redactarea, corectura și pregătirea lucrării tale.';
+  'Completează formularul, iar platforma va genera un draft de contract pentru redactarea, corectura și pregătirea lucrării tale.';
 
 const OFFER_WORK_TYPES = [
   'lucrare de licenta',
@@ -526,8 +526,7 @@ async function handleOfferSubmission(req, res) {
       .string()
       .max(2000)
       .transform((value) => value.trim())
-      .optional(),
-    acceptAccount: isAuthenticated ? z.any().optional() : z.literal('on')
+      .optional()
   });
   const payload = schema.parse(req.body);
   const attachments = Array.isArray(req.files) ? req.files : [];

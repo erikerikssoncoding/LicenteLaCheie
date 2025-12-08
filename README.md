@@ -88,6 +88,7 @@ Platforma complet integrata pentru gestionarea serviciilor de redactare lucrari 
 
 - SMTP-ul se configureaza prin variabilele existente (`MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`/`MAIL_STARTTLS`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_ALLOW_INVALID_CERTS`).
 - Pentru conectarea IMAP se folosesc aceleasi credentiale (`MAIL_USER`/`MAIL_PASSWORD`), iar folderele pot fi personalizate cu `MAIL_IMAP_INBOX` (implicit `INBOX`) si `MAIL_IMAP_SENT_FOLDER` (implicit `Sent`).
+- Timeout-urile IMAP pot fi controlate cu `MAIL_IMAP_CLIENT_TIMEOUT_MS` (implicit `180000` ms), `MAIL_IMAP_GREETING_TIMEOUT_MS` (implicit `120000` ms) si `MAIL_IMAP_SOCKET_TIMEOUT_MS` (implicit `180000` ms) pentru a evita intreruperile la conexiunile mai lente.
 - Sincronizarea ticketelor citeste mesajele necitite din inbox pentru raspunsurile clientilor si din folderul „Sent” pentru raspunsurile trimise de echipa; mesajele procesate sunt marcate drept `\Seen`, iar raspunsurile din „Sent” sunt atribuite unui cont intern al echipei (identificat dupa e-mail sau fallback pe adminul implicit).
 - Salvarea in „Sent” este optionala: daca IMAP nu este configurat, e-mailul este trimis dar nu se incearca arhivarea; daca arhivarea esueaza, evenimentul este logat cu status `sent_but_not_saved`.
 

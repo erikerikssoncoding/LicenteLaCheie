@@ -1271,6 +1271,17 @@ async function processMailbox(client, folderName, handler, summary, searchCriter
 async function handleInboxMessage(message) {
   const subject = message.envelope?.subject || '';
   const ticketCode = extractTicketCodeFromSubject(subject);
+
+  // Parsăm conținutul pentru a verifica prima linie
+  const parsed = await simpleParser(message.source);
+  const textContent = parsed.text || '';
+  const firstLine = textContent.trim().split(/\r?\n/)[0] || '';
+
+  if (firstLine.includes('A fost deschis un ticket nou')) {
+    console.log(`[DEBUG INBOX] Skipped - Automated system notification detected in body: ${subject}`);
+    return 'skipped';
+  }
+
   const fromEnvelope = message.envelope?.from?.[0];
   const fromAddress = normalizeEmail(extractAddress(fromEnvelope?.address || fromEnvelope?.name));
   const messageId = message.envelope?.messageId || null;
@@ -1306,6 +1317,15 @@ async function handleSentMessage(message) {
 
   if (!ticketCode) {
     console.log(`[DEBUG SENT] Sarit - Lipsa cod ticket: ${subject}`);
+    return 'skipped';
+  }
+
+  const parsed = await simpleParser(message.source);
+  const textContent = parsed.text || '';
+  const firstLine = textContent.trim().split(/\r?\n/)[0] || '';
+
+  if (firstLine.includes('A fost deschis un ticket nou')) {
+    console.log(`[DEBUG SENT] Skipped - Automated system notification detected in body: ${subject}`);
     return 'skipped';
   }
 

@@ -35,6 +35,7 @@ const CLIENT_HOSTNAME = os.hostname();
 const PUBLIC_WEB_BASE_URL = process.env.PUBLIC_WEB_BASE_URL || 'https://academiadelicente.ro';
 
 let ticketSyncTimer = null;
+let ticketSyncInitialTimer = null;
 let ticketSyncInProgress = false;
 let ticketSyncLastRunAt = null;
 let ticketSyncLastResult = null;
@@ -1398,7 +1399,7 @@ async function performTicketInboxSync() {
 export function getTicketInboxSyncState() {
   return {
     configured: isImapConfigured(),
-    timerActive: Boolean(ticketSyncTimer),
+    timerActive: Boolean(ticketSyncTimer || ticketSyncInitialTimer),
     inProgress: ticketSyncInProgress,
     abortRequested: ticketSyncAbortRequested,
     lastRunAt: ticketSyncLastRunAt,
@@ -1426,7 +1427,7 @@ export function startTicketInboxSync() {
   if (!isImapConfigured()) {
     return false;
   }
-  if (ticketSyncTimer) {
+  if (ticketSyncTimer || ticketSyncInitialTimer) {
     return true;
   }
 
@@ -1443,8 +1444,16 @@ export function startTicketInboxSync() {
     }
   };
 
-  runSync().catch((error) => console.error('Nu s-a putut porni sincronizarea initiala a ticketelor:', error));
-  ticketSyncTimer = setInterval(runSync, MAIL_TICKET_SYNC_INTERVAL_MS);
+  const initialDelayMs = Math.max(10 * 60 * 1000, MAIL_TICKET_SYNC_INTERVAL_MS);
+
+  ticketSyncInitialTimer = setTimeout(() => {
+    runSync()
+      .catch((error) => console.error('Nu s-a putut porni sincronizarea initiala a ticketelor:', error))
+      .finally(() => {
+        ticketSyncTimer = setInterval(runSync, MAIL_TICKET_SYNC_INTERVAL_MS);
+        ticketSyncInitialTimer = null;
+      });
+  }, initialDelayMs);
 
   return true;
 }
@@ -1455,6 +1464,11 @@ export function stopTicketInboxSync() {
   if (ticketSyncTimer) {
     clearInterval(ticketSyncTimer);
     ticketSyncTimer = null;
+  }
+
+  if (ticketSyncInitialTimer) {
+    clearTimeout(ticketSyncInitialTimer);
+    ticketSyncInitialTimer = null;
   }
 
   if (ticketSyncInProgress) {
@@ -1481,7 +1495,7 @@ export function stopTicketInboxSync() {
   }
 
   return {
-    timerStopped: Boolean(!ticketSyncTimer),
+    timerStopped: Boolean(!ticketSyncTimer && !ticketSyncInitialTimer),
     abortRequested: ticketSyncAbortRequested,
     wasRunning
   };

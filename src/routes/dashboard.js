@@ -1529,7 +1529,7 @@ router.get('/cont/tichete/:id', requireActiveLicense(), async (req, res, next) =
       const isOwnEntry = entry.author_id && entry.author_id === user.id;
       const isValidDate = createdAt instanceof Date && !Number.isNaN(createdAt.getTime());
       const isUnread = !isOwnEntry && (!timelineLastReadAt || (isValidDate && createdAt > timelineLastReadAt));
-      return { ...entry, isUnread };
+      return { ...entry, isUnread, isMail: Boolean(entry.message_id) };
     });
     await markTicketTimelineRead({ ticketId: ticket.id, userId: user.id });
     const offer = ticket.kind === 'offer' || ticket.kind === 'contract' ? await getOfferByTicketId(ticket.id) : null;
@@ -1610,7 +1610,7 @@ router.get('/cont/tichete/:id/timeline', requireActiveLicense(), async (req, res
       const isOwnEntry = entry.author_id && entry.author_id === user.id;
       const isValidDate = createdAt instanceof Date && !Number.isNaN(createdAt.getTime());
       const isUnread = !isOwnEntry && (!timelineLastReadAt || (isValidDate && createdAt > timelineLastReadAt));
-      return { ...entry, isUnread };
+      return { ...entry, isUnread, isMail: Boolean(entry.message_id) };
     });
 
     res.json({

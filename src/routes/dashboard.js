@@ -830,7 +830,7 @@ router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, 
     });
     const feedback = req.session.ticketFeedback || {};
     delete req.session.ticketFeedback;
-    const ticketInboxSync = getTicketInboxSyncState();
+    const ticketInboxSync = await getTicketInboxSyncState();
     const mailPreview = req.session.ticketMailPreview || null;
     delete req.session.ticketMailPreview;
     res.render('pages/ticket-management', {
@@ -882,7 +882,7 @@ router.post('/cont/tichete/sincronizare-manuala', ensureRole('superadmin'), asyn
 
 router.post('/cont/tichete/sincronizare-oprire', ensureRole('superadmin'), async (req, res, next) => {
   try {
-    const syncState = getTicketInboxSyncState();
+    const syncState = await getTicketInboxSyncState();
     const stopResult = stopTicketInboxSync();
 
     if (!syncState.inProgress) {
@@ -905,7 +905,7 @@ router.post('/cont/tichete/sincronizare-oprire', ensureRole('superadmin'), async
 
 router.post('/cont/tichete/sincronizare-reactivare', ensureRole('superadmin'), async (req, res, next) => {
   try {
-    const syncState = getTicketInboxSyncState();
+    const syncState = await getTicketInboxSyncState();
 
     if (!syncState.configured) {
       req.session.ticketFeedback = {

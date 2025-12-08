@@ -1396,16 +1396,26 @@ async function performTicketInboxSync() {
   return { startedAt, summary, error: errorMessage };
 }
 
-export function getTicketInboxSyncState() {
+export async function getTicketInboxSyncState() {
+  let persistedLastRunAt = null;
+
+  try {
+    persistedLastRunAt = await getLastSuccessfulMailSync();
+  } catch (error) {
+    console.error('Nu s-a putut obtine momentul ultimei sincronizari email:', error?.message || error);
+  }
+
   return {
     configured: isImapConfigured(),
     timerActive: Boolean(ticketSyncTimer || ticketSyncInitialTimer),
     inProgress: ticketSyncInProgress,
     abortRequested: ticketSyncAbortRequested,
     lastRunAt: ticketSyncLastRunAt,
+    lastSuccessfulRunAt: persistedLastRunAt,
     lastResult: ticketSyncLastResult,
     lastError: ticketSyncLastError,
-    intervalMs: MAIL_TICKET_SYNC_INTERVAL_MS
+    intervalMs: MAIL_TICKET_SYNC_INTERVAL_MS,
+    lastKnownRunAt: ticketSyncLastRunAt || persistedLastRunAt
   };
 }
 

@@ -118,13 +118,21 @@ export async function listTicketsForUser(user) {
   return rows;
 }
 
-export async function addReply({ ticketId, userId, message }) {
-  await pool.query(
-    `INSERT INTO ticket_replies (ticket_id, user_id, message)
-     VALUES (?, ?, ?)`,
-    [ticketId, userId, message]
+export async function addReply({ ticketId, userId, message, messageId = null }) {
+  if (messageId) {
+    const [existing] = await pool.query('SELECT id FROM ticket_replies WHERE message_id = ? LIMIT 1', [messageId]);
+    if (existing.length > 0) {
+      return { skipped: true, reason: 'DUPLICATE_MESSAGE' };
+    }
+  }
+
+  const [result] = await pool.query(
+    `INSERT INTO ticket_replies (ticket_id, user_id, message, message_id)
+     VALUES (?, ?, ?, ?)`,
+    [ticketId, userId, message, messageId]
   );
   await pool.query(`UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [ticketId]);
+  return { skipped: false, id: result.insertId };
 }
 
 export async function getTicketById(ticketId) {

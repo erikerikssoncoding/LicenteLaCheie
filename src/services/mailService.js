@@ -25,6 +25,7 @@ const MAIL_IMAP_SECURE = String(process.env.MAIL_IMAP_SECURE || 'true').toLowerC
 const MAIL_IMAP_INBOX = process.env.MAIL_IMAP_INBOX || 'INBOX';
 const MAIL_IMAP_SENT_FOLDER = process.env.MAIL_IMAP_SENT_FOLDER || 'Sent';
 const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(60000, Number(process.env.MAIL_TICKET_SYNC_INTERVAL_MS || 300000));
+const MAILBOX_FETCH_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 const MAX_EMAIL_RECIPIENTS = 10;
 const CLIENT_HOSTNAME = os.hostname();
@@ -35,6 +36,12 @@ let ticketSyncInProgress = false;
 let ticketSyncLastRunAt = null;
 let ticketSyncLastResult = null;
 let ticketSyncLastError = null;
+
+function getMailboxFetchCriteria() {
+  const fallbackSince = new Date(Date.now() - MAILBOX_FETCH_LOOKBACK_MS);
+  const since = ticketSyncLastRunAt ? new Date(ticketSyncLastRunAt) : fallbackSince;
+  return { since };
+}
 
 function formatEnvelopeAddresses(addresses = []) {
   return (addresses || [])
@@ -1035,12 +1042,13 @@ async function extractMessageBodyFromSource(source) {
   return trimQuotedConversation(plainText);
 }
 
-async function processMailbox(client, folderName, handler, summary) {
+async function processMailbox(client, folderName, handler, summary, searchCriteria = null) {
   const folderStats = { processed: 0, skipped: 0, errors: [] };
   const lock = await client.getMailboxLock(folderName);
+  const criteria = searchCriteria || { seen: false };
 
   try {
-    for await (const message of client.fetch({ seen: false }, { envelope: true, uid: true, source: true })) {
+    for await (const message of client.fetch(criteria, { envelope: true, uid: true, source: true, headers: ['message-id'] })) {
       let shouldMarkSeen = false;
       try {
         const action = await handler(message);
@@ -1080,6 +1088,7 @@ async function handleInboxMessage(message) {
   const ticketCode = extractTicketCodeFromSubject(subject);
   const fromEnvelope = message.envelope?.from?.[0];
   const fromAddress = normalizeEmail(extractAddress(fromEnvelope?.address || fromEnvelope?.name));
+  const messageId = message.envelope?.messageId || null;
 
   if (!ticketCode || !fromAddress) {
     return 'skipped';
@@ -1097,8 +1106,8 @@ async function handleInboxMessage(message) {
     return 'skipped';
   }
 
-  await addReply({ ticketId: ticket.id, userId: user.id, message: messageBody });
-  return 'processed';
+  const result = await addReply({ ticketId: ticket.id, userId: user.id, message: messageBody, messageId });
+  return result?.skipped ? 'skipped' : 'processed';
 }
 
 async function handleSentMessage(message) {
@@ -1106,6 +1115,7 @@ async function handleSentMessage(message) {
   const ticketCode = extractTicketCodeFromSubject(subject);
   const fromEnvelope = message.envelope?.from?.[0];
   const fromAddress = normalizeEmail(extractAddress(fromEnvelope?.address || fromEnvelope?.name));
+  const messageId = message.envelope?.messageId || null;
 
   if (!ticketCode) {
     return 'skipped';
@@ -1141,8 +1151,8 @@ async function handleSentMessage(message) {
     return 'skipped';
   }
 
-  await addReply({ ticketId: ticket.id, userId: user.id, message: messageBody });
-  return 'processed';
+  const result = await addReply({ ticketId: ticket.id, userId: user.id, message: messageBody, messageId });
+  return result?.skipped ? 'skipped' : 'processed';
 }
 
 export async function syncTicketRepliesFromInbox() {
@@ -1151,6 +1161,7 @@ export async function syncTicketRepliesFromInbox() {
   }
 
   const summary = { processed: 0, skipped: 0, errors: [], folders: {} };
+  const searchCriteria = getMailboxFetchCriteria();
   const client = new ImapFlow({
     host: MAIL_IMAP_HOST,
     port: MAIL_IMAP_PORT,
@@ -1167,7 +1178,7 @@ export async function syncTicketRepliesFromInbox() {
     await client.connect();
 
     try {
-      await processMailbox(client, MAIL_IMAP_INBOX, handleInboxMessage, summary);
+      await processMailbox(client, MAIL_IMAP_INBOX, handleInboxMessage, summary, searchCriteria);
     } catch (inboxError) {
       const inboxMessage = `${MAIL_IMAP_INBOX}: ${inboxError?.message || 'UNKNOWN_IMAP_SYNC_ERROR'}`;
       summary.errors.push(inboxMessage);
@@ -1175,7 +1186,7 @@ export async function syncTicketRepliesFromInbox() {
     }
 
     try {
-      await processMailbox(client, MAIL_IMAP_SENT_FOLDER, handleSentMessage, summary);
+      await processMailbox(client, MAIL_IMAP_SENT_FOLDER, handleSentMessage, summary, searchCriteria);
     } catch (sentError) {
       const sentMessage = `${MAIL_IMAP_SENT_FOLDER}: ${sentError?.message || 'UNKNOWN_IMAP_SYNC_ERROR'}`;
       summary.errors.push(sentMessage);

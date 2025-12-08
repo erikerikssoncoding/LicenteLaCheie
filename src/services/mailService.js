@@ -38,6 +38,26 @@ let ticketSyncLastRunAt = null;
 let ticketSyncLastResult = null;
 let ticketSyncLastError = null;
 let ticketSyncAbortRequested = false;
+let ticketSyncAbortTimeout = null;
+let currentTicketSyncClient = null;
+
+function getTicketSyncAbortTimeoutMs() {
+  return Math.max(1000, Number(process.env.MAIL_TICKET_SYNC_ABORT_TIMEOUT_MS || 5000));
+}
+
+function clearTicketSyncAbortTimeout() {
+  if (ticketSyncAbortTimeout) {
+    clearTimeout(ticketSyncAbortTimeout);
+    ticketSyncAbortTimeout = null;
+  }
+}
+
+function resetTicketSyncState() {
+  ticketSyncInProgress = false;
+  ticketSyncAbortRequested = false;
+  currentTicketSyncClient = null;
+  clearTicketSyncAbortTimeout();
+}
 
 async function getLastSuccessfulMailSync() {
   try {
@@ -1220,6 +1240,7 @@ export async function syncTicketRepliesFromInbox() {
   });
 
   try {
+    currentTicketSyncClient = client;
     await client.connect();
 
     try {
@@ -1244,6 +1265,8 @@ export async function syncTicketRepliesFromInbox() {
   } catch (error) {
     summary.errors.push(error?.message || 'UNKNOWN_IMAP_SYNC_ERROR');
   } finally {
+    clearTicketSyncAbortTimeout();
+    currentTicketSyncClient = null;
     try {
       await client.logout();
     } catch (logoutError) {
@@ -1342,8 +1365,7 @@ async function performTicketInboxSync() {
       await updateLastSuccessfulMailSync(previousSync);
     }
   } finally {
-    ticketSyncInProgress = false;
-    ticketSyncAbortRequested = false;
+    resetTicketSyncState();
     ticketSyncLastRunAt = startedAt;
     ticketSyncLastResult = summary;
     ticketSyncLastError = errorMessage;
@@ -1416,6 +1438,25 @@ export function stopTicketInboxSync() {
 
   if (ticketSyncInProgress) {
     ticketSyncAbortRequested = true;
+    console.warn('Abort requested for ticket inbox sync; attempting to stop current run.');
+
+    if (currentTicketSyncClient?.close) {
+      Promise.resolve()
+        .then(() => currentTicketSyncClient.close())
+        .catch((error) =>
+          console.error('Nu s-a putut inchide conexiunea IMAP dupa solicitarea de oprire:', error?.message || error)
+        );
+    }
+
+    clearTicketSyncAbortTimeout();
+    ticketSyncAbortTimeout = setTimeout(() => {
+      if (ticketSyncInProgress) {
+        console.warn('Ticket inbox sync did not stop gracefully. Forcing cleanup after abort timeout.');
+        resetTicketSyncState();
+      }
+    }, getTicketSyncAbortTimeoutMs());
+  } else {
+    resetTicketSyncState();
   }
 
   return {
@@ -1423,4 +1464,15 @@ export function stopTicketInboxSync() {
     abortRequested: ticketSyncAbortRequested,
     wasRunning
   };
+}
+
+// Test helpers
+export function __setTicketSyncStateForTests({ inProgress = false, abortRequested = false, client = null } = {}) {
+  ticketSyncInProgress = inProgress;
+  ticketSyncAbortRequested = abortRequested;
+  currentTicketSyncClient = client;
+}
+
+export function __resetTicketSyncStateForTests() {
+  resetTicketSyncState();
 }

@@ -109,13 +109,13 @@
           </div>
           <% if (currentUser.role === 'superadmin') { %>
           <div class="d-flex gap-2 ms-lg-auto">
-            <form action="/cont/proiecte/<%= project.id %>/sterge" method="post">
+            <form
+              action="/cont/proiecte/<%= project.id %>/sterge"
+              method="post"
+              data-delete-confirm="Ești sigur că vrei să ștergi definitiv acest proiect și toate datele aferente? Acțiunea este ireversibilă."
+            >
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-              <button
-                class="btn btn-outline-danger"
-                type="submit"
-                onclick="return confirm('Ești sigur că vrei să ștergi definitiv acest proiect și toate datele aferente?')"
-              >
+              <button class="btn btn-outline-danger" type="submit">
                 Șterge proiectul
               </button>
             </form>
@@ -717,6 +717,7 @@
                               action="/cont/proiecte/<%= project.id %>/fisiere/<%= file.id %>/sterge"
                               method="post"
                               class="d-inline"
+                              data-delete-confirm="Confirmi ștergerea definitivă a fișierului încărcat de client? Acțiunea nu poate fi anulată."
                             >
                               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                               <button class="btn btn-sm btn-outline-danger" type="submit">Șterge</button>
@@ -752,23 +753,7 @@
                           : file.created_at)
                       : null; %>
                     <% const sizeLabel = (Number(file.file_size || 0) / (1024 * 1024)).toFixed(2); %>
-                    <% const canDeleteStaffFile = (() => {
-                      if (!['admin', 'superadmin', 'redactor'].includes(currentUser.role)) {
-                        return false;
-                      }
-                      if (file.origin !== 'staff') {
-                        return false;
-                      }
-                      if (file.uploader_id && currentUser.id === file.uploader_id) {
-                        return true;
-                      }
-                      if (['admin', 'superadmin'].includes(currentUser.role)) {
-                        const actorLevel = roleHierarchy[currentUser.role] || 0;
-                        const uploaderLevel = roleHierarchy[file.uploader_role] || 0;
-                        return uploaderLevel > 0 && uploaderLevel <= actorLevel;
-                      }
-                      return false;
-                    })(); %>
+                    <% const canDeleteStaffFile = currentUser.role === 'superadmin'; %>
                     <li class="list-group-item">
                       <div class="d-flex flex-column gap-2">
                         <div class="d-flex justify-content-between align-items-center gap-3">
@@ -785,6 +770,7 @@
                               action="/cont/proiecte/<%= project.id %>/fisiere/<%= file.id %>/sterge"
                               method="post"
                               class="d-inline"
+                              data-delete-confirm="Confirmi ștergerea definitivă a fișierului încărcat de echipă? Acțiunea nu poate fi anulată."
                             >
                               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                               <button class="btn btn-sm btn-outline-danger" type="submit">Șterge</button>

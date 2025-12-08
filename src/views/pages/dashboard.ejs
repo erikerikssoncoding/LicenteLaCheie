@@ -305,45 +305,58 @@
           <div class="border rounded-3 p-3 bg-body-tertiary">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
               <div>
-                <h3 class="h6 mb-1">Jurnal notificări email</h3>
-                <p class="small text-muted mb-0">Ultimele notificări trimise sau eșuate din platformă.</p>
+                <h3 class="h6 mb-1">Jurnal</h3>
+                <p class="small text-muted mb-0">Notificări email și acțiuni de administrare (răspunsuri, modificări, ștergeri).</p>
               </div>
               <span class="badge bg-light text-body-secondary border">maxim 25 intrări recente</span>
             </div>
-            <% if (mailLogs && mailLogs.length > 0) { %>
+            <% if (journalEntries && journalEntries.length > 0) { %>
             <div class="table-responsive">
               <table class="table table-sm align-middle mb-0">
                 <thead>
                   <tr>
-                    <th scope="col">Eveniment</th>
-                    <th scope="col">Subiect</th>
-                    <th scope="col">Destinatari</th>
-                    <th scope="col">Status</th>
+                    <th scope="col">Tip</th>
+                    <th scope="col">Descriere</th>
+                    <th scope="col">Detalii</th>
+                    <th scope="col">Rezultat</th>
                     <th scope="col" class="text-end">Data</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <% mailLogs.forEach((entry) => { %>
+                  <% journalEntries.forEach((entry) => { %>
                   <tr>
-                    <td class="text-nowrap"><span class="badge bg-secondary"><%= entry.event_type %></span></td>
-                    <td class="text-truncate" style="max-width: 240px"><%= entry.subject || 'fără subiect' %></td>
-                    <td class="text-truncate" style="max-width: 260px"><%= entry.recipients || 'n/a' %></td>
+                    <td class="text-nowrap">
+                      <span class="badge <%= entry.type === 'mail' ? 'bg-secondary' : 'bg-info text-dark' %>">
+                        <%= entry.type === 'mail' ? 'Notificare email' : 'Acțiune admin' %>
+                      </span>
+                    </td>
+                    <td style="max-width: 260px">
+                      <div class="fw-semibold text-truncate"><%= entry.title %></div>
+                      <div class="small text-muted text-truncate"><%= entry.subtitle %></div>
+                    </td>
+                    <td class="small text-muted" style="max-width: 260px"><%= entry.detail %></td>
                     <td>
-                      <span class="badge <%= entry.status === 'sent' ? 'bg-success' : entry.status === 'skipped' ? 'bg-warning text-dark' : 'bg-danger' %>">
+                      <span
+                        class="badge <%= entry.status === 'sent' || entry.status === 'success'
+                          ? 'bg-success'
+                          : entry.status === 'skipped'
+                            ? 'bg-warning text-dark'
+                            : 'bg-danger' %>"
+                      >
                         <%= entry.status %>
                       </span>
-                      <% if (entry.error_message) { %>
-                      <div class="small text-muted"><%= entry.error_message %></div>
+                      <% if (entry.statusContext) { %>
+                      <div class="small text-muted"><%= entry.statusContext %></div>
                       <% } %>
                     </td>
-                    <td class="text-end"><%= formatDateTime(entry.created_at) %></td>
+                    <td class="text-end"><%= formatDateTime(entry.createdAt) %></td>
                   </tr>
                   <% }) %>
                 </tbody>
               </table>
             </div>
             <% } else { %>
-            <p class="mb-0 text-muted">Nu există notificări înregistrate încă.</p>
+            <p class="mb-0 text-muted">Nu există acțiuni sau notificări înregistrate încă.</p>
             <% } %>
           </div>
         </div>

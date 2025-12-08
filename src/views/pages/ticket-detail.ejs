@@ -85,13 +85,14 @@
       <p class="mb-0">Proiect: <strong><%= ticket.project_title %></strong></p>
       <% } %>
       <% if (currentUser.role === 'superadmin') { %>
-      <form action="/cont/tichete/<%= ticket.id %>/sterge" method="post" class="mt-3">
+      <form
+        action="/cont/tichete/<%= ticket.id %>/sterge"
+        method="post"
+        class="mt-3"
+        data-delete-confirm="Sigur dorești să ștergi definitiv acest ticket și istoricul asociat? Acțiunea nu poate fi anulată."
+      >
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-        <button
-          class="btn btn-outline-danger"
-          type="submit"
-          onclick="return confirm('Sigur dorești să ștergi definitiv acest ticket și istoricul asociat?')"
-        >
+        <button class="btn btn-outline-danger" type="submit">
           Șterge ticketul
         </button>
       </form>

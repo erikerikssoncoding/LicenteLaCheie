@@ -25,7 +25,7 @@ const MAIL_IMAP_PORT = Number(process.env.MAIL_IMAP_PORT || 993);
 const MAIL_IMAP_SECURE = String(process.env.MAIL_IMAP_SECURE || 'true').toLowerCase() !== 'false';
 const MAIL_IMAP_INBOX = process.env.MAIL_IMAP_INBOX || 'INBOX';
 const MAIL_IMAP_SENT_FOLDER = process.env.MAIL_IMAP_SENT_FOLDER || 'Sent';
-const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(60000, Number(process.env.MAIL_TICKET_SYNC_INTERVAL_MS || 300000));
+const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(60000, Number(process.env.MAIL_TICKET_SYNC_INTERVAL_MS || 900000));
 const MAILBOX_FETCH_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 const MAX_EMAIL_RECIPIENTS = 10;

@@ -37,6 +37,7 @@ let ticketSyncInProgress = false;
 let ticketSyncLastRunAt = null;
 let ticketSyncLastResult = null;
 let ticketSyncLastError = null;
+let ticketSyncAbortRequested = false;
 
 async function getLastSuccessfulMailSync() {
   try {
@@ -1087,6 +1088,11 @@ async function processMailbox(client, folderName, handler, summary, searchCriter
 
   try {
     for await (const message of client.fetch(criteria, { envelope: true, uid: true, source: true, headers: ['message-id'] })) {
+      if (ticketSyncAbortRequested) {
+        summary.errors.push('SYNC_ABORTED_BY_USER');
+        folderStats.errors.push('SYNC_ABORTED_BY_USER');
+        break;
+      }
       let shouldMarkSeen = false;
       try {
         const action = await handler(message);
@@ -1305,6 +1311,7 @@ async function performTicketInboxSync() {
   }
 
   ticketSyncInProgress = true;
+  ticketSyncAbortRequested = false;
   const startedAt = new Date();
   let previousSync = null;
   let summary = null;
@@ -1323,6 +1330,7 @@ async function performTicketInboxSync() {
     await updateLastSuccessfulMailSync(previousSync);
   } finally {
     ticketSyncInProgress = false;
+    ticketSyncAbortRequested = false;
     ticketSyncLastRunAt = startedAt;
     ticketSyncLastResult = summary;
     ticketSyncLastError = errorMessage;
@@ -1336,6 +1344,7 @@ export function getTicketInboxSyncState() {
     configured: isImapConfigured(),
     timerActive: Boolean(ticketSyncTimer),
     inProgress: ticketSyncInProgress,
+    abortRequested: ticketSyncAbortRequested,
     lastRunAt: ticketSyncLastRunAt,
     lastResult: ticketSyncLastResult,
     lastError: ticketSyncLastError,
@@ -1382,4 +1391,23 @@ export function startTicketInboxSync() {
   ticketSyncTimer = setInterval(runSync, MAIL_TICKET_SYNC_INTERVAL_MS);
 
   return true;
+}
+
+export function stopTicketInboxSync() {
+  const wasRunning = ticketSyncInProgress;
+
+  if (ticketSyncTimer) {
+    clearInterval(ticketSyncTimer);
+    ticketSyncTimer = null;
+  }
+
+  if (ticketSyncInProgress) {
+    ticketSyncAbortRequested = true;
+  }
+
+  return {
+    timerStopped: Boolean(!ticketSyncTimer),
+    abortRequested: ticketSyncAbortRequested,
+    wasRunning
+  };
 }

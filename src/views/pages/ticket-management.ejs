@@ -61,12 +61,18 @@
         <p class="small mb-0">Sistemul de sincronizare rulează la fiecare <%= Math.round(syncState.intervalMs / 1000) %> secunde.</p>
         <% } %>
       </div>
-      <form action="/cont/tichete/sincronizare-manuala" method="post" class="d-flex align-items-center gap-2">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-        <button class="btn btn-outline-primary" type="submit" <%= (!syncState.configured || syncState.inProgress) ? 'disabled' : '' %>>
-          Actualizare manuală
-        </button>
-      </form>
+      <div class="d-flex align-items-center gap-2">
+        <form action="/cont/tichete/sincronizare-manuala" method="post">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button class="btn btn-outline-primary" type="submit" <%= (!syncState.configured || syncState.inProgress) ? 'disabled' : '' %>>
+            Actualizare manuală
+          </button>
+        </form>
+        <form action="/cont/tichete/sincronizare-oprire" method="post">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button class="btn btn-outline-danger" type="submit" <%= syncState.inProgress ? '' : 'disabled' %>>Oprește sincronizarea</button>
+        </form>
+      </div>
     </div>
     <div class="card shadow-sm mb-4" id="mail-previzualizare">
       <div class="card-body">

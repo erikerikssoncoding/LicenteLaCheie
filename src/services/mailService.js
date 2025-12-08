@@ -31,6 +31,9 @@ const PUBLIC_WEB_BASE_URL = process.env.PUBLIC_WEB_BASE_URL || 'https://academia
 
 let ticketSyncTimer = null;
 let ticketSyncInProgress = false;
+let ticketSyncLastRunAt = null;
+let ticketSyncLastResult = null;
+let ticketSyncLastError = null;
 
 async function safeLogMailEvent(payload) {
   try {
@@ -1047,6 +1050,56 @@ export async function syncTicketRepliesFromInbox() {
   return summary;
 }
 
+async function performTicketInboxSync() {
+  if (ticketSyncInProgress) {
+    return { skipped: true, reason: 'SYNC_IN_PROGRESS' };
+  }
+
+  ticketSyncInProgress = true;
+  const startedAt = new Date();
+  let summary = null;
+  let errorMessage = null;
+
+  try {
+    summary = await syncTicketRepliesFromInbox();
+  } catch (error) {
+    errorMessage = error?.message || 'UNKNOWN_IMAP_SYNC_ERROR';
+  } finally {
+    ticketSyncInProgress = false;
+    ticketSyncLastRunAt = startedAt;
+    ticketSyncLastResult = summary;
+    ticketSyncLastError = errorMessage;
+  }
+
+  return { startedAt, summary, error: errorMessage };
+}
+
+export function getTicketInboxSyncState() {
+  return {
+    configured: isImapConfigured(),
+    timerActive: Boolean(ticketSyncTimer),
+    inProgress: ticketSyncInProgress,
+    lastRunAt: ticketSyncLastRunAt,
+    lastResult: ticketSyncLastResult,
+    lastError: ticketSyncLastError,
+    intervalMs: MAIL_TICKET_SYNC_INTERVAL_MS
+  };
+}
+
+export async function triggerTicketInboxSyncNow() {
+  if (!isImapConfigured()) {
+    return { started: false, reason: 'IMAP_NOT_CONFIGURED' };
+  }
+
+  const runResult = await performTicketInboxSync();
+
+  if (runResult.skipped) {
+    return { started: false, reason: runResult.reason || 'SYNC_IN_PROGRESS' };
+  }
+
+  return { started: true, summary: runResult.summary, error: runResult.error };
+}
+
 export function startTicketInboxSync() {
   if (!isImapConfigured()) {
     return false;
@@ -1059,16 +1112,12 @@ export function startTicketInboxSync() {
     if (ticketSyncInProgress) {
       return;
     }
-    ticketSyncInProgress = true;
-    try {
-      const result = await syncTicketRepliesFromInbox();
-      if (result.errors.length) {
-        console.error('Erori la sincronizarea raspunsurilor din inbox:', result.errors);
-      }
-    } catch (error) {
-      console.error('Nu s-a putut sincroniza inbox-ul pentru tickete:', error);
-    } finally {
-      ticketSyncInProgress = false;
+    const result = await performTicketInboxSync();
+    if (result.error) {
+      console.error('Nu s-a putut sincroniza inbox-ul pentru tickete:', result.error);
+    }
+    if (result.summary?.errors?.length) {
+      console.error('Erori la sincronizarea raspunsurilor din inbox:', result.summary.errors);
     }
   };
 

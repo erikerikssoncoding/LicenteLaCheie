@@ -38,6 +38,38 @@
     </div>
     <% } %>
 
+    <% const syncState = ticketInboxSync || {}; %>
+    <% const isSyncOnline = Boolean(syncState.configured && syncState.timerActive); %>
+    <% const lastRun = syncState.lastRunAt
+      ? (syncState.lastRunAt.toISOString ? syncState.lastRunAt.toISOString().replace('T', ' ').slice(0, 16) : syncState.lastRunAt)
+      : 'nu a rulat încă'; %>
+    <% if (currentUser.role === 'superadmin') { %>
+    <div class="alert alert-info d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-lg-between">
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="fw-semibold">Sincronizare răspunsuri pe email</span>
+          <span class="badge <%= isSyncOnline ? 'bg-success' : 'bg-danger' %>"><%= isSyncOnline ? 'Online' : 'Offline' %></span>
+        </div>
+        <p class="small mb-1">Ultima rulare: <strong><%= lastRun %></strong></p>
+        <% if (!syncState.configured) { %>
+        <p class="small text-danger mb-0">Configurația IMAP lipsește (MAIL_IMAP_HOST, MAIL_USER sau MAIL_PASSWORD).</p>
+        <% } else if (syncState.inProgress) { %>
+        <p class="small mb-0">O sincronizare este în desfășurare.</p>
+        <% } else if (syncState.lastError) { %>
+        <p class="small text-warning mb-0">Ultima eroare raportată: <%= syncState.lastError %></p>
+        <% } else { %>
+        <p class="small mb-0">Sistemul de sincronizare rulează la fiecare <%= Math.round(syncState.intervalMs / 1000) %> secunde.</p>
+        <% } %>
+      </div>
+      <form action="/cont/tichete/sincronizare-manuala" method="post" class="d-flex align-items-center gap-2">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button class="btn btn-outline-primary" type="submit" <%= (!syncState.configured || syncState.inProgress) ? 'disabled' : '' %>>
+          Actualizare manuală
+        </button>
+      </form>
+    </div>
+    <% } %>
+
     <% const kindLabels = { support: 'Suport', offer: 'Ofertă' }; %>
 
     <div class="card shadow-sm">

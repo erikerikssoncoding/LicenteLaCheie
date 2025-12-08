@@ -149,7 +149,15 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err);
+  // MODIFICARE: Logare sigură pentru a preveni "TypeError: Cannot read properties of undefined"
+  try {
+    console.error('--- Eroare Aplicație ---');
+    console.error(err.message || 'Eroare fără mesaj');
+    if (err.stack) console.error(err.stack);
+  } catch (logError) {
+    console.error('Eroare critică la afișarea erorii:', logError);
+  }
+
   if (err.code === 'EBADCSRFTOKEN') {
     return res.status(403).render('pages/403', {
       title: 'Sesiune expirata',

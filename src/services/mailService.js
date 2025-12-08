@@ -330,10 +330,11 @@ function trimQuotedConversation(text) {
     /^From:/imu,
     /^-----Original Message-----/imu,
     /^În data de .+ a scris:/imu,
-    // Regex imbunatatit: permite > la inceput si spatii optionale
     /^>*\s*[A-Za-z]+ \d{1,2}, \d{4} at .+ wrote:/imu,
-    /^>*\s*\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} .+:/imu
+    /^>*\s*\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} .+:/imu,
+    /^Replying to .+ on .+/imu
   ];
+
   const indexes = patterns
     .map((pattern) => text.search(pattern))
     .filter((index) => index >= 0);

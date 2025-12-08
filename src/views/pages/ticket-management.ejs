@@ -56,7 +56,8 @@
         hour12: false
       }).format(date);
     }; %>
-    <% const lastRun = formatDateTime(syncState.lastRunAt) || 'nu a rulat încă'; %>
+    <% const lastRunSource = syncState.lastRunAt || syncState.lastSuccessfulRunAt || syncState.lastKnownRunAt; %>
+    <% const lastRun = formatDateTime(lastRunSource) || 'nu a rulat încă'; %>
     <% if (currentUser.role === 'superadmin') { %>
     <div class="alert alert-info d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-lg-between">
       <div>

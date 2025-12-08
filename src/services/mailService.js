@@ -277,17 +277,18 @@ function trimQuotedConversation(text) {
     return '';
   }
   const patterns = [
-    /^On .+ wrote:/imu, // Standard EN
-    /^Am .+ geschrieb:/imu, // Standard DE
-    /^Le .+ écrit :/imu, // Standard FR
-    /^Op .+ schreef/imu, // Standard NL
-    /^W dniu .+ napisał/imu, // Standard PL
-    /^De la:/imu, // Generic RO/EN
-    /^From:/imu, // Generic EN
-    /^-----Original Message-----/imu, // Outlook clasic
-    /^În data de .+ a scris:/imu, // Varianta RO extinsa
-    /^[A-Za-z]+ \d{1,2}, \d{4} at .+ wrote:/imu, // Formate cu data in clar
-    /^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} .+:/imu // Formate numerice alternative
+    /^On .+ wrote:/imu,
+    /^Am .+ geschrieb:/imu,
+    /^Le .+ écrit :/imu,
+    /^Op .+ schreef/imu,
+    /^W dniu .+ napisał/imu,
+    /^De la:/imu,
+    /^From:/imu,
+    /^-----Original Message-----/imu,
+    /^În data de .+ a scris:/imu,
+    // Regex imbunatatit: permite > la inceput si spatii optionale
+    /^>*\s*[A-Za-z]+ \d{1,2}, \d{4} at .+ wrote:/imu,
+    /^>*\s*\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} .+:/imu
   ];
   const indexes = patterns
     .map((pattern) => text.search(pattern))
@@ -1318,16 +1319,28 @@ async function performTicketInboxSync() {
   let errorMessage = null;
 
   try {
+    // 1. Luam data ultimei sincronizari REUSITE (ex: ieri)
     previousSync = await getLastSuccessfulMailSync();
-    await updateLastSuccessfulMailSync(startedAt);
+
+    // ATENTIE: NU actualizam aici baza de date, pentru ca vrem sa folosim data veche pentru cautare!
+
+    // 2. Rulam sincronizarea (va folosi previousSync prin getMailboxFetchCriteria)
     summary = await syncTicketRepliesFromInbox();
+
+    // 3. Daca totul a mers bine, ABIA ACUM actualizam data in DB cu "acum"
+    await updateLastSuccessfulMailSync(startedAt);
+
+    // Daca au fost erori partiale (dar functia nu a crapat), putem decide sa revenim la data veche
     const hasSyncErrors = Boolean(summary?.errors?.length);
     if (hasSyncErrors) {
       await updateLastSuccessfulMailSync(previousSync);
     }
   } catch (error) {
     errorMessage = error?.message || 'UNKNOWN_IMAP_SYNC_ERROR';
-    await updateLastSuccessfulMailSync(previousSync);
+    // Daca a crapat totul, revenim la data anterioara ca sa reincercam data viitoare
+    if (previousSync) {
+      await updateLastSuccessfulMailSync(previousSync);
+    }
   } finally {
     ticketSyncInProgress = false;
     ticketSyncAbortRequested = false;

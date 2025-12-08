@@ -68,10 +68,17 @@
             Actualizare manuală
           </button>
         </form>
+        <% if (isSyncOnline) { %>
         <form action="/cont/tichete/sincronizare-oprire" method="post">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <button class="btn btn-outline-danger" type="submit" <%= syncState.inProgress ? '' : 'disabled' %>>Oprește sincronizarea</button>
         </form>
+        <% } else { %>
+        <form action="/cont/tichete/sincronizare-reactivare" method="post">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button class="btn btn-outline-success" type="submit" <%= (!syncState.configured || syncState.inProgress) ? 'disabled' : '' %>>Reactivează sincronizarea</button>
+        </form>
+        <% } %>
       </div>
     </div>
     <div class="card shadow-sm mb-4" id="mail-previzualizare">

@@ -507,126 +507,256 @@
     <% } %>
     <% } %>
 
-    <% function formatTimelineName(name, role) {
-      if (!role || role === 'client') {
-        return name || 'Autor necunoscut';
-      }
-      const parts = (name || '').trim().split(/\s+/);
-      const firstName = parts[0] || 'Echipa';
-      return `${firstName}, Echipa Academia de Licențe`;
-    } %>
-    <% function formatTimelineDate(value) {
-      if (!value) {
-        return '—';
-      }
-      if (value instanceof Date || typeof value?.toISOString === 'function') {
-        return value.toISOString().replace('T', ' ').slice(0, 16);
-      }
-      return value;
-    } %>
-    <% if (isMergedTicket) { %>
-    <div class="glass-card mt-4">
-      <p class="mb-0 text-muted">Acest ticket este fuzionat si nu mai accepta raspunsuri noi.</p>
-    </div>
-    <% } else { %>
-    <div class="glass-card mt-4">
-      <form action="/cont/tichete/<%= ticket.id %>/raspuns" method="post" class="vstack gap-3">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-        <div>
-          <label class="form-label" for="message">Adauga raspuns</label>
-          <textarea class="form-control" id="message" name="message" rows="4" required></textarea>
-        </div>
-        <button class="btn btn-gradient align-self-end" type="submit">Trimite raspuns</button>
-      </form>
-    </div>
-    <% } %>
 
-    <% if (includeInternalTimeline) { %>
-    <div class="alert alert-warning mt-4 mb-0">
-      <strong>Notificari interne</strong> – aceste inregistrari sunt vizibile doar administratorilor autorizati.
+    <div class="ticket-tabs-wrapper mb-4">
+      <ul class="nav nav-tabs nav-tabs-bordered" data-ticket-tabs>
+        <li class="nav-item">
+          <button
+            class="nav-link <%= activeTab === 'mesaje' ? 'active' : '' %>"
+            type="button"
+            data-ticket-tab-target="mesaje"
+          >
+            Mesaje
+          </button>
+        </li>
+        <li class="nav-item">
+          <button
+            class="nav-link <%= activeTab === 'fisiere' ? 'active' : '' %>"
+            type="button"
+            data-ticket-tab-target="fisiere"
+          >
+            Fișiere
+          </button>
+        </li>
+      </ul>
     </div>
-    <% } %>
-    <div
-      class="timeline mt-4"
-      data-timeline
-      data-ticket-id="<%= ticket.id %>"
-      data-offset="<%= timelineEntries.length %>"
-      data-limit="<%= timelinePageSize %>"
-    >
-      <% timelineEntries.forEach((entry) => { %>
-      <% const entryType = entry.entry_type; %>
-      <% const heading = entryType === 'ticket' ? 'Mesaj initial' : entryType === 'reply' ? 'Raspuns' : 'Notificare interna'; %>
-      <% const metaPrefix = entryType === 'ticket' ? 'Creat de' : entryType === 'reply' ? 'Trimis de' : 'Inregistrat de'; %>
-      <% const isUnread = entry.isUnread; %>
+
+    <div class="tab-content" data-ticket-tab-content>
       <div
-        class="timeline-item <%= isUnread ? 'timeline-item--unread' : '' %>"
-        data-entry-type="<%= entryType %>"
-        data-entry-id="<%= entry.entry_id %>"
-        data-entry-unread="<%= isUnread ? 'true' : 'false' %>"
+        class="tab-pane fade <%= activeTab === 'mesaje' ? 'show active' : '' %>"
+        id="tab-mesaje"
+        role="tabpanel"
+        data-ticket-tab-panel="mesaje"
       >
-        <div class="timeline-content <%= entryType === 'log' ? 'timeline-content--log' : '' %>">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <h2 class="h6 mb-0"><%= heading %></h2>
-            <% if (isUnread) { %>
-            <span class="badge bg-success-subtle text-success-emphasis text-uppercase" data-unread-badge>Nou</span>
-            <% } %>
-            <% if (entry.isMail) { %>
-            <span class="badge bg-secondary text-uppercase">mail</span>
-            <% } %>
-            <% if (entryType === 'log') { %>
-            <span class="badge bg-warning text-dark text-uppercase">Intern</span>
-            <% } %>
-          </div>
-          <p class="mb-2 <%= entryType === 'log' ? 'small text-muted' : '' %>">
-            <% const messageLines = String(entry.message || '').split('\n'); %>
-            <% messageLines.forEach((line, index) => { %>
-            <%= line %><% if (index < messageLines.length - 1) { %><br /><% } %>
-            <% }) %>
-          </p>
-          <small class="text-muted d-block">
-            <%= metaPrefix %> <%= formatTimelineName(entry.author_name, entry.author_role) %>
-            <% if (entryType === 'log') { %> • Vizibil administratorilor<% } %>
-            <% if (entry.created_at) { %> • <%= formatTimelineDate(entry.created_at) %><% } %>
-          </small>
+        <% function formatTimelineName(name, role) {
+          if (!role || role === 'client') {
+            return name || 'Autor necunoscut';
+          }
+          const parts = (name || '').trim().split(/\s+/);
+          const firstName = parts[0] || 'Echipa';
+          return `${firstName}, Echipa Academia de Licențe`;
+        } %>
+        <% function formatTimelineDate(value) {
+          if (!value) {
+            return '—';
+          }
+          if (value instanceof Date || typeof value?.toISOString === 'function') {
+            return value.toISOString().replace('T', ' ').slice(0, 16);
+          }
+          return value;
+        } %>
+        <% if (isMergedTicket) { %>
+        <div class="glass-card mt-4">
+          <p class="mb-0 text-muted">Acest ticket este fuzionat si nu mai accepta raspunsuri noi.</p>
         </div>
-      </div>
-      <% }) %>
-    </div>
-    <% if (hasMoreTimeline) { %>
-    <div class="text-center mt-3">
-      <button class="btn btn-outline-primary" type="button" data-timeline-load>Vezi mai mult</button>
-    </div>
-    <% } %>
+        <% } else { %>
+        <div class="glass-card mt-4">
+          <form action="/cont/tichete/<%= ticket.id %>/raspuns" method="post" class="vstack gap-3">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <div>
+              <label class="form-label" for="message">Adauga raspuns</label>
+              <textarea class="form-control" id="message" name="message" rows="4" required></textarea>
+            </div>
+            <button class="btn btn-gradient align-self-end" type="submit">Trimite raspuns</button>
+          </form>
+        </div>
+        <% } %>
 
-    <% if (['admin', 'superadmin'].includes(currentUser.role) && !isMergedTicket) { %>
-    <div class="glass-card mt-4">
-      <h3 class="h6 mb-3">Fuzioneaza tickete</h3>
-      <% if (mergeCandidates && mergeCandidates.length > 0) { %>
-      <form action="/cont/tichete/<%= ticket.id %>/merge" method="post" class="vstack gap-3">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-        <div class="vstack gap-2">
-          <% const mergeKindLabels = { support: 'suport', offer: 'oferta', contract: 'contract' }; %>
-          <% mergeCandidates.forEach((candidate) => { %>
-          <% const candidateStatusLabel = candidate.status === 'rezolvat' && candidate.merged_into_ticket_id ? 'rezolvat (merged)' : candidate.status; %>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="mergeTicket<%= candidate.id %>" name="ticketIds" value="<%= candidate.id %>" />
-            <label class="form-check-label" for="mergeTicket<%= candidate.id %>">
-              <span class="fw-semibold d-block"><%= candidate.subject %></span>
-              <span class="text-muted small">#<%= candidate.display_code %> • Tip: <%= mergeKindLabels[candidate.kind] || candidate.kind %> • Status: <%= candidateStatusLabel %></span>
-            </label>
+        <% if (includeInternalTimeline) { %>
+        <div class="alert alert-warning mt-4 mb-0">
+          <strong>Notificari interne</strong> – aceste inregistrari sunt vizibile doar administratorilor autorizati.
+        </div>
+        <% } %>
+        <div
+          class="timeline mt-4"
+          data-timeline
+          data-ticket-id="<%= ticket.id %>"
+          data-offset="<%= timelineEntries.length %>"
+          data-limit="<%= timelinePageSize %>"
+        >
+          <% timelineEntries.forEach((entry) => { %>
+          <% const entryType = entry.entry_type; %>
+          <% const heading = entryType === 'ticket' ? 'Mesaj initial' : entryType === 'reply' ? 'Raspuns' : 'Notificare interna'; %>
+          <% const metaPrefix = entryType === 'ticket' ? 'Creat de' : entryType === 'reply' ? 'Trimis de' : 'Inregistrat de'; %>
+          <% const isUnread = entry.isUnread; %>
+          <div
+            class="timeline-item <%= isUnread ? 'timeline-item--unread' : '' %>"
+            data-entry-type="<%= entryType %>"
+            data-entry-id="<%= entry.entry_id %>"
+            data-entry-unread="<%= isUnread ? 'true' : 'false' %>"
+          >
+            <div class="timeline-content <%= entryType === 'log' ? 'timeline-content--log' : '' %>">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <h2 class="h6 mb-0"><%= heading %></h2>
+                <% if (isUnread) { %>
+                <span class="badge bg-success-subtle text-success-emphasis text-uppercase" data-unread-badge>Nou</span>
+                <% } %>
+                <% if (entry.isMail) { %>
+                <span class="badge bg-secondary text-uppercase">mail</span>
+                <% } %>
+                <% if (entryType === 'log') { %>
+                <span class="badge bg-warning text-dark text-uppercase">Intern</span>
+                <% } %>
+              </div>
+              <p class="mb-2 <%= entryType === 'log' ? 'small text-muted' : '' %>">
+                <% const messageLines = String(entry.message || '').split('\n'); %>
+                <% messageLines.forEach((line, index) => { %>
+                <%= line %><% if (index < messageLines.length - 1) { %><br /><% } %>
+                <% }) %>
+              </p>
+              <small class="text-muted d-block">
+                <%= metaPrefix %> <%= formatTimelineName(entry.author_name, entry.author_role) %>
+                <% if (entryType === 'log') { %> • Vizibil administratorilor<% } %>
+                <% if (entry.created_at) { %> • <%= formatTimelineDate(entry.created_at) %><% } %>
+              </small>
+            </div>
           </div>
           <% }) %>
         </div>
-        <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center">
-          <button class="btn btn-outline-danger" type="submit">Fuzioneaza selectia in acest ticket</button>
-          <p class="text-muted small mb-0">Ticketele selectate vor fi inchise cu mentiunea „merged”.</p>
+        <% if (hasMoreTimeline) { %>
+        <div class="text-center mt-3">
+          <button class="btn btn-outline-primary" type="button" data-timeline-load>Vezi mai mult</button>
         </div>
-      </form>
-      <% } else { %>
-      <p class="text-muted mb-0">Nu exista alte tickete eligibile pentru merge.</p>
-      <% } %>
+        <% } %>
+
+        <% if (['admin', 'superadmin'].includes(currentUser.role) && !isMergedTicket) { %>
+        <div class="glass-card mt-4">
+          <h3 class="h6 mb-3">Fuzioneaza tickete</h3>
+          <% if (mergeCandidates && mergeCandidates.length > 0) { %>
+          <form action="/cont/tichete/<%= ticket.id %>/merge" method="post" class="vstack gap-3">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <div class="vstack gap-2">
+              <% const mergeKindLabels = { support: 'suport', offer: 'oferta', contract: 'contract' }; %>
+              <% mergeCandidates.forEach((candidate) => { %>
+              <% const candidateStatusLabel = candidate.status === 'rezolvat' && candidate.merged_into_ticket_id ? 'rezolvat (merged)' : candidate.status; %>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="mergeTicket<%= candidate.id %>" name="ticketIds" value="<%= candidate.id %>" />
+                <label class="form-check-label" for="mergeTicket<%= candidate.id %>">
+                  <span class="fw-semibold d-block"><%= candidate.subject %></span>
+                  <span class="text-muted small">#<%= candidate.display_code %> • Tip: <%= mergeKindLabels[candidate.kind] || candidate.kind %> • Status: <%= candidateStatusLabel %></span>
+                </label>
+              </div>
+              <% }) %>
+            </div>
+            <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center">
+              <button class="btn btn-primary" type="submit">Fuzioneaza selectiile</button>
+              <p class="text-muted small mb-0"></p>
+            </div>
+          </form>
+          <% } else { %>
+          <p class="text-muted mb-0">Nu exista tickete eligibile pentru fuziune.</p>
+          <% } %>
+        </div>
+        <% } %>
+      </div>
+
+      <div
+        class="tab-pane fade <%= activeTab === 'fisiere' ? 'show active' : '' %>"
+        id="tab-fisiere"
+        role="tabpanel"
+        data-ticket-tab-panel="fisiere"
+      >
+        <div class="glass-card mt-4">
+          <h3 class="h6 mb-3">Fișiere asociate ticketului</h3>
+          <% if (!ticket.project_id) { %>
+          <p class="text-muted mb-0">Fișierele devin disponibile după asocierea ticketului cu un proiect.</p>
+          <% } else if (!clientFiles.length && !staffFiles.length) { %>
+          <p class="text-muted mb-0">Nu există fișiere încărcate pentru acest ticket.</p>
+          <% } else { %>
+          <div class="row g-4">
+            <div class="col-lg-6">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                  <h4 class="h6 mb-3">Fișiere încărcate de client</h4>
+                  <% if (!clientFiles.length) { %>
+                  <p class="text-muted mb-0">Clientul nu a încărcat documente până acum.</p>
+                  <% } else { %>
+                  <ul class="list-group list-group-flush">
+                    <% clientFiles.forEach((file) => { %>
+                    <% const uploadedAt = file.created_at
+                      ? (file.created_at.toISOString
+                          ? file.created_at.toISOString().replace('T', ' ').slice(0, 16)
+                          : file.created_at)
+                      : null; %>
+                    <% const sizeLabel = (Number(file.file_size || 0) / (1024 * 1024)).toFixed(2); %>
+                    <li class="list-group-item">
+                      <div class="d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                          <span class="fw-semibold text-break"><%= file.original_name %></span>
+                          <a
+                            class="btn btn-sm btn-outline-primary"
+                            href="/cont/proiecte/<%= ticket.project_id %>/fisiere/<%= file.id %>/descarca"
+                          >
+                            Descarcă
+                          </a>
+                        </div>
+                        <small class="text-muted">
+                          Încărcat de <%= file.uploader_name || 'Utilizator' %> (<%= file.uploader_role %>)
+                          • <%= sizeLabel %> MB
+                          <% if (uploadedAt) { %> • <%= uploadedAt %><% } %>
+                        </small>
+                      </div>
+                    </li>
+                    <% }); %>
+                  </ul>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                  <h4 class="h6 mb-3">Fișiere încărcate de echipă</h4>
+                  <% if (!staffFiles.length) { %>
+                  <p class="text-muted mb-0">Încă nu au fost urcate fișiere de către echipă.</p>
+                  <% } else { %>
+                  <ul class="list-group list-group-flush">
+                    <% staffFiles.forEach((file) => { %>
+                    <% const uploadedAt = file.created_at
+                      ? (file.created_at.toISOString
+                          ? file.created_at.toISOString().replace('T', ' ').slice(0, 16)
+                          : file.created_at)
+                      : null; %>
+                    <% const sizeLabel = (Number(file.file_size || 0) / (1024 * 1024)).toFixed(2); %>
+                    <li class="list-group-item">
+                      <div class="d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                          <span class="fw-semibold text-break"><%= file.original_name %></span>
+                          <a
+                            class="btn btn-sm btn-outline-primary"
+                            href="/cont/proiecte/<%= ticket.project_id %>/fisiere/<%= file.id %>/descarca"
+                          >
+                            Descarcă
+                          </a>
+                        </div>
+                        <small class="text-muted">
+                          Încărcat de <%= file.uploader_name || 'Echipă' %> (<%= file.uploader_role %>)
+                          • <%= sizeLabel %> MB
+                          <% if (uploadedAt) { %> • <%= uploadedAt %><% } %>
+                        </small>
+                      </div>
+                    </li>
+                    <% }); %>
+                  </ul>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          </div>
+          <% } %>
+        </div>
+      </div>
     </div>
-    <% } %>
     <% if (['admin', 'superadmin'].includes(currentUser.role)) { %>
     <div class="glass-card mt-4">
       <% if (isMergedTicket) { %>
@@ -649,6 +779,43 @@
     <% } %>
   </div>
 </section>
+<script>
+  (function () {
+    const tabButtons = document.querySelectorAll('[data-ticket-tab-target]');
+    const tabPanels = document.querySelectorAll('[data-ticket-tab-panel]');
+    if (!tabButtons.length || !tabPanels.length) {
+      return;
+    }
+    const allowedTabs = new Set(['mesaje', 'fisiere']);
+    function activateTab(target) {
+      const resolvedTarget = allowedTabs.has(target) ? target : 'mesaje';
+      tabButtons.forEach((button) => {
+        const isActive = button.getAttribute('data-ticket-tab-target') === resolvedTarget;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+      tabPanels.forEach((panel) => {
+        const isActive = panel.getAttribute('data-ticket-tab-panel') === resolvedTarget;
+        panel.classList.toggle('show', isActive);
+        panel.classList.toggle('active', isActive);
+      });
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', resolvedTarget);
+        window.history.replaceState(null, '', url);
+      } catch (error) {
+        /* noop when URL cannot be updated */
+      }
+    }
+    activateTab('<%= activeTab %>');
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.getAttribute('data-ticket-tab-target');
+        activateTab(target);
+      });
+    });
+  })();
+</script>
 <script>
   (function () {
     const forms = document.querySelectorAll('[data-signature-form]');

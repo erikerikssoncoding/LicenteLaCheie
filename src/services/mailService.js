@@ -1209,16 +1209,29 @@ async function extractMessageBodyFromSource(source) {
 
 async function processMailbox(client, folderName, handler, summary, searchCriteria = null) {
   const folderStats = { processed: 0, skipped: 0, errors: [] };
+  
+  // LOG NOU: Vedem când începe
+  console.log(`[DEBUG IMAP] Încerc să deschid folderul: ${folderName}`);
+  
   const lock = await client.getMailboxLock(folderName);
   const criteria = searchCriteria || { seen: false };
 
+  // LOG NOU: Vedem criteriile de căutare
+  console.log(`[DEBUG IMAP] Folder ${folderName} deschis. Caut mesaje cu criteriul:`, JSON.stringify(criteria));
+
   try {
+    let messageCount = 0;
     for await (const message of client.fetch(criteria, { envelope: true, uid: true, source: true, headers: ['message-id'] })) {
+      messageCount++;
       if (ticketSyncAbortRequested) {
         summary.errors.push('SYNC_ABORTED_BY_USER');
         folderStats.errors.push('SYNC_ABORTED_BY_USER');
         break;
       }
+      
+      // LOG NOU (doar primul mesaj, ca să nu umplem consola)
+      if (messageCount === 1) console.log(`[DEBUG IMAP] ${folderName}: Am început să primesc mesaje...`);
+
       let shouldMarkSeen = false;
       try {
         const action = await handler(message);
@@ -1246,6 +1259,7 @@ async function processMailbox(client, folderName, handler, summary, searchCriter
         }
       }
     }
+    console.log(`[DEBUG IMAP] Finalizat ${folderName}. Total procesate: ${messageCount}`);
   } finally {
     lock.release();
   }

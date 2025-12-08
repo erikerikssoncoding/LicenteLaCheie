@@ -44,6 +44,10 @@ let ticketSyncAbortRequested = false;
 let ticketSyncAbortTimeout = null;
 let currentTicketSyncClient = null;
 
+function getTicketSyncSafetyGapMs() {
+  return Math.max(60 * 1000, Number(process.env.MAIL_TICKET_SYNC_SAFETY_GAP_MS || 5 * 60 * 1000));
+}
+
 function getTicketSyncAbortTimeoutMs() {
   return Math.max(1000, Number(process.env.MAIL_TICKET_SYNC_ABORT_TIMEOUT_MS || 5000));
 }
@@ -1204,12 +1208,16 @@ async function handleSentMessage(message) {
   const fromAddress = normalizeEmail(extractAddress(fromEnvelope?.address || fromEnvelope?.name));
   const messageId = message.envelope?.messageId || null;
 
+  console.log(`[DEBUG SENT] Procesare email: ${subject} | From: ${fromAddress} | TicketCode: ${ticketCode}`);
+
   if (!ticketCode) {
+    console.log(`[DEBUG SENT] Sarit - Lipsa cod ticket: ${subject}`);
     return 'skipped';
   }
 
   const ticket = await getTicketByDisplayCode(ticketCode);
   if (!ticket) {
+    console.log(`[DEBUG SENT] Sarit - Ticket invalid in DB: ${ticketCode}`);
     return 'skipped';
   }
 
@@ -1217,24 +1225,29 @@ async function handleSentMessage(message) {
   const fallbackAdmin = await getDefaultAdminUser();
 
   if (!isTeamUser(user)) {
+    console.log(`[DEBUG SENT] Utilizatorul ${fromAddress} nu este team user; folosim fallback admin: ${fallbackAdmin?.email}`);
     user = fallbackAdmin;
   }
 
   if (!user) {
+    console.log(`[DEBUG SENT] Sarit - Nu exista user asociat pentru ${fromAddress}`);
     return 'skipped';
   }
 
   const canReply = canUserReplyToTicket(ticket, user) || ['admin', 'superadmin'].includes(user.role);
   if (!canReply && fallbackAdmin && fallbackAdmin.id !== user.id) {
+    console.log(`[DEBUG SENT] Utilizatorul ${fromAddress} nu poate raspunde; incercam fallback admin ${fallbackAdmin.email}`);
     user = fallbackAdmin;
   }
 
   if (!user || !isTeamUser(user)) {
+    console.log(`[DEBUG SENT] Sarit - ${fromAddress} nu este utilizator de tip echipa.`);
     return 'skipped';
   }
 
   const messageBody = await extractMessageBodyFromSource(message.source);
   if (!messageBody) {
+    console.log(`[DEBUG SENT] Sarit - Nu am putut extrage corpul mesajului pentru ${subject}`);
     return 'skipped';
   }
 
@@ -1378,14 +1391,15 @@ async function performTicketInboxSync() {
     // Daca au fost erori partiale (dar functia nu a crapat), putem decide sa revenim la data veche
     const hasSyncErrors = Boolean(summary?.errors?.length);
     if (hasSyncErrors) {
-      await updateLastSuccessfulMailSync(previousSync);
+      const adjustedDate = new Date(startedAt.getTime() - getTicketSyncSafetyGapMs());
+      console.warn('Sincronizare cu erori partiale; setam data ultimei sincronizari cu un gap de siguranta.');
+      await updateLastSuccessfulMailSync(adjustedDate);
     }
   } catch (error) {
     errorMessage = error?.message || 'UNKNOWN_IMAP_SYNC_ERROR';
-    // Daca a crapat totul, revenim la data anterioara ca sa reincercam data viitoare
-    if (previousSync) {
-      await updateLastSuccessfulMailSync(previousSync);
-    }
+    console.error('Eroare la sincronizarea inbox-ului de tickete:', errorMessage);
+    const fallbackDate = new Date(startedAt.getTime() - getTicketSyncSafetyGapMs());
+    await updateLastSuccessfulMailSync(fallbackDate);
   } finally {
     resetTicketSyncState();
     ticketSyncLastRunAt = startedAt;
@@ -1424,13 +1438,15 @@ export async function triggerTicketInboxSyncNow() {
     return { started: false, reason: 'IMAP_NOT_CONFIGURED' };
   }
 
-  const runResult = await performTicketInboxSync();
-
-  if (runResult.skipped) {
-    return { started: false, reason: runResult.reason || 'SYNC_IN_PROGRESS' };
+  if (ticketSyncInProgress) {
+    return { started: false, reason: 'SYNC_IN_PROGRESS' };
   }
 
-  return { started: true, summary: runResult.summary, error: runResult.error };
+  performTicketInboxSync().catch((error) => {
+    console.error('Eroare in sincronizarea manuala background:', error);
+  });
+
+  return { started: true, message: 'Sincronizarea a inceput in fundal.' };
 }
 
 export function startTicketInboxSync() {

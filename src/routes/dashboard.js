@@ -1534,6 +1534,9 @@ router.get('/cont/tichete/:id', requireActiveLicense(), async (req, res, next) =
     await markTicketTimelineRead({ ticketId: ticket.id, userId: user.id });
     const offer = ticket.kind === 'offer' || ticket.kind === 'contract' ? await getOfferByTicketId(ticket.id) : null;
     const contractDetails = ticket.kind === 'contract' ? await getContractDetailsByTicket(ticket.id) : null;
+    const projectFiles = ticket.project_id ? await listProjectFiles(ticket.project_id) : [];
+    const clientFiles = projectFiles.filter((file) => file.origin === 'client');
+    const staffFiles = projectFiles.filter((file) => file.origin === 'staff');
     let mergeCandidates = [];
     if (['admin', 'superadmin'].includes(user.role) && !ticket.merged_into_ticket_id) {
       mergeCandidates = await listMergeCandidates({
@@ -1542,6 +1545,9 @@ router.get('/cont/tichete/:id', requireActiveLicense(), async (req, res, next) =
         actor: user
       });
     }
+    const allowedTabs = new Set(['mesaje', 'fisiere']);
+    const requestedTab = typeof req.query.tab === 'string' ? req.query.tab : null;
+    const activeTab = requestedTab && allowedTabs.has(requestedTab) ? requestedTab : 'mesaje';
     const feedback = req.session.ticketFeedback || {};
     delete req.session.ticketFeedback;
     res.render('pages/ticket-detail', {
@@ -1556,7 +1562,10 @@ router.get('/cont/tichete/:id', requireActiveLicense(), async (req, res, next) =
       feedback,
       contractDetails,
       mergeCandidates,
-      includeInternalTimeline
+      includeInternalTimeline,
+      clientFiles,
+      staffFiles,
+      activeTab
     });
   } catch (error) {
     next(error);

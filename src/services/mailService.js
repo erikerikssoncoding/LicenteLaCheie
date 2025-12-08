@@ -35,7 +35,11 @@ export const MAIL_IMAP_GREETING_TIMEOUT_MS = Math.max(
 );
 export const MAIL_IMAP_SOCKET_TIMEOUT_MS = Math.max(
   1000,
-  Number(process.env.MAIL_IMAP_SOCKET_TIMEOUT_MS || 180000)
+  Number(process.env.MAIL_IMAP_SOCKET_TIMEOUT_MS || 420000)
+);
+const MAIL_IMAP_KEEPALIVE_INTERVAL_MS = Math.max(
+  30000,
+  Number(process.env.MAIL_IMAP_KEEPALIVE_INTERVAL_MS || 60000)
 );
 const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(180000, Number(process.env.MAIL_TICKET_SYNC_INTERVAL_MS || 900000));
 const MAILBOX_FETCH_LOOKBACK_MS = 24 * 60 * 60 * 1000;
@@ -93,6 +97,26 @@ function resetTicketSyncState() {
   ticketSyncAbortRequested = false;
   currentTicketSyncClient = null;
   clearTicketSyncAbortTimeout();
+}
+
+function startImapKeepalive(client) {
+  if (!client) {
+    return () => {};
+  }
+
+  const interval = setInterval(async () => {
+    if (!client.usable) {
+      return;
+    }
+
+    try {
+      await client.noop();
+    } catch (error) {
+      console.warn('IMAP keepalive failed:', error?.message || error);
+    }
+  }, MAIL_IMAP_KEEPALIVE_INTERVAL_MS);
+
+  return () => clearInterval(interval);
 }
 
 async function getLastSuccessfulMailSync() {
@@ -1292,8 +1316,9 @@ export async function syncTicketRepliesFromInbox() {
 
   const summary = { processed: 0, skipped: 0, errors: [], folders: {} };
   const searchCriteria = await getMailboxFetchCriteria();
-  
+
   const client = new ImapFlow(getBaseImapConfig());
+  let stopKeepalive = () => {};
 
   // MODIFICARE 2: Handler critic pentru a preveni crash-ul Node.js
   // Aceasta este linia care rezolvă "Unhandled 'error' event"
@@ -1306,6 +1331,7 @@ export async function syncTicketRepliesFromInbox() {
   try {
     currentTicketSyncClient = client;
     await client.connect();
+    stopKeepalive = startImapKeepalive(client);
 
     try {
       await processMailbox(client, MAIL_IMAP_INBOX, handleInboxMessage, summary, searchCriteria);
@@ -1329,6 +1355,7 @@ export async function syncTicketRepliesFromInbox() {
   } catch (error) {
     summary.errors.push(error?.message || 'UNKNOWN_IMAP_SYNC_ERROR');
   } finally {
+    stopKeepalive();
     clearTicketSyncAbortTimeout();
     currentTicketSyncClient = null;
     try {

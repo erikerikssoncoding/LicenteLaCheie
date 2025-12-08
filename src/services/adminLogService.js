@@ -29,15 +29,17 @@ export async function logAdminAction({
     return;
   }
   const serializedDetails = details ? JSON.stringify(sanitizeDetails(details)) : null;
+  
+  // MODIFICARE: Am scos "CAST(? AS JSON)" și am lăsat doar "?"
   await pool.query(
     `INSERT INTO admin_action_logs (user_id, user_name, user_role, action, details_json, status_code, ip_address, user_agent)
-     VALUES (?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       actor?.id || null,
       actor?.fullName || actor?.full_name || null,
       actor?.role || null,
       action,
-      serializedDetails,
+      serializedDetails, // Se trimite ca string simplu; baza de date se ocupă de restul
       Number.isInteger(statusCode) ? statusCode : null,
       ipAddress || null,
       userAgent || null

@@ -5,6 +5,7 @@ import { promises as fs } from 'fs';
 import crypto from 'crypto';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
+import pool from '../config/db.js';
 import { logMailEvent } from './notificationLogService.js';
 import { createOneTimeLoginLink } from './loginLinkService.js';
 import { addReply, getTicketByDisplayCode } from './ticketService.js';
@@ -37,10 +38,40 @@ let ticketSyncLastRunAt = null;
 let ticketSyncLastResult = null;
 let ticketSyncLastError = null;
 
-function getMailboxFetchCriteria() {
+async function getLastSuccessfulMailSync() {
+  try {
+    const [rows] = await pool.query('SELECT last_successful_sync FROM mail_sync_state WHERE id = 1 LIMIT 1');
+    const lastSync = rows?.[0]?.last_successful_sync;
+    return lastSync ? new Date(lastSync) : null;
+  } catch (error) {
+    if (error.code === 'ER_NO_SUCH_TABLE') {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function updateLastSuccessfulMailSync(date = new Date()) {
+  try {
+    await pool.query(
+      `INSERT INTO mail_sync_state (id, last_successful_sync) VALUES (1, ?) ON DUPLICATE KEY UPDATE last_successful_sync = VALUES(last_successful_sync)`,
+      [date]
+    );
+  } catch (error) {
+    console.error('Nu s-a putut actualiza momentul ultimei sincronizari email:', error?.message || error);
+  }
+}
+
+async function getMailboxFetchCriteria() {
   const fallbackSince = new Date(Date.now() - MAILBOX_FETCH_LOOKBACK_MS);
-  const since = ticketSyncLastRunAt ? new Date(ticketSyncLastRunAt) : fallbackSince;
-  return { since };
+  try {
+    const lastSuccess = await getLastSuccessfulMailSync();
+    const since = lastSuccess ? new Date(lastSuccess) : fallbackSince;
+    return { since };
+  } catch (error) {
+    console.error('Nu s-a putut obtine momentul ultimei sincronizari email:', error?.message || error);
+    return { since: fallbackSince };
+  }
 }
 
 function formatEnvelopeAddresses(addresses = []) {
@@ -1161,7 +1192,7 @@ export async function syncTicketRepliesFromInbox() {
   }
 
   const summary = { processed: 0, skipped: 0, errors: [], folders: {} };
-  const searchCriteria = getMailboxFetchCriteria();
+  const searchCriteria = await getMailboxFetchCriteria();
   const client = new ImapFlow({
     host: MAIL_IMAP_HOST,
     port: MAIL_IMAP_PORT,
@@ -1273,6 +1304,10 @@ async function performTicketInboxSync() {
 
   try {
     summary = await syncTicketRepliesFromInbox();
+    const hasSyncErrors = Boolean(summary?.errors?.length);
+    if (!hasSyncErrors) {
+      await updateLastSuccessfulMailSync(startedAt);
+    }
   } catch (error) {
     errorMessage = error?.message || 'UNKNOWN_IMAP_SYNC_ERROR';
   } finally {

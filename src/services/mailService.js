@@ -1283,8 +1283,11 @@ async function handleInboxMessage(message) {
   const textContent = parsed.text || '';
   const firstLine = textContent.trim().split(/\r?\n/)[0] || '';
 
-  if (firstLine.includes('A fost deschis un ticket nou')) {
-    console.log(`[DEBUG INBOX] UID=${message.uid} Skipped - notificare automată detectată în corp: ${subject}`);
+  if (
+    firstLine.includes('A fost deschis un ticket nou') ||
+    firstLine.includes('Echipa a transmis un raspuns intr-un ticket.')
+  ) {
+    console.log(`[DEBUG INBOX] Skipped - Automated system notification detected in body: ${subject}`);
     return 'skipped';
   }
 
@@ -1335,7 +1338,10 @@ async function handleSentMessage(message) {
   const textContent = parsed.text || '';
   const firstLine = textContent.trim().split(/\r?\n/)[0] || '';
 
-  if (firstLine.includes('A fost deschis un ticket nou')) {
+  if (
+    firstLine.includes('A fost deschis un ticket nou') ||
+    firstLine.includes('Echipa a transmis un raspuns intr-un ticket.')
+  ) {
     console.log(`[DEBUG SENT] Skipped - Automated system notification detected in body: ${subject}`);
     return 'skipped';
   }

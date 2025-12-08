@@ -245,10 +245,17 @@ function trimQuotedConversation(text) {
     return '';
   }
   const patterns = [
-    /^On .+ wrote:/imu,
-    /^De la:/imu,
-    /^From:/imu,
-    /^-----Original Message-----/imu
+    /^On .+ wrote:/imu, // Standard EN
+    /^Am .+ geschrieb:/imu, // Standard DE
+    /^Le .+ écrit :/imu, // Standard FR
+    /^Op .+ schreef/imu, // Standard NL
+    /^W dniu .+ napisał/imu, // Standard PL
+    /^De la:/imu, // Generic RO/EN
+    /^From:/imu, // Generic EN
+    /^-----Original Message-----/imu, // Outlook clasic
+    /^În data de .+ a scris:/imu, // Varianta RO extinsa
+    /^[A-Za-z]+ \d{1,2}, \d{4} at .+ wrote:/imu, // Formate cu data in clar
+    /^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2} .+:/imu // Formate numerice alternative
   ];
   const indexes = patterns
     .map((pattern) => text.search(pattern))

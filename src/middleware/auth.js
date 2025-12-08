@@ -1,4 +1,5 @@
 import { getUserById, updateUserLastSeen } from '../services/userService.js';
+import { getUnreadTicketCounts } from '../services/ticketService.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
 import { getLicenseState } from '../utils/licenseState.js';
 import {
@@ -134,6 +135,13 @@ export async function injectUser(req, res, next) {
     const restrictedRoles = new Set(['admin', 'redactor']);
     const currentRole = req.session?.user?.role || null;
     res.locals.isLicenseRestricted = Boolean(currentRole && licenseState.isExpired && restrictedRoles.has(currentRole));
+    const unreadSummary = res.locals.currentUser
+      ? await getUnreadTicketCounts({ user: res.locals.currentUser })
+      : { totalUnreadCount: 0, unreadByTicket: new Map() };
+    res.locals.ticketUnreadSummary = {
+      totalUnreadCount: unreadSummary.totalUnreadCount,
+      unreadByTicket: Object.fromEntries(unreadSummary.unreadByTicket)
+    };
     next();
   } catch (error) {
     next(error);

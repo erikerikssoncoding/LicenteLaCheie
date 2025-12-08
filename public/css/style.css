@@ -1381,3 +1381,12 @@ a:hover {
     bottom: 1rem;
   }
 }
+
+.ticket-unread-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #dc3545;
+  box-shadow: 0 0 0 2px #fff;
+}

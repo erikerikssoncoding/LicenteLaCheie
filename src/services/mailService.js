@@ -25,6 +25,12 @@ const MAIL_IMAP_PORT = Number(process.env.MAIL_IMAP_PORT || 993);
 const MAIL_IMAP_SECURE = String(process.env.MAIL_IMAP_SECURE || 'true').toLowerCase() !== 'false';
 const MAIL_IMAP_INBOX = process.env.MAIL_IMAP_INBOX || 'INBOX';
 const MAIL_IMAP_SENT_FOLDER = process.env.MAIL_IMAP_SENT_FOLDER || 'Sent';
+const MAIL_IMAP_TLS_OPTIONS = { rejectUnauthorized: !MAIL_ALLOW_INVALID_CERTS };
+const MAIL_IMAP_TIMEOUT_SETTINGS = {
+  clientTimeout: 120000,
+  greetingTimeout: 60000,
+  socketTimeout: 120000
+};
 const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(180000, Number(process.env.MAIL_TICKET_SYNC_INTERVAL_MS || 900000));
 const MAILBOX_FETCH_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const MAILBOX_TIMEZONE = process.env.TZ || 'Europe/Bucharest';
@@ -1269,15 +1275,13 @@ export async function syncTicketRepliesFromInbox() {
     port: MAIL_IMAP_PORT,
     secure: MAIL_IMAP_SECURE,
     logger: false, // Poți pune true pentru debug extrem, dar va genera mult text
-    tls: { rejectUnauthorized: !MAIL_ALLOW_INVALID_CERTS },
+    tls: MAIL_IMAP_TLS_OPTIONS,
     auth: {
       user: MAIL_USER,
       pass: MAIL_PASSWORD
     },
     // MODIFICARE: Mărim timeout-urile la 2 minute (120000ms)
-    clientTimeout: 120000,
-    greetingTimeout: 60000,
-    socketTimeout: 120000
+    ...MAIL_IMAP_TIMEOUT_SETTINGS
   });
 
   // MODIFICARE 2: Handler critic pentru a preveni crash-ul Node.js
@@ -1349,11 +1353,18 @@ export async function getRecentMailboxPreview(limit = 5) {
     port: MAIL_IMAP_PORT,
     secure: MAIL_IMAP_SECURE,
     logger: false,
-    tls: { rejectUnauthorized: !MAIL_ALLOW_INVALID_CERTS },
+    tls: MAIL_IMAP_TLS_OPTIONS,
     auth: {
       user: MAIL_USER,
       pass: MAIL_PASSWORD
-    }
+    },
+    ...MAIL_IMAP_TIMEOUT_SETTINGS
+  });
+
+  client.on('error', (err) => {
+    const errorMsg = `IMAP Preview Error: ${err.message || err}`;
+    console.error(errorMsg);
+    result.errors.push(errorMsg);
   });
 
   try {

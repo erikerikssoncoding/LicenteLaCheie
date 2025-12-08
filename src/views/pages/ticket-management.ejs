@@ -127,7 +127,16 @@
               <div class="list-group-item">
                 <div class="fw-semibold text-truncate"><%= message.subject %></div>
                 <div class="small text-muted text-truncate">De la: <%= message.from || 'Necunoscut' %></div>
-                <div class="small text-muted">Data: <%= message.date ? message.date.replace('T', ' ').slice(0, 16) : 'N/A' %></div>
+                <% const inboxDateLabel =
+                  message.formattedDate ||
+                  (message.date
+                    ? new Date(message.date).toLocaleString('ro-RO', {
+                        timeZone: 'Europe/Bucharest',
+                        dateStyle: 'short',
+                        timeStyle: 'short'
+                      })
+                    : null); %>
+                <div class="small text-muted">Data: <%= inboxDateLabel || 'N/A' %></div>
               </div>
               <% }) %>
             </div>
@@ -143,7 +152,16 @@
               <div class="list-group-item">
                 <div class="fw-semibold text-truncate"><%= message.subject %></div>
                 <div class="small text-muted text-truncate">Către: <%= message.to || 'Necunoscut' %></div>
-                <div class="small text-muted">Data: <%= message.date ? message.date.replace('T', ' ').slice(0, 16) : 'N/A' %></div>
+                <% const sentDateLabel =
+                  message.formattedDate ||
+                  (message.date
+                    ? new Date(message.date).toLocaleString('ro-RO', {
+                        timeZone: 'Europe/Bucharest',
+                        dateStyle: 'short',
+                        timeStyle: 'short'
+                      })
+                    : null); %>
+                <div class="small text-muted">Data: <%= sentDateLabel || 'N/A' %></div>
               </div>
               <% }) %>
             </div>

@@ -27,6 +27,8 @@ const MAIL_IMAP_INBOX = process.env.MAIL_IMAP_INBOX || 'INBOX';
 const MAIL_IMAP_SENT_FOLDER = process.env.MAIL_IMAP_SENT_FOLDER || 'Sent';
 const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(60000, Number(process.env.MAIL_TICKET_SYNC_INTERVAL_MS || 900000));
 const MAILBOX_FETCH_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+const MAILBOX_TIMEZONE = process.env.TZ || 'Europe/Bucharest';
+const MAILBOX_LOCALE = 'ro-RO';
 
 const MAX_EMAIL_RECIPIENTS = 10;
 const CLIENT_HOSTNAME = os.hostname();
@@ -110,6 +112,23 @@ function formatEnvelopeAddresses(addresses = []) {
     })
     .filter(Boolean)
     .join(', ');
+}
+
+function formatLocalizedDate(dateValue) {
+  if (!dateValue) {
+    return null;
+  }
+
+  const dateInstance = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(dateInstance.getTime())) {
+    return null;
+  }
+
+  return dateInstance.toLocaleString(MAILBOX_LOCALE, {
+    timeZone: MAILBOX_TIMEZONE,
+    dateStyle: 'short',
+    timeStyle: 'short'
+  });
 }
 
 async function safeLogMailEvent(payload) {
@@ -506,17 +525,19 @@ async function fetchRecentMailboxMessages(client, folderName, limit = 5) {
     for await (const message of client.fetch({ seq: `${startSeq}:${totalMessages}` }, { envelope: true, internalDate: true })) {
       const envelope = message.envelope || {};
       const dateValue = envelope.date || message.internalDate || null;
+      const timestamp = dateValue ? new Date(dateValue).getTime() : null;
       items.push({
         subject: envelope.subject || '(fără subiect)',
         from: formatEnvelopeAddresses(envelope.from),
         to: formatEnvelopeAddresses(envelope.to),
-        date: dateValue ? new Date(dateValue).toISOString() : null
+        date: timestamp,
+        formattedDate: formatLocalizedDate(dateValue)
       });
     }
 
     items.sort((a, b) => {
-      const dateA = a.date ? new Date(a.date).getTime() : 0;
-      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      const dateA = typeof a.date === 'number' ? a.date : 0;
+      const dateB = typeof b.date === 'number' ? b.date : 0;
       return dateB - dateA;
     });
   } catch (mailboxError) {

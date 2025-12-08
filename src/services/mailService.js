@@ -60,6 +60,31 @@ let ticketSyncAbortRequested = false;
 let ticketSyncAbortTimeout = null;
 let currentTicketSyncClient = null;
 
+function isSocketOrConnectionIssue(error) {
+  if (!error) {
+    return false;
+  }
+
+  const code = String(error.code || '').toUpperCase();
+  const message = String(error.message || '').toLowerCase();
+  const retryableCodes = ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH'];
+
+  if (retryableCodes.includes(code)) {
+    return true;
+  }
+
+  return (
+    message.includes('socket timeout') ||
+    message.includes('socket timed out') ||
+    message.includes('read timeout') ||
+    message.includes('greeting timeout') ||
+    message.includes('connection closed unexpectedly') ||
+    message.includes('client network socket disconnected') ||
+    message.includes('unable to connect') ||
+    message.includes('timed out while')
+  );
+}
+
 function getBaseImapConfig() {
   return {
     host: MAIL_IMAP_HOST,
@@ -1309,24 +1334,34 @@ async function handleSentMessage(message) {
   return result?.skipped ? 'skipped' : 'processed';
 }
 
-export async function syncTicketRepliesFromInbox() {
-  if (!isImapConfigured()) {
-    return { processed: 0, skipped: 0, errors: ['IMAP_NOT_CONFIGURED'], folders: {} };
-  }
-
+async function runTicketSyncAttempt(searchCriteria) {
   const summary = { processed: 0, skipped: 0, errors: [], folders: {} };
-  const searchCriteria = await getMailboxFetchCriteria();
-
   const client = new ImapFlow(getBaseImapConfig());
   let stopKeepalive = () => {};
+  let shouldRetry = false;
+  let fatalConnectionFailure = false;
+  let attemptError = null;
 
-  // MODIFICARE 2: Handler critic pentru a preveni crash-ul Node.js
-  // Aceasta este linia care rezolvă "Unhandled 'error' event"
-  client.on('error', (err) => {
+  const handleError = (err) => {
     const errorMsg = `IMAP Background Error: ${err.message || err}`;
     console.error(errorMsg);
     summary.errors.push(errorMsg);
-  });
+
+    if (isSocketOrConnectionIssue(err)) {
+      shouldRetry = true;
+      fatalConnectionFailure = true;
+      stopKeepalive();
+      try {
+        client.close();
+      } catch (closeError) {
+        console.error('Nu s-a putut inchide clientul IMAP dupa eroare:', closeError?.message || closeError);
+      }
+    }
+
+    attemptError = attemptError || err;
+  };
+
+  client.on('error', handleError);
 
   try {
     currentTicketSyncClient = client;
@@ -1353,7 +1388,13 @@ export async function syncTicketRepliesFromInbox() {
       };
     }
   } catch (error) {
+    attemptError = error;
     summary.errors.push(error?.message || 'UNKNOWN_IMAP_SYNC_ERROR');
+
+    if (isSocketOrConnectionIssue(error)) {
+      shouldRetry = true;
+      fatalConnectionFailure = true;
+    }
   } finally {
     stopKeepalive();
     clearTicketSyncAbortTimeout();
@@ -1370,7 +1411,43 @@ export async function syncTicketRepliesFromInbox() {
     }
   }
 
-  return summary;
+  return { summary, shouldRetry, fatalConnectionFailure, error: attemptError };
+}
+
+export async function syncTicketRepliesFromInbox() {
+  if (!isImapConfigured()) {
+    return { processed: 0, skipped: 0, errors: ['IMAP_NOT_CONFIGURED'], folders: {} };
+  }
+
+  const searchCriteria = await getMailboxFetchCriteria();
+  let lastError = null;
+  let lastSummary = null;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { summary, shouldRetry, fatalConnectionFailure, error } = await runTicketSyncAttempt(searchCriteria);
+    lastSummary = summary;
+
+    if (!shouldRetry) {
+      return summary;
+    }
+
+    lastError = error || new Error('IMAP connection issue');
+
+    if (attempt === 0 && fatalConnectionFailure) {
+      console.warn('Probleme de conexiune IMAP detectate, incercam o noua conexiune...');
+      continue;
+    }
+
+    const fatalError = lastError || new Error('IMAP connection failed after retry');
+    fatalError.fatalConnectionFailure = true;
+    fatalError.summary = lastSummary;
+    throw fatalError;
+  }
+
+  const fatalError = lastError || new Error('IMAP connection failed after retry');
+  fatalError.fatalConnectionFailure = true;
+  fatalError.summary = lastSummary;
+  throw fatalError;
 }
 
 export async function getRecentMailboxPreview(limit = 5) {
@@ -1449,8 +1526,14 @@ async function performTicketInboxSync() {
   } catch (error) {
     errorMessage = error?.message || 'UNKNOWN_IMAP_SYNC_ERROR';
     console.error('Eroare la sincronizarea inbox-ului de tickete:', errorMessage);
-    const fallbackDate = new Date(startedAt.getTime() - getTicketSyncSafetyGapMs());
-    await updateLastSuccessfulMailSync(fallbackDate);
+    summary = summary || error?.summary || null;
+
+    if (!error?.fatalConnectionFailure) {
+      const fallbackDate = new Date(startedAt.getTime() - getTicketSyncSafetyGapMs());
+      await updateLastSuccessfulMailSync(fallbackDate);
+    } else {
+      console.warn('Skip actualizarea ultimei sincronizari: conexiunea IMAP a esuat dupa retry.');
+    }
   } finally {
     resetTicketSyncState();
     ticketSyncLastRunAt = startedAt;

@@ -169,6 +169,18 @@ a:hover {
   padding: 6rem 0 5rem;
 }
 
+.hero-section .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.3;
+  word-break: break-word;
+  padding: 0.65rem 0.95rem;
+}
+
 .hero-section::before {
   content: '';
   position: absolute;
@@ -241,6 +253,7 @@ a:hover {
 
 .feature-carousel {
   position: relative;
+  overflow: hidden;
 }
 
 .feature-carousel .carousel-inner {
@@ -265,11 +278,11 @@ a:hover {
 }
 
 .feature-carousel .carousel-control-prev {
-  left: -24px;
+  left: 0.5rem;
 }
 
 .feature-carousel .carousel-control-next {
-  right: -24px;
+  right: 0.5rem;
 }
 
 .feature-carousel .carousel-control-prev-icon,
@@ -284,18 +297,17 @@ a:hover {
     bottom: -18px;
     transform: none;
     position: absolute;
+    margin: 0;
   }
 
   .feature-carousel .carousel-control-prev {
-    left: 0;
+    left: 0.35rem;
     right: auto;
-    margin-right: 3rem;
   }
 
   .feature-carousel .carousel-control-next {
-    right: 0;
+    right: 0.35rem;
     left: auto;
-    margin-left: 3rem;
   }
 }
 

@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import { customAlphabet } from 'nanoid';
+import { TICKET_ATTACHMENT_MAX_FILES, TICKET_ATTACHMENT_MAX_SIZE } from '../constants/attachmentRules.js';
 
 const generateTicketCode = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 15);
 
@@ -552,4 +553,64 @@ export async function listRecentTicketRepliesForUser(userId, limit = 5) {
     [userId, userId, limit]
   );
   return rows;
+}
+
+export async function saveTicketAttachments({ ticketId, uploaderId, uploaderRole, origin, files }) {
+  if (!ticketId || !uploaderId || !uploaderRole || !Array.isArray(files) || !files.length) {
+    return [];
+  }
+  const [{ total = 0 }] = await pool.query(
+    'SELECT COUNT(*) AS total FROM ticket_files WHERE ticket_id = ? AND is_deleted = 0',
+    [ticketId]
+  );
+  if (Number(total) + files.length > TICKET_ATTACHMENT_MAX_FILES) {
+    throw new Error('TICKET_ATTACHMENT_LIMIT_EXCEEDED');
+  }
+
+  const oversizeFiles = files.filter((file) => Number(file.size) > TICKET_ATTACHMENT_MAX_SIZE);
+  if (oversizeFiles.length) {
+    throw new Error('TICKET_ATTACHMENT_TOO_LARGE');
+  }
+
+  const insertedIds = [];
+  for (const file of files) {
+    const storedName = file.storedName || file.filename || file.stored_name || null;
+    const originalName = file.originalname || file.original_name;
+    if (!storedName || !originalName) {
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+    const [result] = await pool.query(
+      `INSERT INTO ticket_files
+          (ticket_id, uploader_id, uploader_role, origin, original_name, stored_name, mime_type, file_size)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ticketId, uploaderId, uploaderRole, origin, originalName, storedName, file.mimetype, file.size]
+    );
+    insertedIds.push(result.insertId);
+  }
+  await pool.query('UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [ticketId]);
+  return insertedIds;
+}
+
+export async function listTicketFiles(ticketId) {
+  const [rows] = await pool.query(
+    `SELECT tf.*, u.full_name AS uploader_name
+       FROM ticket_files tf
+       LEFT JOIN users u ON u.id = tf.uploader_id
+      WHERE tf.ticket_id = ? AND tf.is_deleted = 0
+      ORDER BY tf.created_at DESC, tf.id DESC`,
+    [ticketId]
+  );
+  return rows;
+}
+
+export async function getTicketFileById(fileId) {
+  const [rows] = await pool.query(
+    `SELECT tf.*, u.full_name AS uploader_name
+       FROM ticket_files tf
+       LEFT JOIN users u ON u.id = tf.uploader_id
+      WHERE tf.id = ? AND tf.is_deleted = 0`,
+    [fileId]
+  );
+  return rows[0] || null;
 }

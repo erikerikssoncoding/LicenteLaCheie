@@ -672,11 +672,129 @@
         data-ticket-tab-panel="fisiere"
       >
         <div class="glass-card mt-4">
-          <h3 class="h6 mb-3">Fișiere asociate ticketului</h3>
+          <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-3">
+            <div>
+              <h3 class="h6 mb-1">Fișiere atașate la ticket</h3>
+              <p class="text-muted mb-0">Include documentele urcate în formular sau direct din ticket.</p>
+            </div>
+            <% const canUploadTicketFiles = ['client', 'admin', 'superadmin'].includes(currentUser.role); %>
+            <% if (canUploadTicketFiles) { %>
+            <form
+              class="d-flex flex-column flex-sm-row align-items-sm-center gap-2"
+              action="/cont/tichete/<%= ticket.id %>/fisiere"
+              method="post"
+              enctype="multipart/form-data"
+            >
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input
+                class="form-control"
+                type="file"
+                id="ticketFiles"
+                name="files"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.txt,.csv,.json,.jpg,.jpeg,.png"
+                multiple
+                required
+              />
+              <button class="btn btn-primary" type="submit">Încarcă fișiere</button>
+            </form>
+            <% } %>
+          </div>
+          <p class="text-muted small mb-4">
+            Poți atașa maximum <%= ticketFileLimits.maxFiles %> fișiere, fiecare de cel mult
+            <%= ticketFileLimits.maxSizeMb %> MB.
+          </p>
+          <% if (!clientTicketFiles.length && !staffTicketFiles.length) { %>
+          <p class="text-muted mb-0">Nu există fișiere atașate în acest ticket.</p>
+          <% } else { %>
+          <div class="row g-4">
+            <div class="col-lg-6">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                  <h4 class="h6 mb-3">Încărcate de client</h4>
+                  <% if (!clientTicketFiles.length) { %>
+                  <p class="text-muted mb-0">Clientul nu a adăugat fișiere.</p>
+                  <% } else { %>
+                  <ul class="list-group list-group-flush">
+                    <% clientTicketFiles.forEach((file) => { %>
+                    <% const uploadedAt = file.created_at
+                      ? (file.created_at.toISOString
+                          ? file.created_at.toISOString().replace('T', ' ').slice(0, 16)
+                          : file.created_at)
+                      : null; %>
+                    <% const sizeLabel = (Number(file.file_size || 0) / (1024 * 1024)).toFixed(2); %>
+                    <li class="list-group-item">
+                      <div class="d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                          <span class="fw-semibold text-break"><%= file.original_name %></span>
+                          <a
+                            class="btn btn-sm btn-outline-primary"
+                            href="/cont/tichete/<%= ticket.id %>/fisiere/<%= file.id %>/descarca"
+                          >
+                            Descarcă
+                          </a>
+                        </div>
+                        <small class="text-muted">
+                          Încărcat de <%= file.uploader_name || 'Utilizator' %> (<%= file.uploader_role %>)
+                          • <%= sizeLabel %> MB
+                          <% if (uploadedAt) { %> • <%= uploadedAt %><% } %>
+                        </small>
+                      </div>
+                    </li>
+                    <% }); %>
+                  </ul>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                  <h4 class="h6 mb-3">Încărcate de echipă</h4>
+                  <% if (!staffTicketFiles.length) { %>
+                  <p class="text-muted mb-0">Încă nu există fișiere adăugate de echipă.</p>
+                  <% } else { %>
+                  <ul class="list-group list-group-flush">
+                    <% staffTicketFiles.forEach((file) => { %>
+                    <% const uploadedAt = file.created_at
+                      ? (file.created_at.toISOString
+                          ? file.created_at.toISOString().replace('T', ' ').slice(0, 16)
+                          : file.created_at)
+                      : null; %>
+                    <% const sizeLabel = (Number(file.file_size || 0) / (1024 * 1024)).toFixed(2); %>
+                    <li class="list-group-item">
+                      <div class="d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                          <span class="fw-semibold text-break"><%= file.original_name %></span>
+                          <a
+                            class="btn btn-sm btn-outline-primary"
+                            href="/cont/tichete/<%= ticket.id %>/fisiere/<%= file.id %>/descarca"
+                          >
+                            Descarcă
+                          </a>
+                        </div>
+                        <small class="text-muted">
+                          Încărcat de <%= file.uploader_name || 'Echipă' %> (<%= file.uploader_role %>)
+                          • <%= sizeLabel %> MB
+                          <% if (uploadedAt) { %> • <%= uploadedAt %><% } %>
+                        </small>
+                      </div>
+                    </li>
+                    <% }); %>
+                  </ul>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          </div>
+          <% } %>
+        </div>
+
+        <div class="glass-card mt-4">
+          <h3 class="h6 mb-3">Fișiere asociate proiectului</h3>
           <% if (!ticket.project_id) { %>
-          <p class="text-muted mb-0">Fișierele devin disponibile după asocierea ticketului cu un proiect.</p>
+          <p class="text-muted mb-0">Fișierele de proiect devin disponibile după asocierea ticketului cu un proiect.</p>
           <% } else if (!clientFiles.length && !staffFiles.length) { %>
-          <p class="text-muted mb-0">Nu există fișiere încărcate pentru acest ticket.</p>
+          <p class="text-muted mb-0">Nu există fișiere încărcate pentru acest proiect.</p>
           <% } else { %>
           <div class="row g-4">
             <div class="col-lg-6">

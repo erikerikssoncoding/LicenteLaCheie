@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { promises as fs } from 'fs';
+import path from 'path';
 import { createRequire } from 'module';
 import multer from 'multer';
 import { z } from 'zod';
@@ -10,13 +11,14 @@ import {
   DEFAULT_OFFER_EXPIRATION_HOURS
 } from '../services/offerService.js';
 import { ensureClientAccount, updateUserProfile } from '../services/userService.js';
-import { createTicket } from '../services/ticketService.js';
+import { createTicket, saveTicketAttachments } from '../services/ticketService.js';
 import {
   sendContactSubmissionEmails,
   sendOfferSubmissionEmails,
   sendTicketCreatedNotification
 } from '../services/mailService.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
+import { TICKET_ALLOWED_MIME_TYPES, TICKET_ATTACHMENT_MAX_FILES, TICKET_ATTACHMENT_MAX_SIZE } from '../constants/attachmentRules.js';
 import { CONTACT_ATTACHMENT_ROOT, OFFER_ATTACHMENT_ROOT, buildStoredFileName } from '../utils/fileStorage.js';
 import csrfProtection from '../middleware/csrfProtection.js';
 
@@ -26,26 +28,6 @@ const phonePrefixData = require('../../public/data/phone-prefixes.json');
 const router = Router();
 
 const MINIMUM_DELIVERY_LEAD_DAYS = 14;
-const OFFER_ATTACHMENT_MAX_FILES = 5;
-const OFFER_ATTACHMENT_MAX_SIZE = 8 * 1024 * 1024; // 8 MB
-const OFFER_ALLOWED_MIME_TYPES = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/zip',
-  'application/x-zip-compressed',
-  'application/x-rar-compressed',
-  'application/x-7z-compressed',
-  'text/plain',
-  'text/csv',
-  'application/json',
-  'image/jpeg',
-  'image/png'
-]);
 const CONTACT_ATTACHMENT_MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 const CONTACT_ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -83,9 +65,9 @@ const offerAttachmentStorage = multer.diskStorage({
 
 const offerAttachmentUpload = multer({
   storage: offerAttachmentStorage,
-  limits: { fileSize: OFFER_ATTACHMENT_MAX_SIZE, files: OFFER_ATTACHMENT_MAX_FILES },
+  limits: { fileSize: TICKET_ATTACHMENT_MAX_SIZE, files: TICKET_ATTACHMENT_MAX_FILES },
   fileFilter: (req, file, cb) => {
-    if (OFFER_ALLOWED_MIME_TYPES.has(file.mimetype)) {
+    if (TICKET_ALLOWED_MIME_TYPES.has(file.mimetype)) {
       return cb(null, true);
     }
     const error = new Error('UNSUPPORTED_FILE_TYPE');
@@ -224,6 +206,21 @@ const mapUploadError = (error) => {
   return 'Încărcarea fișierului a eșuat. Reîncearcă sau contactează-ne pentru ajutor.';
 };
 
+async function moveContactAttachmentToOfferStorage(file) {
+  if (!file?.path) {
+    return null;
+  }
+  const targetPath = path.join(OFFER_ATTACHMENT_ROOT, file.filename);
+  if (file.path === targetPath) {
+    return file;
+  }
+  await fs.rename(file.path, targetPath);
+  return {
+    ...file,
+    path: targetPath
+  };
+}
+
 const mapContactUploadError = (error) => {
   if (!error) {
     return null;
@@ -341,7 +338,7 @@ router
     setResponseCsrfToken(req, res);
     return renderOfferPage(res);
   })
-  .post(offerAttachmentUpload.array('attachments', OFFER_ATTACHMENT_MAX_FILES), csrfProtection, handleOfferPost);
+  .post(offerAttachmentUpload.array('attachments', TICKET_ATTACHMENT_MAX_FILES), csrfProtection, handleOfferPost);
 
 router.use('/contact', async (err, req, res, next) => {
   if (req.method !== 'POST') {
@@ -405,6 +402,7 @@ async function handleContactPost(req, res, next) {
     const clientMetadata = collectClientMetadata(req);
 
     const attachment = req.file;
+    let persistedAttachment = false;
 
     if (req.session?.user) {
       const user = req.session.user;
@@ -434,6 +432,18 @@ async function handleContactPost(req, res, next) {
         author: { id: user.id, fullName: user.fullName, email: user.email },
         clientEmail: user.email
       }).catch((error) => console.error('Nu s-a putut trimite notificarea de creare ticket (autentificat):', error));
+
+      if (attachment) {
+        const preparedAttachment = await moveContactAttachmentToOfferStorage(attachment);
+        await saveTicketAttachments({
+          ticketId,
+          uploaderId: user.id,
+          uploaderRole: user.role,
+          origin: user.role === 'client' ? 'client' : 'staff',
+          files: preparedAttachment ? [preparedAttachment] : []
+        });
+        persistedAttachment = Boolean(preparedAttachment);
+      }
 
       return res.render('pages/contact-success', {
         title: 'Ticket deschis cu succes',
@@ -472,11 +482,25 @@ async function handleContactPost(req, res, next) {
       clientEmail: data.email
     }).catch((error) => console.error('Nu s-a putut trimite notificarea de creare ticket (guest):', error));
 
+    if (attachment) {
+      const preparedAttachment = await moveContactAttachmentToOfferStorage(attachment);
+      await saveTicketAttachments({
+        ticketId,
+        uploaderId: ensuredAccount.userId,
+        uploaderRole: 'client',
+        origin: 'client',
+        files: preparedAttachment ? [preparedAttachment] : []
+      });
+      persistedAttachment = Boolean(preparedAttachment);
+    }
+
     await createContactRequest(data);
+
+    const outboundAttachment = persistedAttachment ? await moveContactAttachmentToOfferStorage(attachment) : attachment;
 
     await sendContactSubmissionEmails({
       payload: data,
-      attachments: attachment ? [attachment] : [],
+      attachments: outboundAttachment ? [outboundAttachment] : [],
       clientMetadata,
       submissionEmail: data.email
     }).catch((error) => console.error('Nu s-a putut trimite emailul de contact:', error));
@@ -503,7 +527,7 @@ async function handleContactPost(req, res, next) {
     }
     return next(error);
   } finally {
-    if (req.file) {
+    if (req.file && !persistedAttachment) {
       await cleanupContactAttachment(req.file);
     }
   }
@@ -577,6 +601,17 @@ async function handleOfferSubmission(req, res) {
     subject: `Solicitare oferta - ${payload.topic}`,
     message: messageSegments.join('\n\n')
   };
+  if (attachments.length) {
+    const uploaderRole = isAuthenticated ? req.session.user.role : 'client';
+    const origin = uploaderRole === 'client' ? 'client' : 'staff';
+    await saveTicketAttachments({
+      ticketId,
+      uploaderId: userId,
+      uploaderRole,
+      origin,
+      files: attachments
+    });
+  }
   const authorInfo = isAuthenticated
     ? { id: userId, fullName: req.session.user.fullName, email: submissionEmail }
     : { id: userId, fullName: payload.clientName, email: submissionEmail };

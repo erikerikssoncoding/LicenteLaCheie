@@ -1306,17 +1306,21 @@ async function performTicketInboxSync() {
 
   ticketSyncInProgress = true;
   const startedAt = new Date();
+  let previousSync = null;
   let summary = null;
   let errorMessage = null;
 
   try {
+    previousSync = await getLastSuccessfulMailSync();
+    await updateLastSuccessfulMailSync(startedAt);
     summary = await syncTicketRepliesFromInbox();
     const hasSyncErrors = Boolean(summary?.errors?.length);
-    if (!hasSyncErrors) {
-      await updateLastSuccessfulMailSync(startedAt);
+    if (hasSyncErrors) {
+      await updateLastSuccessfulMailSync(previousSync);
     }
   } catch (error) {
     errorMessage = error?.message || 'UNKNOWN_IMAP_SYNC_ERROR';
+    await updateLastSuccessfulMailSync(previousSync);
   } finally {
     ticketSyncInProgress = false;
     ticketSyncLastRunAt = startedAt;

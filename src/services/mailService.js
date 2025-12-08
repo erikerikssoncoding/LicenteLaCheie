@@ -1222,6 +1222,7 @@ async function processMailbox(client, folderName, handler, summary, searchCriter
   try {
     let messageCount = 0;
     for await (const message of client.fetch(criteria, { envelope: true, uid: true, source: true, headers: ['message-id'] })) {
+      console.log(`[DEBUG EMAIL] Se procesează: ${message.envelope.subject} (UID: ${message.uid})`);
       messageCount++;
       if (ticketSyncAbortRequested) {
         summary.errors.push('SYNC_ABORTED_BY_USER');

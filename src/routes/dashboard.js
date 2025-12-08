@@ -62,6 +62,7 @@ import {
   sendTestMail,
   getTicketInboxSyncState,
   triggerTicketInboxSyncNow,
+  stopTicketInboxSync,
   getRecentMailboxPreview
 } from '../services/mailService.js';
 import {
@@ -872,6 +873,29 @@ router.post('/cont/tichete/sincronizare-manuala', ensureRole('superadmin'), asyn
       success: `Sincronizarea manuală a rulat (${processed} mesaje procesate, ${skipped} ignorate${errorNote}).`
     };
 
+    return res.redirect('/cont/tichete');
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/sincronizare-oprire', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const syncState = getTicketInboxSyncState();
+    const stopResult = stopTicketInboxSync();
+
+    if (!syncState.inProgress) {
+      const message = stopResult.timerStopped
+        ? 'Nu există o sincronizare în desfășurare. Timerul automat a fost oprit.'
+        : 'Nu există o sincronizare în desfășurare de oprit.';
+      req.session.ticketFeedback = { error: message };
+      return res.redirect('/cont/tichete');
+    }
+
+    const timerNote = stopResult.timerStopped ? ' Timerul automat a fost oprit.' : '';
+    req.session.ticketFeedback = {
+      success: `Oprirea sincronizării curente a fost solicitată.${timerNote}`
+    };
     return res.redirect('/cont/tichete');
   } catch (error) {
     next(error);

@@ -1285,7 +1285,8 @@ async function handleInboxMessage(message) {
 
   if (
     firstLine.includes('A fost deschis un ticket nou') ||
-    firstLine.includes('Echipa a transmis un raspuns intr-un ticket.')
+    firstLine.includes('Echipa a transmis un raspuns intr-un ticket.') ||
+    firstLine.includes('A sosit o nouă solicitare de ofertă:')
   ) {
     console.log(`[DEBUG INBOX] Skipped - Automated system notification detected in body: ${subject}`);
     return 'skipped';
@@ -1340,7 +1341,8 @@ async function handleSentMessage(message) {
 
   if (
     firstLine.includes('A fost deschis un ticket nou') ||
-    firstLine.includes('Echipa a transmis un raspuns intr-un ticket.')
+    firstLine.includes('Echipa a transmis un raspuns intr-un ticket.') ||
+    firstLine.includes('A sosit o nouă solicitare de ofertă:')
   ) {
     console.log(`[DEBUG SENT] Skipped - Automated system notification detected in body: ${subject}`);
     return 'skipped';

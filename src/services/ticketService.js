@@ -3,6 +3,10 @@ import { customAlphabet } from 'nanoid';
 
 const generateTicketCode = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 15);
 
+function shouldIncludeInternalTimeline(user) {
+  return Boolean(user && ['admin', 'superadmin', 'redactor'].includes(user.role));
+}
+
 function pickExecutor(connection) {
   return connection ?? pool;
 }
@@ -116,6 +120,81 @@ export async function listTicketsForUser(user) {
      ORDER BY t.created_at DESC`
   );
   return rows;
+}
+
+export async function getUnreadTicketCounts({ user, ticketIds = null }) {
+  if (!user) {
+    return { totalUnreadCount: 0, unreadByTicket: new Map() };
+  }
+
+  if (Array.isArray(ticketIds) && ticketIds.length === 0) {
+    return { totalUnreadCount: 0, unreadByTicket: new Map() };
+  }
+
+  const includeInternalTimeline = shouldIncludeInternalTimeline(user);
+  const visibilityFilter = includeInternalTimeline ? "IN ('public', 'internal')" : "= 'public'";
+  const params = [user.id, user.id];
+
+  let query = `
+    SELECT
+      t.id AS ticket_id,
+      COALESCE(
+        SUM(
+          CASE
+            WHEN (timeline.author_id IS NULL OR timeline.author_id <> ?) AND
+                 (tr.last_read_at IS NULL OR timeline.created_at > tr.last_read_at)
+              THEN 1
+            ELSE 0
+          END
+        ),
+        0
+      ) AS unread_count
+    FROM tickets t
+    LEFT JOIN projects p ON p.id = t.project_id
+    LEFT JOIN ticket_timeline_reads tr ON tr.ticket_id = t.id AND tr.user_id = ?
+    LEFT JOIN (
+      SELECT id AS ticket_id, created_at, created_by AS author_id, 'public' AS visibility FROM tickets
+      UNION ALL
+      SELECT ticket_id, created_at, user_id AS author_id, 'public' AS visibility FROM ticket_replies
+      UNION ALL
+      SELECT ticket_id, created_at, created_by AS author_id, visibility FROM ticket_activity_logs
+    ) AS timeline ON timeline.ticket_id = t.id AND (timeline.visibility IS NULL OR timeline.visibility ${visibilityFilter})
+  `;
+
+  const whereClauses = [];
+
+  if (user.role === 'client') {
+    whereClauses.push('t.created_by = ?');
+    params.push(user.id);
+  } else if (user.role === 'redactor') {
+    whereClauses.push('p.assigned_editor_id = ?');
+    params.push(user.id);
+  } else if (user.role === 'admin') {
+    whereClauses.push('(p.assigned_admin_id = ? OR p.assigned_editor_id = ? OR t.project_id IS NULL)');
+    params.push(user.id, user.id);
+  }
+
+  if (Array.isArray(ticketIds) && ticketIds.length > 0) {
+    whereClauses.push('t.id IN (?)');
+    params.push(ticketIds);
+  }
+
+  if (whereClauses.length > 0) {
+    query += ` WHERE ${whereClauses.join(' AND ')}`;
+  }
+
+  query += ' GROUP BY t.id';
+
+  const [rows] = await pool.query(query, params);
+  const unreadByTicket = new Map();
+
+  for (const row of rows) {
+    unreadByTicket.set(row.ticket_id, Number(row.unread_count) || 0);
+  }
+
+  const totalUnreadCount = Array.from(unreadByTicket.values()).reduce((sum, value) => sum + value, 0);
+
+  return { totalUnreadCount, unreadByTicket };
 }
 
 export async function addReply({ ticketId, userId, message, messageId = null }) {

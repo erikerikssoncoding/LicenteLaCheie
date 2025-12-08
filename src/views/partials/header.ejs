@@ -2,6 +2,7 @@
   <% const isAuthenticated = Boolean(currentUser); %>
   <% const isStaff = isAuthenticated && ['redactor', 'admin', 'superadmin'].includes(currentUser.role); %>
   <% const isManager = isAuthenticated && ['admin', 'superadmin'].includes(currentUser.role); %>
+  <% const unreadTicketTotal = ticketUnreadSummary?.totalUnreadCount || 0; %>
   <div class="container">
     <a
       class="navbar-brand fw-semibold"
@@ -32,7 +33,14 @@
         <% } else { %>
         <li class="nav-item"><a class="nav-link" href="/cont">Panou</a></li>
         <li class="nav-item"><a class="nav-link" href="/cont/proiecte">Proiecte</a></li>
-        <li class="nav-item"><a class="nav-link" href="/cont/tichete">Tichete</a></li>
+        <li class="nav-item position-relative">
+          <a class="nav-link d-inline-flex align-items-center gap-1" href="/cont/tichete">
+            Tichete
+            <% if (unreadTicketTotal > 0) { %>
+            <span class="ticket-unread-indicator" aria-label="Ai mesaje necitite în tichete"></span>
+            <% } %>
+          </a>
+        </li>
         <% if (isManager) { %>
         <li class="nav-item"><a class="nav-link" href="/cont/utilizatori">Utilizatori</a></li>
         <% } %>

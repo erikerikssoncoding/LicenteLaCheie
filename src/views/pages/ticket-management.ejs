@@ -206,7 +206,15 @@
               <% } else { %>
               <% tickets.forEach((ticket) => { %>
               <tr>
-                <td><%= ticket.display_code %></td>
+                <td>
+                  <% const unreadCount = unreadByTicket?.[ticket.id] || 0; %>
+                  <div class="d-flex align-items-center gap-2">
+                    <span><%= ticket.display_code %></span>
+                    <% if (unreadCount > 0) { %>
+                    <span class="badge bg-danger rounded-pill"><%= unreadCount %></span>
+                    <% } %>
+                  </div>
+                </td>
                 <td>
                   <div class="fw-semibold"><%= ticket.subject %></div>
                   <div class="small text-muted">

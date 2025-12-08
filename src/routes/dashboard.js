@@ -52,7 +52,8 @@ import {
   listPendingSupportTicketsForRedactor,
   listRecentTicketRepliesForUser,
   markTicketAsContract,
-  addTicketLog
+  addTicketLog,
+  getUnreadTicketCounts
 } from '../services/ticketService.js';
 import {
   isMailConfigured,
@@ -828,6 +829,10 @@ router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, 
       const kindMatch = filters.kind === 'all' || ticket.kind === filters.kind;
       return statusMatch && kindMatch;
     });
+    const unreadSummary = await getUnreadTicketCounts({
+      user: req.session.user,
+      ticketIds: filteredTickets.map((ticket) => ticket.id)
+    });
     const feedback = req.session.ticketFeedback || {};
     delete req.session.ticketFeedback;
     const ticketInboxSync = await getTicketInboxSyncState();
@@ -837,6 +842,7 @@ router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, 
       title: 'Gestionare tichete',
       description: 'Vizualizeaza rapid solicitarile clientilor și actualizeaza statusurile direct din panoul de control.',
       tickets: filteredTickets,
+      unreadByTicket: Object.fromEntries(unreadSummary.unreadByTicket),
       filters,
       feedback,
       ticketInboxSync,

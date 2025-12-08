@@ -8,7 +8,7 @@ import { simpleParser } from 'mailparser';
 import { logMailEvent } from './notificationLogService.js';
 import { createOneTimeLoginLink } from './loginLinkService.js';
 import { addReply, getTicketByDisplayCode } from './ticketService.js';
-import { findUserByEmail } from './userService.js';
+import { PROTECTED_USER_ID, findUserByEmail, getUserById } from './userService.js';
 
 const MAIL_HOST = process.env.MAIL_HOST || null;
 const MAIL_PORT = Number(process.env.MAIL_PORT || 465);
@@ -23,6 +23,7 @@ const MAIL_IMAP_HOST = process.env.MAIL_IMAP_HOST || null;
 const MAIL_IMAP_PORT = Number(process.env.MAIL_IMAP_PORT || 993);
 const MAIL_IMAP_SECURE = String(process.env.MAIL_IMAP_SECURE || 'true').toLowerCase() !== 'false';
 const MAIL_IMAP_INBOX = process.env.MAIL_IMAP_INBOX || 'INBOX';
+const MAIL_IMAP_SENT_FOLDER = process.env.MAIL_IMAP_SENT_FOLDER || 'Sent';
 const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(60000, Number(process.env.MAIL_TICKET_SYNC_INTERVAL_MS || 300000));
 
 const MAX_EMAIL_RECIPIENTS = 10;
@@ -187,6 +188,20 @@ function canUserReplyToTicket(ticket, user) {
     return ticket.assigned_admin_id === user.id || ticket.assigned_editor_id === user.id;
   }
   return false;
+}
+
+const DEFAULT_ADMIN_USER_ID = PROTECTED_USER_ID;
+
+function isTeamUser(user) {
+  if (!user) {
+    return false;
+  }
+  return ['redactor', 'admin', 'superadmin'].includes(user.role);
+}
+
+async function getDefaultAdminUser() {
+  const user = await getUserById(DEFAULT_ADMIN_USER_ID);
+  return isTeamUser(user) ? user : null;
 }
 
 function sanitizeHtmlToText(value) {
@@ -966,12 +981,122 @@ async function extractMessageBodyFromSource(source) {
   return trimQuotedConversation(plainText);
 }
 
-export async function syncTicketRepliesFromInbox() {
-  if (!isImapConfigured()) {
-    return { processed: 0, skipped: 0, errors: ['IMAP_NOT_CONFIGURED'] };
+async function processMailbox(client, folderName, handler, summary) {
+  const folderStats = { processed: 0, skipped: 0, errors: [] };
+  const lock = await client.getMailboxLock(folderName);
+
+  try {
+    for await (const message of client.fetch({ seen: false }, { envelope: true, uid: true, source: true })) {
+      let shouldMarkSeen = false;
+      try {
+        const action = await handler(message);
+        if (action === 'processed') {
+          summary.processed += 1;
+          folderStats.processed += 1;
+        } else {
+          summary.skipped += 1;
+          folderStats.skipped += 1;
+        }
+        shouldMarkSeen = true;
+      } catch (processingError) {
+        const messageText = `${folderName}: ${processingError?.message || 'UNKNOWN_PROCESSING_ERROR'}`;
+        summary.errors.push(messageText);
+        folderStats.errors.push(messageText);
+      } finally {
+        if (shouldMarkSeen) {
+          try {
+            await client.messageFlagsAdd(message.uid, ['\\Seen']);
+          } catch (flagError) {
+            const flagMessage = `${folderName}: ${flagError?.message || 'FLAG_UPDATE_FAILED'}`;
+            summary.errors.push(flagMessage);
+            folderStats.errors.push(flagMessage);
+          }
+        }
+      }
+    }
+  } finally {
+    lock.release();
   }
 
-  const summary = { processed: 0, skipped: 0, errors: [] };
+  summary.folders[folderName] = folderStats;
+}
+
+async function handleInboxMessage(message) {
+  const subject = message.envelope?.subject || '';
+  const ticketCode = extractTicketCodeFromSubject(subject);
+  const fromEnvelope = message.envelope?.from?.[0];
+  const fromAddress = normalizeEmail(extractAddress(fromEnvelope?.address || fromEnvelope?.name));
+
+  if (!ticketCode || !fromAddress) {
+    return 'skipped';
+  }
+
+  const ticket = await getTicketByDisplayCode(ticketCode);
+  const user = await findUserByEmail(fromAddress);
+
+  if (!ticket || !user || !canUserReplyToTicket(ticket, user)) {
+    return 'skipped';
+  }
+
+  const messageBody = await extractMessageBodyFromSource(message.source);
+  if (!messageBody) {
+    return 'skipped';
+  }
+
+  await addReply({ ticketId: ticket.id, userId: user.id, message: messageBody });
+  return 'processed';
+}
+
+async function handleSentMessage(message) {
+  const subject = message.envelope?.subject || '';
+  const ticketCode = extractTicketCodeFromSubject(subject);
+  const fromEnvelope = message.envelope?.from?.[0];
+  const fromAddress = normalizeEmail(extractAddress(fromEnvelope?.address || fromEnvelope?.name));
+
+  if (!ticketCode) {
+    return 'skipped';
+  }
+
+  const ticket = await getTicketByDisplayCode(ticketCode);
+  if (!ticket) {
+    return 'skipped';
+  }
+
+  let user = fromAddress ? await findUserByEmail(fromAddress) : null;
+  const fallbackAdmin = await getDefaultAdminUser();
+
+  if (!isTeamUser(user)) {
+    user = fallbackAdmin;
+  }
+
+  if (!user) {
+    return 'skipped';
+  }
+
+  const canReply = canUserReplyToTicket(ticket, user) || ['admin', 'superadmin'].includes(user.role);
+  if (!canReply && fallbackAdmin && fallbackAdmin.id !== user.id) {
+    user = fallbackAdmin;
+  }
+
+  if (!user || !isTeamUser(user)) {
+    return 'skipped';
+  }
+
+  const messageBody = await extractMessageBodyFromSource(message.source);
+  if (!messageBody) {
+    return 'skipped';
+  }
+
+  await addReply({ ticketId: ticket.id, userId: user.id, message: messageBody });
+  return 'processed';
+}
+
+export async function syncTicketRepliesFromInbox() {
+  if (!isImapConfigured()) {
+    return { processed: 0, skipped: 0, errors: ['IMAP_NOT_CONFIGURED'], folders: {} };
+  }
+
+  const summary = { processed: 0, skipped: 0, errors: [], folders: {} };
   const client = new ImapFlow({
     host: MAIL_IMAP_HOST,
     port: MAIL_IMAP_PORT,
@@ -986,56 +1111,25 @@ export async function syncTicketRepliesFromInbox() {
 
   try {
     await client.connect();
-    const lock = await client.getMailboxLock(MAIL_IMAP_INBOX);
 
     try {
-      for await (const message of client.fetch({ seen: false }, { envelope: true, uid: true, source: true })) {
-        let shouldMarkSeen = false;
-        try {
-          const subject = message.envelope?.subject || '';
-          const ticketCode = extractTicketCodeFromSubject(subject);
-          const fromEnvelope = message.envelope?.from?.[0];
-          const fromAddress = normalizeEmail(extractAddress(fromEnvelope?.address || fromEnvelope?.name));
+      await processMailbox(client, MAIL_IMAP_INBOX, handleInboxMessage, summary);
+    } catch (inboxError) {
+      const inboxMessage = `${MAIL_IMAP_INBOX}: ${inboxError?.message || 'UNKNOWN_IMAP_SYNC_ERROR'}`;
+      summary.errors.push(inboxMessage);
+      summary.folders[MAIL_IMAP_INBOX] = summary.folders[MAIL_IMAP_INBOX] || { processed: 0, skipped: 0, errors: [inboxMessage] };
+    }
 
-          if (!ticketCode || !fromAddress) {
-            summary.skipped += 1;
-            shouldMarkSeen = true;
-            continue;
-          }
-
-          const ticket = await getTicketByDisplayCode(ticketCode);
-          const user = await findUserByEmail(fromAddress);
-
-          if (!ticket || !user || !canUserReplyToTicket(ticket, user)) {
-            summary.skipped += 1;
-            shouldMarkSeen = true;
-            continue;
-          }
-
-          const messageBody = await extractMessageBodyFromSource(message.source);
-          if (!messageBody) {
-            summary.skipped += 1;
-            shouldMarkSeen = true;
-            continue;
-          }
-
-          await addReply({ ticketId: ticket.id, userId: user.id, message: messageBody });
-          summary.processed += 1;
-          shouldMarkSeen = true;
-        } catch (processingError) {
-          summary.errors.push(processingError?.message || 'UNKNOWN_PROCESSING_ERROR');
-        } finally {
-          if (shouldMarkSeen) {
-            try {
-              await client.messageFlagsAdd(message.uid, ['\\Seen']);
-            } catch (flagError) {
-              summary.errors.push(flagError?.message || 'FLAG_UPDATE_FAILED');
-            }
-          }
-        }
-      }
-    } finally {
-      lock.release();
+    try {
+      await processMailbox(client, MAIL_IMAP_SENT_FOLDER, handleSentMessage, summary);
+    } catch (sentError) {
+      const sentMessage = `${MAIL_IMAP_SENT_FOLDER}: ${sentError?.message || 'UNKNOWN_IMAP_SYNC_ERROR'}`;
+      summary.errors.push(sentMessage);
+      summary.folders[MAIL_IMAP_SENT_FOLDER] = summary.folders[MAIL_IMAP_SENT_FOLDER] || {
+        processed: 0,
+        skipped: 0,
+        errors: [sentMessage]
+      };
     }
   } catch (error) {
     summary.errors.push(error?.message || 'UNKNOWN_IMAP_SYNC_ERROR');
@@ -1043,7 +1137,7 @@ export async function syncTicketRepliesFromInbox() {
     try {
       await client.logout();
     } catch (logoutError) {
-      summary.errors.push(logoutError?.message || 'LOGOUT_FAILED');
+      summary.errors.push(`${MAIL_IMAP_INBOX}: ${logoutError?.message || 'LOGOUT_FAILED'}`);
     }
   }
 

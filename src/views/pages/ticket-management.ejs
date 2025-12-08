@@ -40,9 +40,23 @@
 
     <% const syncState = ticketInboxSync || {}; %>
     <% const isSyncOnline = Boolean(syncState.configured && syncState.timerActive); %>
-    <% const lastRun = syncState.lastRunAt
-      ? (syncState.lastRunAt.toISOString ? syncState.lastRunAt.toISOString().replace('T', ' ').slice(0, 16) : syncState.lastRunAt)
-      : 'nu a rulat încă'; %>
+    <% const formatDateTime = (value) => {
+      if (!value) return null;
+
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+
+      return new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Europe/Bucharest',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(date);
+    }; %>
+    <% const lastRun = formatDateTime(syncState.lastRunAt) || 'nu a rulat încă'; %>
     <% if (currentUser.role === 'superadmin') { %>
     <div class="alert alert-info d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-lg-between">
       <div>

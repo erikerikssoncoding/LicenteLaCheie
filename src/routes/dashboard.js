@@ -1676,6 +1676,12 @@ router.post('/cont/tichete/:id/raspuns', requireActiveLicense(), async (req, res
       };
       return res.redirect(`/cont/tichete/${req.params.id}`);
     }
+    if (ticket.status === 'rezolvat') {
+      req.session.ticketFeedback = {
+        error: 'Acest ticket este marcat ca rezolvat si nu mai permite raspunsuri noi.'
+      };
+      return res.redirect(`/cont/tichete/${req.params.id}`);
+    }
     const project = ticket.project_id ? await getProjectById(ticket.project_id) : null;
     const projectAdmins = [];
     if (project?.assigned_admin_id) {

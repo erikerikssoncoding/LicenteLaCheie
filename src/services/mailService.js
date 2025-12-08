@@ -1273,10 +1273,10 @@ export async function syncTicketRepliesFromInbox() {
       user: MAIL_USER,
       pass: MAIL_PASSWORD
     },
-    // MODIFICARE 1: Setări pentru a preveni timeout-urile rapide
-    clientTimeout: 60000,    // Așteaptă 60 secunde pentru comenzi (default e mai mic)
-    greetingTimeout: 30000,  // Așteaptă 30 secunde salutul inițial
-    socketTimeout: 60000     // Timeout la nivel de socket TCP
+    // MODIFICARE: Mărim timeout-urile la 2 minute (120000ms)
+    clientTimeout: 120000,
+    greetingTimeout: 60000,
+    socketTimeout: 120000
   });
 
   // MODIFICARE 2: Handler critic pentru a preveni crash-ul Node.js

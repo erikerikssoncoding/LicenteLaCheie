@@ -59,7 +59,9 @@ import {
   sendContractStageEmail,
   sendOfferReadyEmail,
   sendProjectStatusUpdateEmail,
-  sendTestMail
+  sendTestMail,
+  getTicketInboxSyncState,
+  triggerTicketInboxSyncNow
 } from '../services/mailService.js';
 import {
   listTeamMembers,
@@ -825,13 +827,48 @@ router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, 
     });
     const feedback = req.session.ticketFeedback || {};
     delete req.session.ticketFeedback;
+    const ticketInboxSync = getTicketInboxSyncState();
     res.render('pages/ticket-management', {
       title: 'Gestionare tichete',
       description: 'Vizualizeaza rapid solicitarile clientilor și actualizeaza statusurile direct din panoul de control.',
       tickets: filteredTickets,
       filters,
-      feedback
+      feedback,
+      ticketInboxSync
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/sincronizare-manuala', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const result = await triggerTicketInboxSyncNow();
+
+    if (!result.started) {
+      const reasonMessage =
+        result.reason === 'IMAP_NOT_CONFIGURED'
+          ? 'Sincronizarea nu este configurată: setează MAIL_IMAP_HOST, MAIL_USER și MAIL_PASSWORD.'
+          : 'O sincronizare este deja în desfășurare. Încearcă din nou în câteva momente.';
+      req.session.ticketFeedback = { error: reasonMessage };
+      return res.redirect('/cont/tichete');
+    }
+
+    if (result.error) {
+      req.session.ticketFeedback = { error: `Sincronizarea manuală a eșuat: ${result.error}` };
+      return res.redirect('/cont/tichete');
+    }
+
+    const processed = result.summary?.processed ?? 0;
+    const skipped = result.summary?.skipped ?? 0;
+    const errorCount = result.summary?.errors?.length || 0;
+    const errorNote = errorCount ? `, ${errorCount} erori raportate` : '';
+
+    req.session.ticketFeedback = {
+      success: `Sincronizarea manuală a rulat (${processed} mesaje procesate, ${skipped} ignorate${errorNote}).`
+    };
+
+    return res.redirect('/cont/tichete');
   } catch (error) {
     next(error);
   }

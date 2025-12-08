@@ -190,22 +190,25 @@ export async function getTicketTimelineEntries(ticketId, { limit = 10, offset = 
   const visibilityClause = includeInternal ? "IN (?, ?)" : "= ?";
   const visibilityParams = includeInternal ? ['public', 'internal'] : ['public'];
   const [rows] = await pool.query(
-    `SELECT entry_type, entry_id, message, created_at, author_id, author_name, author_role
+    `SELECT entry_type, entry_id, message, created_at, author_id, author_name, author_role, message_id
      FROM (
        SELECT 'ticket' AS entry_type, t.id AS entry_id, t.message, t.created_at,
-              t.created_by AS author_id, u.full_name AS author_name, u.role AS author_role
+              t.created_by AS author_id, u.full_name AS author_name, u.role AS author_role,
+              NULL AS message_id
        FROM tickets t
        LEFT JOIN users u ON u.id = t.created_by
        WHERE t.id = ?
        UNION ALL
        SELECT 'reply' AS entry_type, tr.id AS entry_id, tr.message, tr.created_at,
-              tr.user_id AS author_id, u.full_name AS author_name, u.role AS author_role
+              tr.user_id AS author_id, u.full_name AS author_name, u.role AS author_role,
+              tr.message_id AS message_id
        FROM ticket_replies tr
        LEFT JOIN users u ON u.id = tr.user_id
        WHERE tr.ticket_id = ?
        UNION ALL
        SELECT 'log' AS entry_type, tal.id AS entry_id, tal.message, tal.created_at,
-              tal.created_by AS author_id, tal.author_name AS author_name, tal.author_role AS author_role
+              tal.created_by AS author_id, tal.author_name AS author_name, tal.author_role AS author_role,
+              NULL AS message_id
        FROM ticket_activity_logs tal
        WHERE tal.ticket_id = ? AND tal.visibility ${visibilityClause}
      ) AS timeline

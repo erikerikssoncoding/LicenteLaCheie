@@ -570,6 +570,9 @@
             <% if (isUnread) { %>
             <span class="badge bg-success-subtle text-success-emphasis text-uppercase" data-unread-badge>Nou</span>
             <% } %>
+            <% if (entry.isMail) { %>
+            <span class="badge bg-secondary text-uppercase">mail</span>
+            <% } %>
             <% if (entryType === 'log') { %>
             <span class="badge bg-warning text-dark text-uppercase">Intern</span>
             <% } %>
@@ -955,6 +958,12 @@
           badge.className = 'badge bg-success-subtle text-success-emphasis text-uppercase';
           badge.dataset.unreadBadge = 'true';
           badge.textContent = 'Nou';
+          headingWrapper.appendChild(badge);
+        }
+        if (entry.isMail) {
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-secondary text-uppercase';
+          badge.textContent = 'mail';
           headingWrapper.appendChild(badge);
         }
         if (entryType === 'log') {

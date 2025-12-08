@@ -3,6 +3,11 @@ import multer from 'multer';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { z } from 'zod';
+import {
+  TICKET_ALLOWED_MIME_TYPES,
+  TICKET_ATTACHMENT_MAX_FILES,
+  TICKET_ATTACHMENT_MAX_SIZE
+} from '../constants/attachmentRules.js';
 import { ensureAuthenticated, ensureRole } from '../middleware/auth.js';
 import { adminActionLogger } from '../middleware/adminActionLogger.js';
 import { requireActiveLicense } from '../middleware/license.js';
@@ -41,6 +46,8 @@ import {
   createTicket,
   getTicketWithReplies,
   getTicketById,
+  listTicketFiles,
+  getTicketFileById,
   getTicketTimelineEntries,
   getTicketTimelineLastRead,
   markTicketTimelineRead,
@@ -53,7 +60,8 @@ import {
   listRecentTicketRepliesForUser,
   markTicketAsContract,
   addTicketLog,
-  getUnreadTicketCounts
+  getUnreadTicketCounts,
+  saveTicketAttachments
 } from '../services/ticketService.js';
 import {
   isMailConfigured,
@@ -141,7 +149,12 @@ import {
 } from '../services/contractService.js';
 import { isValidCNP } from '../utils/validators.js';
 import { createPdfBufferFromHtml } from '../utils/pdf.js';
-import { ensureProjectStoragePath, buildStoredFileName, resolveStoredFilePath } from '../utils/fileStorage.js';
+import {
+  ensureProjectStoragePath,
+  buildStoredFileName,
+  resolveStoredFilePath,
+  OFFER_ATTACHMENT_ROOT
+} from '../utils/fileStorage.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
 
 const router = Router();
@@ -306,6 +319,28 @@ const projectFileUpload = multer({
       return cb(new Error('INVALID_FILE_TYPE'));
     }
     return cb(null, true);
+  }
+});
+
+const ticketAttachmentStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, OFFER_ATTACHMENT_ROOT),
+  filename: (req, file, cb) => {
+    const storedName = buildStoredFileName(file.originalname);
+    // eslint-disable-next-line no-param-reassign
+    file.storedName = storedName;
+    cb(null, storedName);
+  }
+});
+
+const ticketAttachmentUpload = multer({
+  storage: ticketAttachmentStorage,
+  limits: { files: TICKET_ATTACHMENT_MAX_FILES, fileSize: TICKET_ATTACHMENT_MAX_SIZE },
+  fileFilter: (req, file, cb) => {
+    if (TICKET_ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(null, true);
+    }
+    const error = new Error('UNSUPPORTED_TICKET_FILE');
+    return cb(error);
   }
 });
 
@@ -1540,9 +1575,12 @@ router.get('/cont/tichete/:id', requireActiveLicense(), async (req, res, next) =
     await markTicketTimelineRead({ ticketId: ticket.id, userId: user.id });
     const offer = ticket.kind === 'offer' || ticket.kind === 'contract' ? await getOfferByTicketId(ticket.id) : null;
     const contractDetails = ticket.kind === 'contract' ? await getContractDetailsByTicket(ticket.id) : null;
+    const ticketFiles = await listTicketFiles(ticket.id);
     const projectFiles = ticket.project_id ? await listProjectFiles(ticket.project_id) : [];
     const clientFiles = projectFiles.filter((file) => file.origin === 'client');
     const staffFiles = projectFiles.filter((file) => file.origin === 'staff');
+    const clientTicketFiles = ticketFiles.filter((file) => file.origin === 'client');
+    const staffTicketFiles = ticketFiles.filter((file) => file.origin === 'staff');
     let mergeCandidates = [];
     if (['admin', 'superadmin'].includes(user.role) && !ticket.merged_into_ticket_id) {
       mergeCandidates = await listMergeCandidates({
@@ -1571,11 +1609,107 @@ router.get('/cont/tichete/:id', requireActiveLicense(), async (req, res, next) =
       includeInternalTimeline,
       clientFiles,
       staffFiles,
+      clientTicketFiles,
+      staffTicketFiles,
+      ticketFileLimits: {
+        maxFiles: TICKET_ATTACHMENT_MAX_FILES,
+        maxSizeMb: TICKET_ATTACHMENT_MAX_SIZE / (1024 * 1024)
+      },
       activeTab
     });
   } catch (error) {
     next(error);
   }
+});
+
+router.post('/cont/tichete/:id/fisiere', requireActiveLicense(), (req, res, next) => {
+  ticketAttachmentUpload.array('files', TICKET_ATTACHMENT_MAX_FILES)(req, res, async (err) => {
+    const ticketId = Number(req.params.id);
+    const redirectToFiles = () => res.redirect(`/cont/tichete/${ticketId}?tab=fisiere`);
+
+    if (err) {
+      const errorMessage =
+        err.code === 'LIMIT_FILE_SIZE'
+          ? 'Fiecare fișier poate avea maximum 8MB.'
+          : err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE'
+          ? `Poți încărca cel mult ${TICKET_ATTACHMENT_MAX_FILES} fișiere.`
+          : 'Fișierul încărcat nu este acceptat. Încarcă PDF, DOC(X), XLS(X), PPT(X), imagini sau arhive.';
+      req.session.ticketFeedback = { error: errorMessage, activeTab: 'fisiere' };
+      return redirectToFiles();
+    }
+
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (!files.length) {
+      req.session.ticketFeedback = { error: 'Selectează cel puțin un fișier.', activeTab: 'fisiere' };
+      return redirectToFiles();
+    }
+
+    const cleanupFiles = async () => {
+      await Promise.all(
+        files.map((file) =>
+          fs.unlink(file.path).catch((unlinkError) => {
+            if (unlinkError.code !== 'ENOENT') {
+              console.error('Nu s-a putut sterge fisierul incarcat', unlinkError);
+            }
+          })
+        )
+      );
+    };
+
+    try {
+      const ticket = await getTicketById(ticketId);
+      if (!ticket) {
+        await cleanupFiles();
+        return res.status(404).render('pages/404', {
+          title: 'Ticket inexistent',
+          description: 'Ticketul solicitat nu a fost găsit.'
+        });
+      }
+
+      const user = req.session.user;
+      const isClientOwner = user.role === 'client' && ticket.created_by === user.id;
+      const isAdminUser = ['admin', 'superadmin'].includes(user.role);
+
+      if (!isClientOwner && !isAdminUser) {
+        await cleanupFiles();
+        req.session.ticketFeedback = { error: 'Nu aveți permisiunea de a încărca fișiere aici.', activeTab: 'fisiere' };
+        return redirectToFiles();
+      }
+
+      const origin = user.role === 'client' ? 'client' : 'staff';
+      try {
+        await saveTicketAttachments({
+          ticketId,
+          uploaderId: user.id,
+          uploaderRole: user.role,
+          origin,
+          files
+        });
+      } catch (saveError) {
+        await cleanupFiles();
+        const limitMessage =
+          saveError.message === 'TICKET_ATTACHMENT_LIMIT_EXCEEDED'
+            ? `Ai atins limita de ${TICKET_ATTACHMENT_MAX_FILES} fișiere pentru acest ticket.`
+            : saveError.message === 'TICKET_ATTACHMENT_TOO_LARGE'
+            ? 'Fiecare fișier poate avea maximum 8MB.'
+            : 'Încărcarea fișierelor a eșuat. Încearcă din nou.';
+        req.session.ticketFeedback = { error: limitMessage, activeTab: 'fisiere' };
+        return redirectToFiles();
+      }
+
+      req.session.ticketFeedback = {
+        success:
+          files.length === 1
+            ? `Fișierul „${files[0].originalname}” a fost încărcat.`
+            : `${files.length} fișiere au fost încărcate.`,
+        activeTab: 'fisiere'
+      };
+      return redirectToFiles();
+    } catch (error) {
+      await cleanupFiles();
+      return next(error);
+    }
+  });
 });
 
 router.get('/cont/tichete/:id/timeline', requireActiveLicense(), async (req, res, next) => {
@@ -1635,6 +1769,48 @@ router.get('/cont/tichete/:id/timeline', requireActiveLicense(), async (req, res
     });
   } catch (error) {
     next(error);
+  }
+});
+
+router.get('/cont/tichete/:ticketId/fisiere/:fileId/descarca', requireActiveLicense(), async (req, res, next) => {
+  try {
+    const ticketId = Number(req.params.ticketId);
+    const fileId = Number(req.params.fileId);
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      return res.status(404).render('pages/404', {
+        title: 'Ticket inexistent',
+        description: 'Ticketul solicitat nu a fost găsit.'
+      });
+    }
+
+    const user = req.session.user;
+    const isClientOwner = user.role === 'client' && ticket.created_by === user.id;
+    const isAdminUser = ['admin', 'superadmin'].includes(user.role);
+    if (!isClientOwner && !isAdminUser) {
+      return res.status(403).render('pages/403', {
+        title: 'Acces restricționat',
+        description: 'Nu aveți acces la acest fișier.'
+      });
+    }
+
+    const file = await getTicketFileById(fileId);
+    if (!file || file.ticket_id !== ticketId) {
+      return res.status(404).render('pages/404', {
+        title: 'Fișier inexistent',
+        description: 'Fișierul solicitat nu a fost găsit.'
+      });
+    }
+
+    const filePath = path.join(OFFER_ATTACHMENT_ROOT, file.stored_name);
+    return res.download(filePath, file.original_name, (error) => {
+      if (error) {
+        return next(error);
+      }
+      return null;
+    });
+  } catch (error) {
+    return next(error);
   }
 });
 

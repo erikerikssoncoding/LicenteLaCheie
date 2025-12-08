@@ -4,6 +4,7 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import { z } from 'zod';
 import { ensureAuthenticated, ensureRole } from '../middleware/auth.js';
+import { adminActionLogger } from '../middleware/adminActionLogger.js';
 import { requireActiveLicense } from '../middleware/license.js';
 import {
   listProjectsForUser,
@@ -80,6 +81,7 @@ import {
 } from '../services/userService.js';
 import { deleteProjectById, deleteTicketById } from '../services/dangerousDeleteService.js';
 import { listSecuritySettings, updateSecuritySetting } from '../services/securityService.js';
+import { logAdminAction, listRecentAdminActions } from '../services/adminLogService.js';
 import {
   getTrustedDeviceCookieClearOptions,
   listTrustedDevicesForUser,
@@ -138,6 +140,77 @@ import { collectClientMetadata } from '../utils/requestMetadata.js';
 
 const router = Router();
 const TIMELINE_PAGE_SIZE = 10;
+
+function normalizeJournalEntries(mailLogs = [], adminLogs = []) {
+  const entries = [];
+
+  mailLogs.forEach((entry) => {
+    const createdAt = entry.created_at instanceof Date ? entry.created_at : new Date(entry.created_at);
+    entries.push({
+      type: 'mail',
+      title: entry.subject || 'Notificare email',
+      subtitle: entry.event_type ? `Eveniment: ${entry.event_type}` : 'Eveniment email',
+      detail: entry.recipients || 'Destinatari indisponibili',
+      status: entry.status || 'sent',
+      statusContext: entry.error_message || null,
+      createdAt
+    });
+  });
+
+  adminLogs.forEach((entry) => {
+    const createdAt = entry.created_at instanceof Date ? entry.created_at : new Date(entry.created_at);
+    let parsedDetails = {};
+    if (entry.details_json) {
+      try {
+        parsedDetails = typeof entry.details_json === 'string' ? JSON.parse(entry.details_json) : entry.details_json;
+      } catch (error) {
+        parsedDetails = {};
+      }
+    }
+    const detailParts = [];
+    if (parsedDetails.path) {
+      detailParts.push(parsedDetails.path);
+    }
+    if (parsedDetails.bodyKeys?.length) {
+      detailParts.push(`Câmpuri: ${parsedDetails.bodyKeys.join(', ')}`);
+    }
+    if (parsedDetails.statusCode) {
+      detailParts.push(`Status: ${parsedDetails.statusCode}`);
+    }
+    if (parsedDetails.durationMs) {
+      detailParts.push(`Durată: ${parsedDetails.durationMs}ms`);
+    }
+    if (entry.ip_address) {
+      detailParts.push(`IP: ${entry.ip_address}`);
+    }
+    const statusLabel = Number(entry.status_code) >= 400 ? 'error' : 'success';
+
+    entries.push({
+      type: 'admin',
+      title: entry.action || 'Acțiune administrator',
+      subtitle: entry.user_name
+        ? `Autor: ${entry.user_name}${entry.user_role ? ` (${entry.user_role})` : ''}`
+        : 'Autor necunoscut',
+      detail: detailParts.join(' • ') || 'Acțiune înregistrată',
+      status: statusLabel,
+      statusContext: entry.status_code ? `Status HTTP ${entry.status_code}` : null,
+      createdAt
+    });
+  });
+
+  return entries
+    .filter((entry) => entry.createdAt instanceof Date && !Number.isNaN(entry.createdAt.getTime()))
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 25);
+}
+
+async function recordAdminAction(entry) {
+  try {
+    await logAdminAction(entry);
+  } catch (error) {
+    console.error('Nu s-a putut salva acțiunea de jurnalizare', error);
+  }
+}
 const PROJECT_TIMELINE_PAGE_SIZE = 10;
 const CLIENT_MAX_PROJECT_FILES = 10;
 const STAFF_MAX_PROJECT_FILES = 30;
@@ -231,6 +304,7 @@ const projectFileUpload = multer({
 });
 
 router.use(ensureAuthenticated);
+router.use(adminActionLogger);
 
 router
   .route('/cont/setari')
@@ -528,6 +602,7 @@ router.get('/cont', async (req, res, next) => {
       securitySettings: [],
       securityFlash: null,
       mailLogs: [],
+      journalEntries: [],
       licenseState: getLicenseState()
     };
 
@@ -563,12 +638,17 @@ router.get('/cont', async (req, res, next) => {
     }
 
     if (user.role === 'superadmin') {
-      const [securitySettings, mailLogs] = await Promise.all([listSecuritySettings(), listRecentMailEvents(25)]);
+      const [securitySettings, mailLogs, adminLogs] = await Promise.all([
+        listSecuritySettings(),
+        listRecentMailEvents(50),
+        listRecentAdminActions(50)
+      ]);
       const flash = req.session.securityFlash || null;
       delete req.session.securityFlash;
       viewModel.securitySettings = securitySettings;
       viewModel.securityFlash = flash;
       viewModel.mailLogs = mailLogs;
+      viewModel.journalEntries = normalizeJournalEntries(mailLogs, adminLogs);
     }
 
     viewModel.projectStatuses = PROJECT_STATUSES;
@@ -608,6 +688,15 @@ router.post('/cont/proiecte/:id/sterge', ensureRole('superadmin'), async (req, r
       return res.redirect('/cont/proiecte');
     }
     await deleteProjectById({ projectId, actor: req.session.user });
+    await recordAdminAction({
+      actor: req.session.user,
+      action: 'Ștergere proiect',
+      details: { projectId },
+      statusCode: 200,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+    req.skipAdminActionLog = true;
     req.session.flash = { success: 'Proiectul a fost șters definitiv.' };
     return res.redirect('/cont/proiecte');
   } catch (error) {
@@ -756,6 +845,15 @@ router.post('/cont/tichete/:id/sterge', ensureRole('superadmin'), async (req, re
       return res.redirect('/cont/tichete');
     }
     await deleteTicketById({ ticketId, actor: req.session.user });
+    await recordAdminAction({
+      actor: req.session.user,
+      action: 'Ștergere ticket',
+      details: { ticketId },
+      statusCode: 200,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+    req.skipAdminActionLog = true;
     req.session.ticketFeedback = { success: 'Ticketul a fost șters definitiv.' };
     return res.redirect('/cont/tichete');
   } catch (error) {
@@ -1163,6 +1261,15 @@ router.post('/cont/utilizatori/:id/sterge', ensureRole('superadmin'), async (req
       return res.redirect('/cont/utilizatori');
     }
     await deleteUserCompletely({ actor: req.session.user, userId: targetId });
+    await recordAdminAction({
+      actor: req.session.user,
+      action: 'Ștergere utilizator',
+      details: { userId: targetId },
+      statusCode: 200,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+    req.skipAdminActionLog = true;
     req.session.flash = { success: 'Utilizatorul a fost șters definitiv.' };
     return res.redirect(resolveUserManagementRedirect(req.body.returnTo, '/cont/utilizatori'));
   } catch (error) {
@@ -2862,7 +2969,7 @@ router.post('/cont/proiecte/:id/fișiere', requireActiveLicense(), (req, res, ne
 
 router.post(
   '/cont/proiecte/:id/fișiere/:fileId/sterge',
-  ensureRole('admin', 'superadmin', 'redactor'),
+  ensureRole('superadmin'),
   async (req, res, next) => {
     try {
       const projectId = Number(req.params.id);
@@ -2877,20 +2984,6 @@ router.post(
         });
       }
 
-      const user = req.session.user;
-      if (user.role === 'redactor' && project.assigned_editor_id !== user.id) {
-        return res.status(403).render('pages/403', {
-          title: 'Acces restrictionat',
-          description: 'Nu sunteti asignat pe acest proiect.'
-        });
-      }
-      if (user.role === 'admin' && project.assigned_admin_id !== user.id && project.assigned_editor_id !== user.id) {
-        return res.status(403).render('pages/403', {
-          title: 'Acces restrictionat',
-          description: 'Nu sunteti responsabil de acest proiect.'
-        });
-      }
-
       const file = await getProjectFileById(fileId);
       if (!file || file.project_id !== projectId) {
         req.session.projectFeedback = {
@@ -2900,45 +2993,7 @@ router.post(
         return redirectToFiles();
       }
 
-      const isClientFile = file.origin === 'client';
-      const isStaffFile = file.origin === 'staff';
-
-      if (isClientFile && user.role !== 'superadmin') {
-        req.session.projectFeedback = {
-          error: 'Doar superadministratorii pot șterge fișiere încărcate de client.',
-          activeTab: 'fișiere'
-        };
-        return redirectToFiles();
-      }
-
-      if (!isClientFile && !isStaffFile) {
-        req.session.projectFeedback = {
-          error: 'Fișierul selectat nu poate fi gestionat din această interfață.',
-          activeTab: 'fișiere'
-        };
-        return redirectToFiles();
-      }
-
-      let canDelete = false;
-      if (isClientFile) {
-        canDelete = user.role === 'superadmin';
-      } else {
-        const isOwnFile = file.uploader_id && user.id === file.uploader_id;
-        const actorLevel = ROLE_HIERARCHY[user.role] || 0;
-        const uploaderLevel = ROLE_HIERARCHY[file.uploader_role] || 0;
-        const canManageOthers = ['admin', 'superadmin'].includes(user.role);
-        canDelete = isOwnFile || (canManageOthers && uploaderLevel > 0 && uploaderLevel <= actorLevel);
-      }
-
-      if (!canDelete) {
-        req.session.projectFeedback = {
-          error: 'Nu aveți permisiunea de a șterge acest fișier.',
-          activeTab: 'fișiere'
-        };
-        return redirectToFiles();
-      }
-
-      await softDeleteProjectFile(fileId, { actor: user });
+      await softDeleteProjectFile(fileId, { actor: req.session.user });
 
       const relativePath = path.join(String(projectId), file.stored_name);
       const absolutePath = resolveStoredFilePath(relativePath);
@@ -2949,6 +3004,16 @@ router.post(
           console.error('Nu s-a putut sterge fisierul din stocare', unlinkError);
         }
       }
+
+      await recordAdminAction({
+        actor: req.session.user,
+        action: 'Ștergere fișier proiect',
+        details: { projectId, fileId, fileName: file.original_name },
+        statusCode: 200,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+      req.skipAdminActionLog = true;
 
       req.session.projectFeedback = {
         success: `Fișierul „${file.original_name}” a fost șters.`,

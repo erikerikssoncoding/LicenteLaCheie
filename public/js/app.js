@@ -183,3 +183,69 @@
   };
   input.addEventListener('change', renderList);
 })();
+
+(() => {
+  const modalElement = document.getElementById('deleteConfirmModal');
+  if (!modalElement) {
+    return;
+  }
+  const messageElement = modalElement.querySelector('[data-delete-message]');
+  const confirmButton = modalElement.querySelector('[data-delete-confirm-button]');
+  const modal = window.bootstrap?.Modal.getOrCreateInstance(modalElement) || new bootstrap.Modal(modalElement);
+  const defaultMessage = 'Această acțiune este ireversibilă. Confirmi ștergerea?';
+  let countdownTimer = null;
+  let activeForm = null;
+
+  const resetButton = () => {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Șterge definitiv (5)';
+  };
+
+  const startCountdown = () => {
+    let remaining = 5;
+    confirmButton.disabled = true;
+    confirmButton.textContent = `Șterge definitiv (${remaining})`;
+    countdownTimer = window.setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        confirmButton.disabled = false;
+        confirmButton.textContent = 'Șterge definitiv';
+        window.clearInterval(countdownTimer);
+        countdownTimer = null;
+      } else {
+        confirmButton.textContent = `Șterge definitiv (${remaining})`;
+      }
+    }, 1000);
+  };
+
+  document.querySelectorAll('form[data-delete-confirm]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      activeForm = form;
+      const message = form.getAttribute('data-delete-confirm') || defaultMessage;
+      if (messageElement) {
+        messageElement.textContent = message;
+      }
+      resetButton();
+      startCountdown();
+      modal.show();
+    });
+  });
+
+  confirmButton?.addEventListener('click', () => {
+    if (confirmButton.disabled || !activeForm) {
+      return;
+    }
+    modal.hide();
+    activeForm.submit();
+  });
+
+  modalElement.addEventListener('hidden.bs.modal', () => {
+    activeForm = null;
+    if (countdownTimer) {
+      window.clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    resetButton();
+  });
+})();

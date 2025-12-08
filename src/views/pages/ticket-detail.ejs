@@ -76,7 +76,8 @@
       }
     </style>
     <% const isMergedTicket = Boolean(ticket.merged_into_ticket_id); %>
-    <% const statusLabel = ticket.status === 'rezolvat' && isMergedTicket ? 'rezolvat (merged)' : ticket.status; %>
+    <% const isResolvedTicket = ticket.status === 'rezolvat'; %>
+    <% const statusLabel = isResolvedTicket && isMergedTicket ? 'rezolvat (merged)' : ticket.status; %>
     <div class="glass-card mb-4">
       <h1 class="h4 mb-3"><%= ticket.subject %></h1>
       <p class="text-muted small mb-2">Cod ticket: <strong><%= ticket.display_code %></strong></p>
@@ -558,6 +559,10 @@
         <% if (isMergedTicket) { %>
         <div class="glass-card mt-4">
           <p class="mb-0 text-muted">Acest ticket este fuzionat si nu mai accepta raspunsuri noi.</p>
+        </div>
+        <% } else if (isResolvedTicket) { %>
+        <div class="glass-card mt-4">
+          <p class="mb-0 text-muted">Acest ticket este marcat ca rezolvat si nu mai permite raspunsuri noi.</p>
         </div>
         <% } else { %>
         <div class="glass-card mt-4">

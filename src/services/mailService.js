@@ -25,12 +25,18 @@ const MAIL_IMAP_PORT = Number(process.env.MAIL_IMAP_PORT || 993);
 const MAIL_IMAP_SECURE = String(process.env.MAIL_IMAP_SECURE || 'true').toLowerCase() !== 'false';
 const MAIL_IMAP_INBOX = process.env.MAIL_IMAP_INBOX || 'INBOX';
 const MAIL_IMAP_SENT_FOLDER = process.env.MAIL_IMAP_SENT_FOLDER || 'Sent';
-const MAIL_IMAP_TLS_OPTIONS = { rejectUnauthorized: !MAIL_ALLOW_INVALID_CERTS };
-const MAIL_IMAP_TIMEOUT_SETTINGS = {
-  clientTimeout: 120000,
-  greetingTimeout: 60000,
-  socketTimeout: 120000
-};
+export const MAIL_IMAP_CLIENT_TIMEOUT_MS = Math.max(
+  1000,
+  Number(process.env.MAIL_IMAP_CLIENT_TIMEOUT_MS || 180000)
+);
+export const MAIL_IMAP_GREETING_TIMEOUT_MS = Math.max(
+  1000,
+  Number(process.env.MAIL_IMAP_GREETING_TIMEOUT_MS || 120000)
+);
+export const MAIL_IMAP_SOCKET_TIMEOUT_MS = Math.max(
+  1000,
+  Number(process.env.MAIL_IMAP_SOCKET_TIMEOUT_MS || 180000)
+);
 const MAIL_TICKET_SYNC_INTERVAL_MS = Math.max(180000, Number(process.env.MAIL_TICKET_SYNC_INTERVAL_MS || 900000));
 const MAILBOX_FETCH_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const MAILBOX_TIMEZONE = process.env.TZ || 'Europe/Bucharest';
@@ -49,6 +55,23 @@ let ticketSyncLastError = null;
 let ticketSyncAbortRequested = false;
 let ticketSyncAbortTimeout = null;
 let currentTicketSyncClient = null;
+
+function getBaseImapConfig() {
+  return {
+    host: MAIL_IMAP_HOST,
+    port: MAIL_IMAP_PORT,
+    secure: MAIL_IMAP_SECURE,
+    logger: false,
+    tls: { rejectUnauthorized: !MAIL_ALLOW_INVALID_CERTS },
+    auth: {
+      user: MAIL_USER,
+      pass: MAIL_PASSWORD
+    },
+    clientTimeout: MAIL_IMAP_CLIENT_TIMEOUT_MS,
+    greetingTimeout: MAIL_IMAP_GREETING_TIMEOUT_MS,
+    socketTimeout: MAIL_IMAP_SOCKET_TIMEOUT_MS
+  };
+}
 
 function getTicketSyncSafetyGapMs() {
   return Math.max(60 * 1000, Number(process.env.MAIL_TICKET_SYNC_SAFETY_GAP_MS || 5 * 60 * 1000));
@@ -1270,19 +1293,7 @@ export async function syncTicketRepliesFromInbox() {
   const summary = { processed: 0, skipped: 0, errors: [], folders: {} };
   const searchCriteria = await getMailboxFetchCriteria();
   
-  const client = new ImapFlow({
-    host: MAIL_IMAP_HOST,
-    port: MAIL_IMAP_PORT,
-    secure: MAIL_IMAP_SECURE,
-    logger: false, // Poți pune true pentru debug extrem, dar va genera mult text
-    tls: MAIL_IMAP_TLS_OPTIONS,
-    auth: {
-      user: MAIL_USER,
-      pass: MAIL_PASSWORD
-    },
-    // MODIFICARE: Mărim timeout-urile la 2 minute (120000ms)
-    ...MAIL_IMAP_TIMEOUT_SETTINGS
-  });
+  const client = new ImapFlow(getBaseImapConfig());
 
   // MODIFICARE 2: Handler critic pentru a preveni crash-ul Node.js
   // Aceasta este linia care rezolvă "Unhandled 'error' event"
@@ -1348,24 +1359,7 @@ export async function getRecentMailboxPreview(limit = 5) {
     return result;
   }
 
-  const client = new ImapFlow({
-    host: MAIL_IMAP_HOST,
-    port: MAIL_IMAP_PORT,
-    secure: MAIL_IMAP_SECURE,
-    logger: false,
-    tls: MAIL_IMAP_TLS_OPTIONS,
-    auth: {
-      user: MAIL_USER,
-      pass: MAIL_PASSWORD
-    },
-    ...MAIL_IMAP_TIMEOUT_SETTINGS
-  });
-
-  client.on('error', (err) => {
-    const errorMsg = `IMAP Preview Error: ${err.message || err}`;
-    console.error(errorMsg);
-    result.errors.push(errorMsg);
-  });
+  const client = new ImapFlow(getBaseImapConfig());
 
   try {
     await client.connect();

@@ -36,6 +36,23 @@ let ticketSyncLastRunAt = null;
 let ticketSyncLastResult = null;
 let ticketSyncLastError = null;
 
+function formatEnvelopeAddresses(addresses = []) {
+  return (addresses || [])
+    .map((entry) => {
+      if (!entry) {
+        return '';
+      }
+      const name = (entry.name || '').trim();
+      const email = entry.address || '';
+      if (name && email) {
+        return `${name} <${email}>`;
+      }
+      return name || email;
+    })
+    .filter(Boolean)
+    .join(', ');
+}
+
 async function safeLogMailEvent(payload) {
   try {
     await logMailEvent(payload);
@@ -405,6 +422,43 @@ export function isMailConfigured() {
 
 function isImapConfigured() {
   return Boolean(MAIL_IMAP_HOST && MAIL_USER && MAIL_PASSWORD);
+}
+
+async function fetchRecentMailboxMessages(client, folderName, limit = 5) {
+  const items = [];
+  let error = null;
+  const lock = await client.getMailboxLock(folderName);
+
+  try {
+    const totalMessages = client.mailbox?.exists || 0;
+    if (!totalMessages) {
+      return { items, error };
+    }
+
+    const startSeq = Math.max(1, totalMessages - limit + 1);
+    for await (const message of client.fetch({ seq: `${startSeq}:${totalMessages}` }, { envelope: true, internalDate: true })) {
+      const envelope = message.envelope || {};
+      const dateValue = envelope.date || message.internalDate || null;
+      items.push({
+        subject: envelope.subject || '(fără subiect)',
+        from: formatEnvelopeAddresses(envelope.from),
+        to: formatEnvelopeAddresses(envelope.to),
+        date: dateValue ? new Date(dateValue).toISOString() : null
+      });
+    }
+
+    items.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date).getTime() : 0;
+      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      return dateB - dateA;
+    });
+  } catch (mailboxError) {
+    error = mailboxError?.message || 'UNKNOWN_IMAP_PREVIEW_ERROR';
+  } finally {
+    lock.release();
+  }
+
+  return { items, error };
 }
 
 async function sendRawMail({ to, subject, text, attachments, replyTo = null, eventType = 'generic', context = null }) {
@@ -1142,6 +1196,58 @@ export async function syncTicketRepliesFromInbox() {
   }
 
   return summary;
+}
+
+export async function getRecentMailboxPreview(limit = 5) {
+  const result = {
+    inbox: [],
+    sent: [],
+    errors: [],
+    fetchedAt: new Date().toISOString()
+  };
+
+  if (!isImapConfigured()) {
+    result.errors.push('IMAP_NOT_CONFIGURED');
+    return result;
+  }
+
+  const client = new ImapFlow({
+    host: MAIL_IMAP_HOST,
+    port: MAIL_IMAP_PORT,
+    secure: MAIL_IMAP_SECURE,
+    logger: false,
+    tls: { rejectUnauthorized: !MAIL_ALLOW_INVALID_CERTS },
+    auth: {
+      user: MAIL_USER,
+      pass: MAIL_PASSWORD
+    }
+  });
+
+  try {
+    await client.connect();
+    const inboxResult = await fetchRecentMailboxMessages(client, MAIL_IMAP_INBOX, limit);
+    const sentResult = await fetchRecentMailboxMessages(client, MAIL_IMAP_SENT_FOLDER, limit);
+
+    result.inbox = inboxResult.items;
+    result.sent = sentResult.items;
+
+    if (inboxResult.error) {
+      result.errors.push(`${MAIL_IMAP_INBOX}: ${inboxResult.error}`);
+    }
+    if (sentResult.error) {
+      result.errors.push(`${MAIL_IMAP_SENT_FOLDER}: ${sentResult.error}`);
+    }
+  } catch (error) {
+    result.errors.push(error?.message || 'UNKNOWN_IMAP_PREVIEW_ERROR');
+  } finally {
+    try {
+      await client.logout();
+    } catch (logoutError) {
+      result.errors.push(logoutError?.message || 'LOGOUT_FAILED');
+    }
+  }
+
+  return result;
 }
 
 async function performTicketInboxSync() {

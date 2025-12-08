@@ -68,6 +68,68 @@
         </button>
       </form>
     </div>
+    <div class="card shadow-sm mb-4" id="mail-previzualizare">
+      <div class="card-body">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-3">
+          <div>
+            <h2 class="h6 mb-1">Previzualizare email (IMAP)</h2>
+            <p class="small text-muted mb-0">Ultimele 5 mesaje din inbox și din folderul de trimise.</p>
+          </div>
+          <form action="/cont/tichete/mail-previzualizare" method="post" class="d-flex align-items-center gap-2">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <button class="btn btn-outline-secondary" type="submit">Afișează ultimele mesaje</button>
+          </form>
+        </div>
+        <% if (mailPreview) { %>
+        <% if (mailPreview.errors && mailPreview.errors.length) { %>
+        <div class="alert alert-warning" role="alert">
+          <div class="fw-semibold mb-1">Au apărut erori la citirea mesajelor:</div>
+          <ul class="mb-0 ps-3">
+            <% mailPreview.errors.forEach((error) => { %>
+            <li class="small"><%= error %></li>
+            <% }) %>
+          </ul>
+        </div>
+        <% } %>
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <h3 class="h6 mb-2">Inbox</h3>
+            <% if (mailPreview.inbox && mailPreview.inbox.length) { %>
+            <div class="list-group list-group-flush border rounded-3">
+              <% mailPreview.inbox.slice(0, 5).forEach((message) => { %>
+              <div class="list-group-item">
+                <div class="fw-semibold text-truncate"><%= message.subject %></div>
+                <div class="small text-muted text-truncate">De la: <%= message.from || 'Necunoscut' %></div>
+                <div class="small text-muted">Data: <%= message.date ? message.date.replace('T', ' ').slice(0, 16) : 'N/A' %></div>
+              </div>
+              <% }) %>
+            </div>
+            <% } else { %>
+            <p class="text-muted mb-0">Nu s-au găsit mesaje recente în inbox.</p>
+            <% } %>
+          </div>
+          <div class="col-lg-6">
+            <h3 class="h6 mb-2">Trimise</h3>
+            <% if (mailPreview.sent && mailPreview.sent.length) { %>
+            <div class="list-group list-group-flush border rounded-3">
+              <% mailPreview.sent.slice(0, 5).forEach((message) => { %>
+              <div class="list-group-item">
+                <div class="fw-semibold text-truncate"><%= message.subject %></div>
+                <div class="small text-muted text-truncate">Către: <%= message.to || 'Necunoscut' %></div>
+                <div class="small text-muted">Data: <%= message.date ? message.date.replace('T', ' ').slice(0, 16) : 'N/A' %></div>
+              </div>
+              <% }) %>
+            </div>
+            <% } else { %>
+            <p class="text-muted mb-0">Nu s-au găsit mesaje recente în folderul de trimise.</p>
+            <% } %>
+          </div>
+        </div>
+        <% } else { %>
+        <p class="text-muted mb-0">Apasă pe buton pentru a încărca ultimele mesaje.</p>
+        <% } %>
+      </div>
+    </div>
     <% } %>
 
     <% const kindLabels = { support: 'Suport', offer: 'Ofertă' }; %>

@@ -61,7 +61,8 @@ import {
   sendProjectStatusUpdateEmail,
   sendTestMail,
   getTicketInboxSyncState,
-  triggerTicketInboxSyncNow
+  triggerTicketInboxSyncNow,
+  getRecentMailboxPreview
 } from '../services/mailService.js';
 import {
   listTeamMembers,
@@ -828,13 +829,16 @@ router.get('/cont/tichete', ensureRole('admin', 'superadmin'), async (req, res, 
     const feedback = req.session.ticketFeedback || {};
     delete req.session.ticketFeedback;
     const ticketInboxSync = getTicketInboxSyncState();
+    const mailPreview = req.session.ticketMailPreview || null;
+    delete req.session.ticketMailPreview;
     res.render('pages/ticket-management', {
       title: 'Gestionare tichete',
       description: 'Vizualizeaza rapid solicitarile clientilor și actualizeaza statusurile direct din panoul de control.',
       tickets: filteredTickets,
       filters,
       feedback,
-      ticketInboxSync
+      ticketInboxSync,
+      mailPreview
     });
   } catch (error) {
     next(error);
@@ -869,6 +873,16 @@ router.post('/cont/tichete/sincronizare-manuala', ensureRole('superadmin'), asyn
     };
 
     return res.redirect('/cont/tichete');
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/mail-previzualizare', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const preview = await getRecentMailboxPreview(5);
+    req.session.ticketMailPreview = preview;
+    return res.redirect('/cont/tichete#mail-previzualizare');
   } catch (error) {
     next(error);
   }

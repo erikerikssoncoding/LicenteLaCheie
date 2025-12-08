@@ -1262,16 +1262,29 @@ export async function syncTicketRepliesFromInbox() {
 
   const summary = { processed: 0, skipped: 0, errors: [], folders: {} };
   const searchCriteria = await getMailboxFetchCriteria();
+  
   const client = new ImapFlow({
     host: MAIL_IMAP_HOST,
     port: MAIL_IMAP_PORT,
     secure: MAIL_IMAP_SECURE,
-    logger: false,
+    logger: false, // Poți pune true pentru debug extrem, dar va genera mult text
     tls: { rejectUnauthorized: !MAIL_ALLOW_INVALID_CERTS },
     auth: {
       user: MAIL_USER,
       pass: MAIL_PASSWORD
-    }
+    },
+    // MODIFICARE 1: Setări pentru a preveni timeout-urile rapide
+    clientTimeout: 60000,    // Așteaptă 60 secunde pentru comenzi (default e mai mic)
+    greetingTimeout: 30000,  // Așteaptă 30 secunde salutul inițial
+    socketTimeout: 60000     // Timeout la nivel de socket TCP
+  });
+
+  // MODIFICARE 2: Handler critic pentru a preveni crash-ul Node.js
+  // Aceasta este linia care rezolvă "Unhandled 'error' event"
+  client.on('error', (err) => {
+    const errorMsg = `IMAP Background Error: ${err.message || err}`;
+    console.error(errorMsg);
+    summary.errors.push(errorMsg);
   });
 
   try {
@@ -1303,9 +1316,14 @@ export async function syncTicketRepliesFromInbox() {
     clearTicketSyncAbortTimeout();
     currentTicketSyncClient = null;
     try {
-      await client.logout();
+      // Verificăm dacă suntem conectați înainte de logout pentru a evita alte erori
+      if (client.usable) {
+        await client.logout();
+      } else {
+        client.close();
+      }
     } catch (logoutError) {
-      summary.errors.push(`${MAIL_IMAP_INBOX}: ${logoutError?.message || 'LOGOUT_FAILED'}`);
+      // Ignorăm erorile la logout, nu sunt critice
     }
   }
 

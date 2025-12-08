@@ -1222,7 +1222,11 @@ async function processMailbox(client, folderName, handler, summary, searchCriter
   try {
     let messageCount = 0;
     for await (const message of client.fetch(criteria, { envelope: true, uid: true, source: true, headers: ['message-id'] })) {
-      console.log(`[DEBUG EMAIL] Se procesează: ${message.envelope.subject} (UID: ${message.uid})`);
+      const fromEnvelope = message.envelope?.from?.[0];
+      const fromAddress = fromEnvelope?.address || fromEnvelope?.name || 'necunoscut';
+      console.log(
+        `[DEBUG EMAIL] Se procesează mesajul UID=${message.uid} | From=${fromAddress} | Subiect=${message.envelope?.subject || ''} | Message-ID=${message.envelope?.messageId || 'N/A'}`
+      );
       messageCount++;
       if (ticketSyncAbortRequested) {
         summary.errors.push('SYNC_ABORTED_BY_USER');
@@ -1236,6 +1240,7 @@ async function processMailbox(client, folderName, handler, summary, searchCriter
       let shouldMarkSeen = false;
       try {
         const action = await handler(message);
+        console.log(`[DEBUG IMAP] Rezultat procesare UID=${message.uid}: ${action}`);
         if (action === 'processed') {
           summary.processed += 1;
           folderStats.processed += 1;
@@ -1252,6 +1257,7 @@ async function processMailbox(client, folderName, handler, summary, searchCriter
         if (shouldMarkSeen) {
           try {
             await client.messageFlagsAdd(message.uid, ['\\Seen']);
+            console.log(`[DEBUG IMAP] Marcăm ca citit UID=${message.uid}`);
           } catch (flagError) {
             const flagMessage = `${folderName}: ${flagError?.message || 'FLAG_UPDATE_FAILED'}`;
             summary.errors.push(flagMessage);
@@ -1278,7 +1284,7 @@ async function handleInboxMessage(message) {
   const firstLine = textContent.trim().split(/\r?\n/)[0] || '';
 
   if (firstLine.includes('A fost deschis un ticket nou')) {
-    console.log(`[DEBUG INBOX] Skipped - Automated system notification detected in body: ${subject}`);
+    console.log(`[DEBUG INBOX] UID=${message.uid} Skipped - notificare automată detectată în corp: ${subject}`);
     return 'skipped';
   }
 
@@ -1287,6 +1293,7 @@ async function handleInboxMessage(message) {
   const messageId = message.envelope?.messageId || null;
 
   if (!ticketCode || !fromAddress) {
+    console.log(`[DEBUG INBOX] UID=${message.uid} Skipped - lipsă ticket code sau adresa expeditorului (${fromAddress || 'necunoscut'})`);
     return 'skipped';
   }
 
@@ -1294,11 +1301,15 @@ async function handleInboxMessage(message) {
   const user = await findUserByEmail(fromAddress);
 
   if (!ticket || !user || !canUserReplyToTicket(ticket, user)) {
+    console.log(
+      `[DEBUG INBOX] UID=${message.uid} Skipped - ticket sau user invalid (ticket=${ticket?.id || 'N/A'}, user=${user?.id || 'N/A'})`
+    );
     return 'skipped';
   }
 
   const messageBody = await extractMessageBodyFromSource(message.source);
   if (!messageBody) {
+    console.log(`[DEBUG INBOX] UID=${message.uid} Skipped - corpul mesajului este gol`);
     return 'skipped';
   }
 

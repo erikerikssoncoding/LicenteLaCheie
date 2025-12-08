@@ -63,6 +63,7 @@ import {
   getTicketInboxSyncState,
   triggerTicketInboxSyncNow,
   stopTicketInboxSync,
+  startTicketInboxSync,
   getRecentMailboxPreview
 } from '../services/mailService.js';
 import {
@@ -895,6 +896,37 @@ router.post('/cont/tichete/sincronizare-oprire', ensureRole('superadmin'), async
     const timerNote = stopResult.timerStopped ? ' Timerul automat a fost oprit.' : '';
     req.session.ticketFeedback = {
       success: `Oprirea sincronizării curente a fost solicitată.${timerNote}`
+    };
+    return res.redirect('/cont/tichete');
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/cont/tichete/sincronizare-reactivare', ensureRole('superadmin'), async (req, res, next) => {
+  try {
+    const syncState = getTicketInboxSyncState();
+
+    if (!syncState.configured) {
+      req.session.ticketFeedback = {
+        error: 'Sincronizarea nu poate fi reactivată: configurează variabilele MAIL_IMAP_HOST, MAIL_USER și MAIL_PASSWORD.'
+      };
+      return res.redirect('/cont/tichete');
+    }
+
+    const started = startTicketInboxSync();
+
+    if (!started) {
+      req.session.ticketFeedback = {
+        error: 'Sincronizarea nu a putut fi reactivată din cauza unei erori neașteptate.'
+      };
+      return res.redirect('/cont/tichete');
+    }
+
+    req.session.ticketFeedback = {
+      success: syncState.timerActive
+        ? 'Sistemul de sincronizare era deja activ.'
+        : 'Sistemul de sincronizare a fost reactivat și este din nou online.'
     };
     return res.redirect('/cont/tichete');
   } catch (error) {

@@ -26,6 +26,7 @@ import { sendRegistrationCredentialsEmail } from '../services/mailService.js';
 import { consumeOneTimeLoginToken } from '../services/loginLinkService.js';
 import { createPasswordResetToken, consumePasswordResetToken } from '../services/passwordResetService.js';
 import { sendPasswordResetEmail } from '../services/mailService.js';
+import { authRateLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -72,7 +73,7 @@ router.get('/autentificare/link/:token', async (req, res, next) => {
   }
 });
 
-router.post('/autentificare', async (req, res, next) => {
+router.post('/autentificare', authRateLimiter, async (req, res, next) => {
   try {
     const schema = z.object({
       email: z.string().email(),
@@ -123,7 +124,7 @@ router.post('/autentificare', async (req, res, next) => {
   }
 });
 
-router.post('/autentificare/resetare', async (req, res, next) => {
+router.post('/autentificare/resetare', authRateLimiter, async (req, res, next) => {
   try {
     const schema = z.object({ email: z.string().email() });
     const { email } = schema.parse(req.body);
@@ -149,7 +150,7 @@ router.post('/autentificare/resetare', async (req, res, next) => {
   }
 });
 
-router.post('/autentificare/resetare/confirma', async (req, res, next) => {
+router.post('/autentificare/resetare/confirma', authRateLimiter, async (req, res, next) => {
   try {
     const schema = z.object({
       token: z.string().min(10),
@@ -184,7 +185,7 @@ router.get('/autentificare/passkey/options', async (req, res, next) => {
   }
 });
 
-router.post('/autentificare/passkey/verify', async (req, res, next) => {
+router.post('/autentificare/passkey/verify', authRateLimiter, async (req, res, next) => {
   try {
     const rpID = (req.headers.host || 'localhost').split(':')[0];
     const origin = `${req.protocol}://${req.get('host')}`;

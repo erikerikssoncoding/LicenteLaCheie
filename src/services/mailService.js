@@ -853,7 +853,7 @@ export async function sendRegistrationCredentialsEmail({ fullName, email, passwo
   const safeName = fullName ? String(fullName).trim() : 'client';
   const loginLink =
     userId && typeof userId === 'number'
-      ? buildPublicUrl(`/autentificare/link/${createOneTimeLoginLink({ userId }).token}`)
+      ? buildPublicUrl(`/autentificare/link/${(await createOneTimeLoginLink({ userId })).token}`)
       : null;
   const clientText = [
     `Bună, ${safeName}!`,

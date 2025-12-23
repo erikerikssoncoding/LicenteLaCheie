@@ -44,7 +44,7 @@ router.get('/autentificare', (req, res) => {
 
 router.get('/autentificare/link/:token', async (req, res, next) => {
   try {
-    const payload = consumeOneTimeLoginToken(req.params.token);
+    const payload = await consumeOneTimeLoginToken(req.params.token);
     if (!payload) {
       return res.status(410).render('pages/login', {
         title: 'Autentificare cont client și echipă',
@@ -137,7 +137,7 @@ router.post('/autentificare/resetare', authRateLimiter, async (req, res, next) =
     if (!user || !user.is_active) {
       return res.json(genericResponse);
     }
-    const { token, expiresAt } = createPasswordResetToken(user.id);
+    const { token, expiresAt } = await createPasswordResetToken(user.id);
     await sendPasswordResetEmail({ user, token, expiresAt }).catch((error) =>
       console.error('Nu s-a putut trimite emailul de resetare:', error)
     );
@@ -157,7 +157,7 @@ router.post('/autentificare/resetare/confirma', authRateLimiter, async (req, res
       password: z.string().min(8)
     });
     const { token, password } = schema.parse(req.body);
-    const payload = consumePasswordResetToken(token);
+    const payload = await consumePasswordResetToken(token);
     if (!payload) {
       return res.status(400).json({ error: 'Linkul de resetare nu mai este valid sau a expirat.' });
     }

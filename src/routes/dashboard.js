@@ -1050,7 +1050,7 @@ router.post('/cont/securitate', ensureRole('superadmin'), async (req, res, next)
   }
 });
 
-router.post('/cont/securitate/licență', ensureRole('superadmin'), async (req, res, next) => {
+router.post(['/cont/securitate/licență', '/cont/securitate/licenta'], ensureRole('superadmin'), async (req, res, next) => {
   try {
     const schema = z.object({
       paidUntil: z

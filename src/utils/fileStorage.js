@@ -9,6 +9,8 @@ export const PROJECT_UPLOAD_ROOT = path.resolve(process.cwd(), 'uploads', 'proje
 export const OFFER_ATTACHMENT_ROOT = path.resolve(process.cwd(), 'uploads', 'offer-attachments');
 export const CONTACT_ATTACHMENT_ROOT = path.resolve(process.cwd(), 'uploads', 'contact-attachments');
 
+const SAFE_DOWNLOAD_NAME_MAX_LENGTH = 150;
+
 export function sanitizeFileNamePart(value) {
   return value
     .normalize('NFKD')
@@ -35,11 +37,46 @@ export function buildStoredFileName(originalName) {
   return `${sanitizedBase}-${token}${ext}`;
 }
 
+function resolveSafePath(basePath, relativePath) {
+  if (!relativePath || typeof relativePath !== 'string') {
+    return null;
+  }
+  const candidate = path.normalize(relativePath);
+  if (candidate.includes('..') || path.isAbsolute(candidate)) {
+    return null;
+  }
+
+  const base = path.resolve(basePath);
+  const resolved = path.resolve(basePath, candidate);
+  if (!resolved.startsWith(`${base}${path.sep}`)) {
+    return null;
+  }
+
+  return resolved;
+}
+
+export function sanitizeDownloadFilename(fileName) {
+  const raw = typeof fileName === 'string' ? fileName : '';
+  const normalized = path
+    .basename(raw)
+    .replace(/[\r\n\0-\x1f\x7f]/g, '_')
+    .replace(/[<>:"/\\|?*]/g, '_');
+  return normalized || `fisier-${Date.now()}`;
+}
+
+export function getSafeDownloadName(fileName, fallback = 'fisier') {
+  const safeName = sanitizeDownloadFilename(fileName);
+  return safeName.slice(0, SAFE_DOWNLOAD_NAME_MAX_LENGTH) || fallback;
+}
+
 export async function removeStoredFile(relativePath) {
   if (!relativePath) {
     return;
   }
-  const absolutePath = path.resolve(PROJECT_UPLOAD_ROOT, relativePath);
+  const absolutePath = resolveSafePath(PROJECT_UPLOAD_ROOT, relativePath);
+  if (!absolutePath) {
+    return;
+  }
   try {
     await fs.unlink(absolutePath);
   } catch (error) {
@@ -54,7 +91,10 @@ export function getPublicFilePath(projectId, storedName) {
 }
 
 export async function fileExists(relativePath) {
-  const absolutePath = path.resolve(PROJECT_UPLOAD_ROOT, relativePath);
+  const absolutePath = resolveSafePath(PROJECT_UPLOAD_ROOT, relativePath);
+  if (!absolutePath) {
+    return false;
+  }
   try {
     await fs.access(absolutePath);
     return true;
@@ -67,5 +107,9 @@ export async function fileExists(relativePath) {
 }
 
 export function resolveStoredFilePath(relativePath) {
-  return path.resolve(PROJECT_UPLOAD_ROOT, relativePath);
+  return resolveSafePath(PROJECT_UPLOAD_ROOT, relativePath);
+}
+
+export function resolveTicketAttachmentPath(fileName) {
+  return resolveSafePath(OFFER_ATTACHMENT_ROOT, fileName);
 }

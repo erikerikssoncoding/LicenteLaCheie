@@ -17,6 +17,7 @@ import {
   sendOfferSubmissionEmails,
   sendTicketCreatedNotification
 } from '../services/mailService.js';
+import { sanitizeContractHtml } from '../services/contractService.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
 import { TICKET_ALLOWED_MIME_TYPES, TICKET_ATTACHMENT_MAX_FILES, TICKET_ATTACHMENT_MAX_SIZE } from '../constants/attachmentRules.js';
 import { CONTACT_ATTACHMENT_ROOT, OFFER_ATTACHMENT_ROOT, buildStoredFileName } from '../utils/fileStorage.js';
@@ -665,7 +666,8 @@ router.get('/contract/:code', async (req, res, next) => {
     return res.render('pages/contract', {
       title: `Contract ${offer.offer_code}`,
       description: 'Contract personalizat pentru serviciile de redactare licență.',
-      offer
+      offer,
+      sanitizedContractHtml: sanitizeContractHtml(offer.contract_text || '')
     });
   } catch (error) {
     next(error);

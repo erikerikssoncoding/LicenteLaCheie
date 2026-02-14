@@ -145,7 +145,8 @@ import {
   applyAdminSignature,
   createContractDownloadToken,
   consumeContractDownloadToken,
-  listContractsForUser
+  listContractsForUser,
+  sanitizeContractHtml
 } from '../services/contractService.js';
 import { isValidCNP } from '../utils/validators.js';
 import { createPdfBufferFromHtml } from '../utils/pdf.js';
@@ -153,12 +154,29 @@ import {
   ensureProjectStoragePath,
   buildStoredFileName,
   resolveStoredFilePath,
-  OFFER_ATTACHMENT_ROOT
+  OFFER_ATTACHMENT_ROOT,
+  resolveTicketAttachmentPath,
+  getSafeDownloadName
 } from '../utils/fileStorage.js';
 import { collectClientMetadata } from '../utils/requestMetadata.js';
 
 const router = Router();
 const TIMELINE_PAGE_SIZE = 10;
+
+function getPasskeyContext(req) {
+  return {
+    rpID: process.env.PASSKEY_RP_ID || req.hostname || req.get('host') || 'localhost',
+    rpName: process.env.PASSKEY_RP_NAME || 'LicențeLaCheie',
+    origin: `${req.protocol || 'https'}://${req.get('host') || req.hostname}`
+  };
+}
+
+function getSafeContractDraft(contractDetails) {
+  if (!contractDetails || !contractDetails.contractDraft) {
+    return null;
+  }
+  return sanitizeContractHtml(contractDetails.contractDraft);
+}
 
 function normalizeJournalEntries(mailLogs = [], adminLogs = []) {
   const entries = [];
@@ -532,11 +550,14 @@ router.post('/cont/setari/dispozitive', async (req, res, next) => {
 router.get('/cont/setari/passkeys/generate-options', async (req, res, next) => {
   try {
     const user = req.session.user;
-    const rpID = (req.headers.host || 'localhost').split(':')[0];
-    const rpName = 'LicențeLaCheie';
+    const passkeyContext = getPasskeyContext(req);
     const passkeyLabel = typeof req.query.name === 'string' ? req.query.name : '';
 
-    const options = await generatePasskeyRegistrationOptions({ user, rpID, rpName });
+    const options = await generatePasskeyRegistrationOptions({
+      user,
+      rpID: passkeyContext.rpID,
+      rpName: passkeyContext.rpName
+    });
     req.session.passkeyChallenge = options.challenge;
     req.session.passkeyLabel = passkeyLabel;
 
@@ -557,8 +578,7 @@ router.post('/cont/setari/passkeys/verify', async (req, res, next) => {
     });
     const data = schema.parse(req.body);
     const userId = req.session.user.id;
-    const rpID = (req.headers.host || 'localhost').split(':')[0];
-    const origin = `${req.protocol}://${req.get('host')}`;
+    const passkeyContext = getPasskeyContext(req);
     const storedLabel = typeof req.session.passkeyLabel === 'string' ? req.session.passkeyLabel : '';
     const label = data.name?.trim()?.length ? data.name : storedLabel;
 
@@ -568,8 +588,8 @@ router.post('/cont/setari/passkeys/verify', async (req, res, next) => {
       userId,
       response: data.credential,
       expectedChallenge,
-      rpID,
-      origin,
+      rpID: passkeyContext.rpID,
+      origin: passkeyContext.origin,
       label
     });
 
@@ -1575,6 +1595,12 @@ router.get('/cont/tichete/:id', requireActiveLicense(), async (req, res, next) =
     await markTicketTimelineRead({ ticketId: ticket.id, userId: user.id });
     const offer = ticket.kind === 'offer' || ticket.kind === 'contract' ? await getOfferByTicketId(ticket.id) : null;
     const contractDetails = ticket.kind === 'contract' ? await getContractDetailsByTicket(ticket.id) : null;
+    const safeContractDetails = contractDetails
+      ? {
+          ...contractDetails,
+          contractDraftSafeHtml: getSafeContractDraft(contractDetails)
+        }
+      : null;
     const ticketFiles = await listTicketFiles(ticket.id);
     const projectFiles = ticket.project_id ? await listProjectFiles(ticket.project_id) : [];
     const clientFiles = projectFiles.filter((file) => file.origin === 'client');
@@ -1604,7 +1630,7 @@ router.get('/cont/tichete/:id', requireActiveLicense(), async (req, res, next) =
       offer,
       offerMinHours: MIN_OFFER_EXPIRATION_HOURS,
       feedback,
-      contractDetails,
+      contractDetails: safeContractDetails,
       mergeCandidates,
       includeInternalTimeline,
       clientFiles,
@@ -1794,7 +1820,7 @@ router.get('/cont/tichete/:ticketId/fisiere/:fileId/descarca', requireActiveLice
       });
     }
 
-    const file = await getTicketFileById(fileId);
+      const file = await getTicketFileById(fileId);
     if (!file || file.ticket_id !== ticketId) {
       return res.status(404).render('pages/404', {
         title: 'Fișier inexistent',
@@ -1802,8 +1828,14 @@ router.get('/cont/tichete/:ticketId/fisiere/:fileId/descarca', requireActiveLice
       });
     }
 
-    const filePath = path.join(OFFER_ATTACHMENT_ROOT, file.stored_name);
-    return res.download(filePath, file.original_name, (error) => {
+    const filePath = resolveTicketAttachmentPath(file.stored_name);
+    if (!filePath) {
+      return res.status(404).render('pages/404', {
+        title: 'Fișier inexistent',
+        description: 'Fișierul solicitat nu este disponibil.'
+      });
+    }
+    return res.download(filePath, getSafeDownloadName(file.original_name), (error) => {
       if (error) {
         return next(error);
       }
@@ -2487,6 +2519,12 @@ router.post('/cont/tichete/:id/contract/semnatura-client', async (req, res, next
         };
         return res.redirect(`/cont/tichete/${ticketId}`);
       }
+      if (signatureError.message === 'INVALID_SIGNATURE_DATA') {
+        req.session.ticketFeedback = {
+          error: 'Semnatura trimisă nu este valida.'
+        };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
       throw signatureError;
     }
     if (clientDraft) {
@@ -2549,17 +2587,23 @@ router.post(
       const schema = z.object({ signatureData: z.string().min(20) });
       const data = schema.parse(req.body);
       let draftUpdate;
-      try {
-        draftUpdate = await applyAdminSignature({ ticketId, signatureData: data.signatureData, offer });
-      } catch (signatureError) {
-        if (signatureError.message === 'INVALID_CONTRACT_STAGE') {
-          req.session.ticketFeedback = {
-            error: 'Semnatura beneficiarului este necesara inainte de a finaliza contractul.'
-          };
-          return res.redirect(`/cont/tichete/${ticketId}`);
-        }
-        throw signatureError;
+    try {
+      draftUpdate = await applyAdminSignature({ ticketId, signatureData: data.signatureData, offer });
+    } catch (signatureError) {
+      if (signatureError.message === 'INVALID_CONTRACT_STAGE') {
+        req.session.ticketFeedback = {
+          error: 'Semnatura beneficiarului este necesara inainte de a finaliza contractul.'
+        };
+        return res.redirect(`/cont/tichete/${ticketId}`);
       }
+      if (signatureError.message === 'INVALID_SIGNATURE_DATA') {
+        req.session.ticketFeedback = {
+          error: 'Semnatura trimisă nu este valida.'
+        };
+        return res.redirect(`/cont/tichete/${ticketId}`);
+      }
+      throw signatureError;
+    }
       await updateOfferContractText(offer.id, draftUpdate.draft);
       await addReply({
         ticketId,
@@ -2741,7 +2785,7 @@ router.get(
           .json({ error: 'Contractul poate fi vizualizat dupa semnarea de catre ambele parti.' });
       }
 
-      return res.json({ contractHtml: contractDetails.contractDraft });
+      return res.json({ contractHtml: sanitizeContractHtml(contractDetails.contractDraft) });
     } catch (error) {
       next(error);
     }
@@ -2827,8 +2871,10 @@ router.get(
         });
       }
       const copyLabel = user.role === 'client' ? 'COPIE BENEFICIAR' : 'COPIE FURNIZOR';
-      const pdfBuffer = await createPdfBufferFromHtml(contractDetails.contractDraft, { copyLabel });
-      const fileName = `contract-${sanitizedIdentifier || ticketId}.pdf`;
+      const sanitizedContractDraft = sanitizeContractHtml(contractDetails.contractDraft || '');
+      const pdfBuffer = await createPdfBufferFromHtml(sanitizedContractDraft, { copyLabel });
+      const safeIdentifier = getSafeDownloadName(sanitizedIdentifier || ticketId);
+      const fileName = `contract-${safeIdentifier}.pdf`;
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
       return res.send(pdfBuffer);
@@ -3508,7 +3554,7 @@ router.get('/cont/proiecte/:id/fișiere/:fileId/descarca', async (req, res, next
       throw accessError;
     }
 
-    return res.download(absolutePath, file.original_name, (downloadError) => {
+    return res.download(absolutePath, getSafeDownloadName(file.original_name), (downloadError) => {
       if (downloadError) {
         if (!res.headersSent) {
           next(downloadError);

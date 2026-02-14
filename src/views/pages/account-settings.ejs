@@ -655,7 +655,7 @@
   </div>
 </section>
 <script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
-<script>
+<script nonce="<%= cspNonce %>">
   document.addEventListener('DOMContentLoaded', () => {
     const createPasskeyButton = document.getElementById('btn-create-passkey');
     const nameInput = document.getElementById('passkey-name');

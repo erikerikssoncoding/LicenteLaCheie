@@ -30,11 +30,46 @@ import { authRateLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
+function normalizePasskeyContext(req) {
+  const rpID = process.env.PASSKEY_RP_ID || req.hostname || req.get('host') || 'localhost';
+  const rpName = process.env.PASSKEY_RP_NAME || 'LicențeLaCheie';
+  const host = req.get('host') || req.hostname || rpID;
+  const protocol = req.protocol === 'https' ? 'https' : 'http';
+  return {
+    rpID,
+    rpName,
+    origin: `${protocol}://${host}`
+  };
+}
+
+function buildSessionUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    fullName: user.full_name || user.fullName,
+    role: user.role,
+    phone: user.phone
+  };
+}
+
+function establishAuthenticatedSession(req, user) {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((error) => {
+      if (error) {
+        return reject(error);
+      }
+      req.session.user = buildSessionUser(user);
+      resolve();
+    });
+  });
+}
+
 router.get('/autentificare', (req, res) => {
   if (req.session?.user) {
     return res.redirect('/cont');
   }
-  const resetToken = req.query.resetToken || req.query.token || '';
+  const rawResetToken = req.query.resetToken || req.query.token || '';
+  const resetToken = typeof rawResetToken === 'string' ? rawResetToken : '';
   res.render('pages/login', {
     title: 'Autentificare cont client și echipă',
     description: 'Accesează panoul tău personalizat pentru a urmări proiectele de licență și comunicările.',
@@ -60,13 +95,7 @@ router.get('/autentificare/link/:token', async (req, res, next) => {
         error: 'Contul este dezactivat sau inexistent.'
       });
     }
-    req.session.user = {
-      id: user.id,
-      email: user.email,
-      fullName: user.full_name,
-      role: user.role,
-      phone: user.phone
-    };
+    await establishAuthenticatedSession(req, user);
     return res.redirect('/cont');
   } catch (error) {
     next(error);
@@ -97,13 +126,7 @@ router.post('/autentificare', authRateLimiter, async (req, res, next) => {
         error: 'Email sau parolă invalide.'
       });
     }
-    req.session.user = {
-      id: user.id,
-      email: user.email,
-      fullName: user.full_name,
-      role: user.role,
-      phone: user.phone
-    };
+    await establishAuthenticatedSession(req, user);
 
     const metadata = collectClientMetadata(req);
     const { token } = await createTrustedDevice({
@@ -177,7 +200,11 @@ router.post('/autentificare/resetare/confirma', authRateLimiter, async (req, res
 
 router.get('/autentificare/passkey/options', async (req, res, next) => {
   try {
-    const options = await generatePasskeyAuthenticationOptions();
+    const passkeyContext = normalizePasskeyContext(req);
+    const options = await generatePasskeyAuthenticationOptions({
+      rpID: passkeyContext.rpID,
+      rpName: passkeyContext.rpName
+    });
     req.session.passkeyChallenge = options.challenge;
     res.json(options);
   } catch (error) {
@@ -187,8 +214,7 @@ router.get('/autentificare/passkey/options', async (req, res, next) => {
 
 router.post('/autentificare/passkey/verify', authRateLimiter, async (req, res, next) => {
   try {
-    const rpID = (req.headers.host || 'localhost').split(':')[0];
-    const origin = `${req.protocol}://${req.get('host')}`;
+    const passkeyContext = normalizePasskeyContext(req);
     const expectedChallenge = req.session.passkeyChallenge;
 
     if (!expectedChallenge) {
@@ -198,8 +224,8 @@ router.post('/autentificare/passkey/verify', authRateLimiter, async (req, res, n
     const { verified, user } = await verifyPasskeyAuthentication({
       response: req.body,
       expectedChallenge,
-      rpID,
-      origin
+      rpID: passkeyContext.rpID,
+      origin: passkeyContext.origin
     });
 
     if (verified && user) {
@@ -207,13 +233,7 @@ router.post('/autentificare/passkey/verify', authRateLimiter, async (req, res, n
         return res.status(401).json({ error: 'Contul este dezactivat.' });
       }
 
-      req.session.user = {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        phone: user.phone
-      };
+      await establishAuthenticatedSession(req, user);
 
       delete req.session.passkeyChallenge;
 
@@ -232,7 +252,7 @@ router.get('/inregistrare', (req, res) => {
   });
 });
 
-router.post('/inregistrare', async (req, res, next) => {
+router.post('/inregistrare', authRateLimiter, async (req, res, next) => {
   try {
     const schema = z
       .object({

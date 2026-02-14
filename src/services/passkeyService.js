@@ -8,11 +8,68 @@ import pool from '../config/db.js';
 
 export const PASSKEY_LIMIT_PER_USER = 3;
 export const PASSKEY_TOTAL_LIMIT_PER_USER = 20;
+const PASSKEY_ORIGIN_MAX_LENGTH = 2048;
+const PASSKEY_RP_ID_MAX_LENGTH = 253;
+
+const RP_ID_REGEX = /^([a-z0-9](-*[a-z0-9])*)(\.[a-z0-9](-*[a-z0-9])*)*$/i;
+const IP_REGEX = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+const ALPHANUM_SYMBOL_REGEX = /^[a-z0-9\s!"#$%&'()*+,./:;<=>?@[\\\]^_`{|}~-]+$/i;
+const PASSKEY_CHALLENGE_MIN_LENGTH = 8;
+const PASSKEY_CHALLENGE_MAX_LENGTH = 2048;
 
 function sanitizeLabel(label) {
   if (!label) return 'Passkey securizat';
   const trimmed = label.toString().trim();
   return trimmed.length ? trimmed.slice(0, 150) : 'Passkey securizat';
+}
+
+function normalizePasskeyRpID(rpID) {
+  if (!rpID || typeof rpID !== 'string') {
+    return null;
+  }
+  const normalized = rpID.toLowerCase().trim();
+  if (!normalized || normalized.length > PASSKEY_RP_ID_MAX_LENGTH) {
+    return null;
+  }
+  if (normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1') {
+    return normalized;
+  }
+  if (!RP_ID_REGEX.test(normalized) || normalized.length > PASSKEY_RP_ID_MAX_LENGTH) {
+    return null;
+  }
+  if (!/\.[a-z]{2,}$/i.test(normalized) && !IP_REGEX.test(normalized)) {
+    return null;
+  }
+  return normalized;
+}
+
+function normalizePasskeyOrigin(origin, rpID) {
+  if (!origin || typeof origin !== 'string' || origin.length > PASSKEY_ORIGIN_MAX_LENGTH) {
+    return null;
+  }
+  const sanitized = origin.replace(/\s+/g, '');
+  let parsed;
+  try {
+    parsed = new URL(sanitized);
+  } catch (error) {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    return null;
+  }
+  const normalizedHost = normalizePasskeyRpID(parsed.hostname);
+  if (!normalizedHost || normalizedHost !== rpID) {
+    return null;
+  }
+  return `${parsed.protocol}//${parsed.host}`;
+}
+
+function normalizePasskeyCredentials(value) {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+  const sanitized = value.trim();
+  return ALPHANUM_SYMBOL_REGEX.test(sanitized) ? sanitized : null;
 }
 
 function parseTransports(value) {
@@ -70,6 +127,10 @@ async function getActiveCredentialDescriptors(userId) {
 
 export async function generatePasskeyRegistrationOptions({ user, rpID, rpName }) {
   if (!user?.id) throw new Error('USER_REQUIRED');
+  const normalizedRpID = normalizePasskeyRpID(rpID);
+  if (!normalizedRpID) {
+    throw new Error('PASSKEY_RP_ID_INVALID');
+  }
 
   const [activeCount, totalCount] = await Promise.all([
     countActivePasskeysForUser(user.id),
@@ -97,7 +158,7 @@ export async function generatePasskeyRegistrationOptions({ user, rpID, rpName })
 
   return generateRegistrationOptions({
     rpName,
-    rpID,
+    rpID: normalizedRpID,
     userName,
     userDisplayName: displayName,
     userID,
@@ -113,6 +174,17 @@ export async function generatePasskeyRegistrationOptions({ user, rpID, rpName })
 export async function verifyPasskeyRegistration({ userId, response, expectedChallenge, rpID, origin, label }) {
   if (!userId) throw new Error('USER_ID_REQUIRED');
   if (!expectedChallenge) throw new Error('PASSKEY_CHALLENGE_MISSING');
+  const normalizedRpID = normalizePasskeyRpID(rpID);
+  if (!normalizedRpID) {
+    throw new Error('PASSKEY_RP_ID_INVALID');
+  }
+  const normalizedOrigin = normalizePasskeyOrigin(origin, normalizedRpID);
+  if (!normalizedOrigin) {
+    throw new Error('PASSKEY_ORIGIN_INVALID');
+  }
+  if (!response || typeof response !== 'object') {
+    throw new Error('PASSKEY_RESPONSE_INVALID');
+  }
 
   const [activeCount, totalCount] = await Promise.all([
     countActivePasskeysForUser(userId),
@@ -128,8 +200,8 @@ export async function verifyPasskeyRegistration({ userId, response, expectedChal
   const verification = await verifyRegistrationResponse({
     response,
     expectedChallenge,
-    expectedOrigin: origin,
-    expectedRPID: rpID,
+    expectedOrigin: normalizedOrigin,
+    expectedRPID: normalizedRpID,
     requireUserVerification: true
   });
 
@@ -146,7 +218,7 @@ export async function verifyPasskeyRegistration({ userId, response, expectedChal
   
   const credentialPublicKey = registrationInfo.credentialPublicKey;
   const credentialCounter = registrationInfo.counter ?? 0;
-  const transports = registrationInfo.transports || response?.response?.transports || [];
+  const transports = parseTransports(registrationInfo.transports) || parseTransports(response?.response?.transports) || [];
   
   const publicKeyEncoded = Buffer.from(credentialPublicKey).toString('base64');
   const name = sanitizeLabel(label);
@@ -162,20 +234,45 @@ export async function verifyPasskeyRegistration({ userId, response, expectedChal
 
 // --- LOGICĂ NOUĂ PENTRU AUTENTIFICARE ---
 
-export async function generatePasskeyAuthenticationOptions() {
+export async function generatePasskeyAuthenticationOptions({ rpID }) {
+  const normalizedRpID = normalizePasskeyRpID(rpID);
+  if (!normalizedRpID) {
+    throw new Error('PASSKEY_RP_ID_INVALID');
+  }
   return generateAuthenticationOptions({
-    rpID: 'academiadelicente.ro', // Asigură-te că e corect (sau localhost în dev)
+    rpID: normalizedRpID,
     userVerification: 'preferred',
   });
 }
 
 export async function verifyPasskeyAuthentication({ response, expectedChallenge, rpID, origin }) {
-  const credentialID = response.id; // Browserul trimite string Base64URL
+  if (!response || typeof response !== 'object') {
+    throw new Error('PASSKEY_RESPONSE_INVALID');
+  }
+  if (!expectedChallenge || typeof expectedChallenge !== 'string') {
+    throw new Error('PASSKEY_CHALLENGE_MISSING');
+  }
+  const normalizedChallenge = expectedChallenge.trim();
+  if (
+    normalizedChallenge.length < PASSKEY_CHALLENGE_MIN_LENGTH ||
+    normalizedChallenge.length > PASSKEY_CHALLENGE_MAX_LENGTH
+  ) {
+    throw new Error('PASSKEY_CHALLENGE_INVALID');
+  }
 
-  console.log('--- PASSKEY AUTH ---');
-  console.log('Searching for ID:', credentialID);
+  const normalizedRpID = normalizePasskeyRpID(rpID);
+  if (!normalizedRpID) {
+    throw new Error('PASSKEY_RP_ID_INVALID');
+  }
+  const normalizedOrigin = normalizePasskeyOrigin(origin, normalizedRpID);
+  if (!normalizedOrigin) {
+    throw new Error('PASSKEY_ORIGIN_INVALID');
+  }
+  const credentialID = normalizePasskeyCredentials(response.id);
+  if (!credentialID) {
+    throw new Error('PASSKEY_CREDENTIAL_INVALID');
+  }
 
-  // Căutăm exact string-ul primit, fără conversii
   const [rows] = await pool.query(
     `SELECT p.*, u.email, u.full_name, u.role, u.phone, u.is_active
      FROM passkeys p
@@ -192,14 +289,14 @@ export async function verifyPasskeyAuthentication({ response, expectedChallenge,
 
   const verification = await verifyAuthenticationResponse({
     response,
-    expectedChallenge,
-    expectedOrigin: origin,
-    expectedRPID: rpID,
+    expectedChallenge: normalizedChallenge,
+    expectedOrigin: normalizedOrigin,
+    expectedRPID: normalizedRpID,
     authenticator: {
-      credentialID: passkey.credential_id, // Biblioteca știe să gestioneze string-ul base64url
+      credentialID: passkey.credential_id,
       credentialPublicKey: Buffer.from(passkey.public_key, 'base64'),
       counter: passkey.counter,
-      transports: passkey.transports ? JSON.parse(passkey.transports) : []
+      transports: parseTransports(passkey.transports) || []
     }
   });
 

@@ -56,7 +56,7 @@
       <div class="card-body">
         <% if (contractContainsHtml) { %>
         <div class="contract-public">
-          <%- offer.contract_text %>
+          <%- sanitizedContractHtml %>
         </div>
         <% } else { %>
         <pre class="contract-text"><%= offer.contract_text %></pre>

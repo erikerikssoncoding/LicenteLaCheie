@@ -46,7 +46,17 @@ const MAILBOX_FETCH_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const MAILBOX_TIMEZONE = process.env.TZ || 'Europe/Bucharest';
 const MAILBOX_LOCALE = 'ro-RO';
 
+const EMAIL_CONTROL_CHAR_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+const EMAIL_SEPARATOR_REGEXP = /[;,]/;
 const MAX_EMAIL_RECIPIENTS = 10;
+const MAX_EMAIL_ADDRESS_LENGTH = 254;
+const MAX_HEADER_LINE_LENGTH = 998;
+const MAX_EMAIL_TEXT_LENGTH = 200000;
+const MAX_EMAIL_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+const MAX_ATTACHMENT_FILE_NAME_LENGTH = 120;
+const EMAIL_ADDRESS_REGEXP =
+  /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,252}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,252}[a-z0-9])?)*$/i;
+const MIME_TYPE_REGEXP = /^[a-z0-9][a-z0-9!#$&^_+.-]*\/[a-z0-9][a-z0-9!#$&^_+.-]*$/i;
 const CLIENT_HOSTNAME = os.hostname();
 const PUBLIC_WEB_BASE_URL = process.env.PUBLIC_WEB_BASE_URL || 'https://academiadelicente.ro';
 
@@ -226,40 +236,120 @@ function normalizeAddressList(value) {
   if (!value) {
     return [];
   }
+
+  const seen = new Set();
+  const addresses = [];
+
+  const addRawAddress = (entry) => {
+    if (!entry) {
+      return;
+    }
+
+    const parts = String(entry)
+      .split(EMAIL_SEPARATOR_REGEXP)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+
+    for (const part of parts) {
+      const normalizedEmail = normalizeEmailAddress(part);
+      if (!normalizedEmail) {
+        continue;
+      }
+
+      if (!seen.has(normalizedEmail)) {
+        seen.add(normalizedEmail);
+        addresses.push(normalizedEmail);
+      }
+
+      if (addresses.length >= MAX_EMAIL_RECIPIENTS) {
+        break;
+      }
+    }
+  };
+
   if (Array.isArray(value)) {
-    return value
-      .filter(Boolean)
-      .map((item) => String(item).trim())
-      .filter((item) => item.length > 0)
-      .slice(0, MAX_EMAIL_RECIPIENTS);
+    for (const item of value) {
+      addRawAddress(item);
+      if (addresses.length >= MAX_EMAIL_RECIPIENTS) {
+        break;
+      }
+    }
+    return addresses;
   }
-  return String(value)
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
-    .slice(0, MAX_EMAIL_RECIPIENTS);
+
+  addRawAddress(value);
+  return addresses;
 }
 
 function extractAddress(value) {
-  if (!value) {
-    return null;
-  }
-  const match = String(value).match(/<([^>]+)>/u);
-  if (match) {
-    return match[1].trim();
-  }
-  return String(value).trim();
+  return normalizeEmailAddress(value);
 }
 
-function encodeHeader(value) {
+function sanitizeHeaderValue(value, maxLength = MAX_HEADER_LINE_LENGTH) {
   if (!value) {
     return '';
   }
-  if (/^[\x00-\x7F]+$/u.test(value)) {
-    return value;
+  const sanitized = String(value).replace(EMAIL_CONTROL_CHAR_PATTERN, '').trim();
+  if (sanitized.length > maxLength) {
+    return sanitized.slice(0, maxLength);
   }
-  const base64Value = Buffer.from(value, 'utf8').toString('base64');
-  return `=?UTF-8?B?${base64Value}?=`;
+  return sanitized.replace(/\r|\n/g, '');
+}
+
+function normalizeEmailAddress(value) {
+  const normalized = sanitizeHeaderValue(value, MAX_EMAIL_ADDRESS_LENGTH);
+  if (!normalized) {
+    return null;
+  }
+
+  const angleMatch = normalized.match(/<([^>]+)>/u);
+  const address = angleMatch ? angleMatch[1].trim() : normalized.trim();
+  if (!EMAIL_ADDRESS_REGEXP.test(address)) {
+    return null;
+  }
+
+  return address.toLowerCase();
+}
+
+function sanitizeAndFoldHeaderValue(value) {
+  const sanitized = sanitizeHeaderValue(value);
+  if (!sanitized) {
+    return '';
+  }
+
+  if (/^[\x20-\x7E]+$/.test(sanitized) && sanitized.length <= MAX_HEADER_LINE_LENGTH) {
+    return sanitized;
+  }
+
+  const encodedValue = Buffer.from(sanitized, 'utf8').toString('base64');
+  const chunks = [];
+  const encodedChunkSize = 72;
+
+  for (let i = 0; i < encodedValue.length; i += encodedChunkSize) {
+    chunks.push(`=?UTF-8?B?${encodedValue.slice(i, i + encodedChunkSize)}?=`);
+  }
+
+  return chunks.join('\r\n ');
+}
+
+function encodeHeader(value) {
+  return sanitizeAndFoldHeaderValue(value);
+}
+
+function sanitizeEmailText(value) {
+  const normalized = value ? String(value).replace(EMAIL_CONTROL_CHAR_PATTERN, '').replace(/\r?\n/g, '\r\n') : '';
+  if (normalized.length > MAX_EMAIL_TEXT_LENGTH) {
+    return normalized.slice(0, MAX_EMAIL_TEXT_LENGTH);
+  }
+  return normalized;
+}
+
+function sanitizeAttachmentName(name = 'fisier') {
+  const sanitized = sanitizeHeaderValue(
+    String(name || 'fisier').replace(/["<>:\\/|?*]/g, '_').replace(/\s+/g, ' ').trim(),
+    MAX_ATTACHMENT_FILE_NAME_LENGTH
+  );
+  return sanitized || 'fisier';
 }
 
 function formatDateHeader(date = new Date()) {
@@ -282,11 +372,25 @@ function prepareAttachments(attachments = []) {
           ? attachment.content
           : Buffer.from(attachment.content)
         : await fs.readFile(attachment.path);
+
+      if (!Buffer.isBuffer(buffer)) {
+        throw new Error('INVALID_ATTACHMENT_BUFFER');
+      }
+
+      if (buffer.length > MAX_EMAIL_ATTACHMENT_BYTES) {
+        throw new Error('ATTACHMENT_TOO_LARGE');
+      }
+
+      const contentType = sanitizeHeaderValue(attachment.contentType || attachment.mimetype || 'application/octet-stream');
+      if (!MIME_TYPE_REGEXP.test(contentType)) {
+        throw new Error('INVALID_ATTACHMENT_MIME_TYPE');
+      }
+
+      const filename = sanitizeAttachmentName(attachment.filename || attachment.originalname || 'fisier');
       const base64Content = chunkString(buffer.toString('base64'));
-      const safeName = attachment.filename || attachment.originalname || 'fisier';
       return {
-        filename: safeName.replace(/\r|\n/g, ''),
-        contentType: attachment.contentType || attachment.mimetype || 'application/octet-stream',
+        filename,
+        contentType,
         content: base64Content
       };
     })
@@ -294,20 +398,26 @@ function prepareAttachments(attachments = []) {
 }
 
 function buildMimeMessage({ from, to, subject, text, attachments, replyTo = null }) {
+  const textContent = sanitizeEmailText(text || '');
+  const recipients = Array.isArray(to) ? to.slice() : normalizeAddressList(to);
+
   const headers = [
-    `From: ${from}`,
-    `To: ${Array.isArray(to) ? to.join(', ') : to}`,
+    `From: ${sanitizeHeaderValue(from)}`,
+    `To: ${recipients.join(', ')}`,
     `Subject: ${encodeHeader(subject)}`,
     `Date: ${formatDateHeader()}`,
     'MIME-Version: 1.0'
   ];
 
   if (replyTo) {
-    headers.push(`Reply-To: ${replyTo}`);
+    const normalizedReplyTo = normalizeEmailAddress(replyTo);
+    if (normalizedReplyTo) {
+      headers.push(`Reply-To: ${normalizedReplyTo}`);
+    }
   }
 
   if (attachments.length === 0) {
-    headers.push('Content-Type: text/plain; charset="utf-8"', 'Content-Transfer-Encoding: 8bit', '', text || '', '');
+    headers.push('Content-Type: text/plain; charset="utf-8"', 'Content-Transfer-Encoding: 8bit', '', textContent, '');
     return headers.join('\r\n');
   }
 
@@ -316,7 +426,7 @@ function buildMimeMessage({ from, to, subject, text, attachments, replyTo = null
   const lines = [...headers];
   lines.push(`--${boundary}`);
   lines.push('Content-Type: text/plain; charset="utf-8"');
-  lines.push('Content-Transfer-Encoding: 8bit', '', text || '', '');
+  lines.push('Content-Transfer-Encoding: 8bit', '', textContent, '');
   attachments.forEach((attachment) => {
     lines.push(`--${boundary}`);
     lines.push(`Content-Type: ${attachment.contentType}; name="${attachment.filename}"`);
@@ -587,7 +697,7 @@ async function createConnection({ host, port, secure }) {
 }
 
 export function isMailConfigured() {
-  return Boolean(MAIL_HOST && MAIL_FROM && MAIL_USER && MAIL_PASSWORD);
+  return Boolean(MAIL_HOST && MAIL_FROM && MAIL_USER && MAIL_PASSWORD && normalizeEmailAddress(MAIL_FROM));
 }
 
 function isImapConfigured() {
@@ -635,11 +745,14 @@ async function fetchRecentMailboxMessages(client, folderName, limit = 5) {
 
 async function sendRawMail({ to, subject, text, attachments, replyTo = null, eventType = 'generic', context = null }) {
   const recipients = normalizeAddressList(to);
+  const senderAddress = normalizeEmailAddress(MAIL_FROM);
+  const normalizedSubject = sanitizeHeaderValue(subject, MAX_HEADER_LINE_LENGTH);
+
   if (!isMailConfigured()) {
     console.info('Mail service is not configured. Skipping send.');
     await safeLogMailEvent({
       eventType,
-      subject,
+      subject: normalizedSubject || subject,
       recipients,
       status: 'skipped',
       errorMessage: 'MAIL_NOT_CONFIGURED',
@@ -647,28 +760,66 @@ async function sendRawMail({ to, subject, text, attachments, replyTo = null, eve
     });
     return false;
   }
-  if (!recipients.length) {
-    await safeLogMailEvent({ eventType, subject, recipients: [], status: 'skipped', errorMessage: 'NO_RECIPIENTS', context });
+  if (!senderAddress) {
+    await safeLogMailEvent({
+      eventType,
+      subject: normalizedSubject || subject,
+      recipients,
+      status: 'error',
+      errorMessage: 'INVALID_MAIL_FROM',
+      context
+    });
     return false;
   }
-  const preparedAttachments = await prepareAttachments(attachments);
+  if (!recipients.length) {
+    await safeLogMailEvent({
+      eventType,
+      subject: normalizedSubject || subject,
+      recipients: [],
+      status: 'skipped',
+      errorMessage: 'NO_RECIPIENTS',
+      context
+    });
+    return false;
+  }
+  let preparedAttachments = [];
+  try {
+    preparedAttachments = await prepareAttachments(Array.isArray(attachments) ? attachments : []);
+  } catch (attachmentError) {
+    await safeLogMailEvent({
+      eventType,
+      subject: normalizedSubject || subject,
+      recipients,
+      status: 'error',
+      errorMessage: attachmentError.message,
+      context
+    });
+    throw attachmentError;
+  }
+
   const mimeMessage = buildMimeMessage({
-    from: MAIL_FROM,
+    from: senderAddress,
     to: recipients,
-    subject,
+    subject: normalizedSubject || '(fără subiect)',
     text,
     attachments: preparedAttachments,
     replyTo
   });
-  const senderAddress = extractAddress(MAIL_FROM);
-  const connection = await createConnection({ host: MAIL_HOST, port: MAIL_PORT, secure: MAIL_SECURE });
+  const safeHost = sanitizeHeaderValue(MAIL_HOST, 255);
+  const clientHostname = sanitizeHeaderValue(CLIENT_HOSTNAME, 255);
+  let connection;
+
   try {
+    if (!safeHost) {
+      throw new Error('INVALID_MAIL_HOST');
+    }
+    connection = await createConnection({ host: safeHost, port: MAIL_PORT, secure: MAIL_SECURE });
     await connection.expect(220);
-    await connection.command(`EHLO ${CLIENT_HOSTNAME}`, 250);
+    await connection.command(`EHLO ${clientHostname}`, 250);
     if (!MAIL_SECURE && MAIL_STARTTLS) {
       await connection.command('STARTTLS', 220);
-      await connection.upgradeToTls(MAIL_HOST);
-      await connection.command(`EHLO ${CLIENT_HOSTNAME}`, 250);
+      await connection.upgradeToTls(safeHost);
+      await connection.command(`EHLO ${clientHostname}`, 250);
     }
     if (MAIL_USER && MAIL_PASSWORD) {
       await connection.command('AUTH LOGIN', 334);
@@ -682,14 +833,16 @@ async function sendRawMail({ to, subject, text, attachments, replyTo = null, eve
     await connection.command('DATA', 354);
     await connection.sendData(`${mimeMessage}\r\n`);
     await connection.command('QUIT', 221);
-    await safeLogMailEvent({ eventType, subject, recipients, status: 'sent', context });
+    await safeLogMailEvent({ eventType, subject: normalizedSubject || subject, recipients, status: 'sent', context });
 
     return true;
   } catch (error) {
-    await safeLogMailEvent({ eventType, subject, recipients, status: 'error', errorMessage: error.message, context });
+    await safeLogMailEvent({ eventType, subject: normalizedSubject || subject, recipients, status: 'error', errorMessage: error.message, context });
     throw error;
   } finally {
-    connection.close();
+    if (connection) {
+      connection.close();
+    }
   }
 }
 
@@ -711,13 +864,15 @@ function formatMetadata(clientMetadata) {
 }
 
 function getAdminNotificationRecipients(additional = []) {
-  const adminRecipients = normalizeAddressList(MAIL_NOTIFICATIONS_TO) || [];
+  const adminRecipients = normalizeAddressList(MAIL_NOTIFICATIONS_TO);
   if (!adminRecipients.length && MAIL_FROM) {
-    adminRecipients.push(extractAddress(MAIL_FROM));
+    const sender = normalizeEmailAddress(MAIL_FROM);
+    if (sender) {
+      adminRecipients.push(sender);
+    }
   }
   const extras = normalizeAddressList(additional);
-  const merged = [...adminRecipients, ...extras];
-  return [...new Set(merged.filter(Boolean))];
+  return [...new Set([...adminRecipients, ...extras].filter(Boolean))];
 }
 
 export async function sendOfferSubmissionEmails({
@@ -767,6 +922,10 @@ export async function sendOfferSubmissionEmails({
   });
 
   if (submissionEmail) {
+    const safeSubmissionEmail = normalizeEmailAddress(submissionEmail);
+    if (!safeSubmissionEmail) {
+      return;
+    }
     const clientText = [
       `Bună, ${payload.clientName}!`,
       '',
@@ -779,12 +938,12 @@ export async function sendOfferSubmissionEmails({
       'Echipa Academia de Licențe'
     ].join('\n');
     await sendRawMail({
-      to: submissionEmail,
+      to: safeSubmissionEmail,
       subject: 'Confirmare solicitare ofertă Academia de Licențe',
       text: clientText,
       attachments: [],
       eventType: 'offer_submission_client',
-      context: { ticketId, offerCode, submissionEmail }
+      context: { ticketId, offerCode, submissionEmail: safeSubmissionEmail }
     });
   }
 }
@@ -819,10 +978,11 @@ export async function sendContactSubmissionEmails({ payload, attachments, client
     text: adminText,
     attachments: attachmentPayload,
     eventType: 'contact_submission_admin',
-    context: { submissionEmail, ip: ipInfo }
+    context: { submissionEmail: normalizeEmailAddress(submissionEmail), ip: ipInfo }
   });
 
-  if (submissionEmail) {
+  const safeSubmissionEmail = normalizeEmailAddress(submissionEmail);
+  if (safeSubmissionEmail) {
     const clientText = [
       `Bună, ${payload.fullName}!`,
       '',
@@ -835,12 +995,12 @@ export async function sendContactSubmissionEmails({ payload, attachments, client
       'Echipa Academia de Licențe'
     ].join('\n');
     await sendRawMail({
-      to: submissionEmail,
+      to: safeSubmissionEmail,
       subject: 'Confirmare mesaj de contact Academia de Licențe',
       text: clientText,
       attachments: [],
       eventType: 'contact_submission_client',
-      context: { submissionEmail }
+      context: { submissionEmail: safeSubmissionEmail }
     });
   }
 }
@@ -849,7 +1009,10 @@ export async function sendRegistrationCredentialsEmail({ fullName, email, passwo
   if (!isMailConfigured() || !email || !password) {
     return;
   }
-  const normalizedEmail = String(email).toLowerCase();
+  const normalizedEmail = normalizeEmailAddress(email);
+  if (!normalizedEmail) {
+    return;
+  }
   const safeName = fullName ? String(fullName).trim() : 'client';
   const loginLink =
     userId && typeof userId === 'number'
@@ -885,7 +1048,10 @@ export async function sendPasswordResetEmail({ user, token, expiresAt }) {
   if (!isMailConfigured() || !user?.email || !token) {
     return;
   }
-  const normalizedEmail = String(user.email).toLowerCase();
+  const normalizedEmail = normalizeEmailAddress(user.email);
+  if (!normalizedEmail) {
+    return;
+  }
   const resetLink = buildPublicUrl(`/autentificare?resetToken=${encodeURIComponent(token)}`);
   const expiresLabel = expiresAt ? new Date(expiresAt).toLocaleString('ro-RO') : null;
   const clientText = [
@@ -932,8 +1098,13 @@ export async function sendProjectStatusUpdateEmail({ project, statusInfo, notes 
     .filter(Boolean)
     .join('\n');
 
+  const normalizedClientEmail = normalizeEmailAddress(project.client_email);
+  if (!normalizedClientEmail) {
+    return;
+  }
+
   await sendRawMail({
-    to: project.client_email,
+    to: normalizedClientEmail,
     subject: `Actualizare proiect – ${statusLabel}`,
     text: clientText,
     attachments: [],
@@ -946,7 +1117,7 @@ export async function sendOfferReadyEmail({ offer, ticket, client }) {
   if (!isMailConfigured() || !offer || !ticket) {
     return;
   }
-  const recipient = client?.email || offer.email;
+  const recipient = normalizeEmailAddress(client?.email || offer.email);
   if (!recipient) {
     return;
   }
@@ -984,7 +1155,7 @@ export async function sendContractStageEmail({ ticket, client, stage, contractNu
   if (!isMailConfigured() || !ticket) {
     return;
   }
-  const recipient = client?.email || null;
+  const recipient = normalizeEmailAddress(client?.email || null);
   if (!recipient) {
     return;
   }
@@ -1061,15 +1232,16 @@ export async function sendTestMail({ recipient, actor = null } = {}) {
 }
 
 function sanitizeEmailList(values = [], exclude = []) {
-  const exclusions = new Set(exclude.map((item) => String(item || '').toLowerCase()).filter(Boolean));
-  return [...new Set(values.map((item) => String(item || '').toLowerCase()).filter((item) => item && !exclusions.has(item)))];
+  const exclusions = new Set(normalizeAddressList(exclude));
+  const addresses = normalizeAddressList(values);
+  return addresses.filter((address) => !exclusions.has(address));
 }
 
 export async function sendTicketCreatedNotification({ ticket, author, clientEmail, adminEmails = [], projectTitle = null }) {
   if (!ticket) {
     return;
   }
-  const normalizedClientEmail = clientEmail ? String(clientEmail).toLowerCase() : null;
+  const normalizedClientEmail = normalizeEmailAddress(clientEmail);
   const adminRecipients = sanitizeEmailList(getAdminNotificationRecipients(adminEmails), normalizedClientEmail ? [normalizedClientEmail] : []);
   const baseContext = { ticketId: ticket.id, displayCode: ticket.display_code, authorId: author?.id };
   if (adminRecipients.length) {
@@ -1136,8 +1308,8 @@ export async function sendTicketReplyNotification({
   if (!ticket || !author || !message) {
     return;
   }
-  const normalizedClientEmail = clientEmail ? String(clientEmail).toLowerCase() : null;
-  const senderEmail = author.email ? String(author.email).toLowerCase() : null;
+  const normalizedClientEmail = normalizeEmailAddress(clientEmail);
+  const senderEmail = normalizeEmailAddress(author?.email);
   const baseContext = { ticketId: ticket.id, displayCode: ticket.display_code, authorId: author.id };
 
   const adminRecipients = sanitizeEmailList(

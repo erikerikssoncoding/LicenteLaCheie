@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'fs';
 import sessionMiddleware from './config/session.js';
 import publicRoutes from './routes/public.js';
@@ -45,69 +46,75 @@ app.locals.formatDate = formatDate;
 app.locals.appTimezone = DATE_TIME_TIMEZONE;
 
 const baseHelmet = helmet({ contentSecurityPolicy: false });
-const cspMiddleware = helmet.contentSecurityPolicy({
-  useDefaults: true,
-  directives: {
-    "default-src": ["'self'"],
-    "script-src": [
-      "'self'",
-      "'unsafe-inline'", // Permite scriptul din pagina HTML pentru buton
-      "'unsafe-eval'",   // Necesar uneori pentru biblioteci complexe
-      "https://cdn.jsdelivr.net",
-      "https://www.googletagmanager.com",
-      "https://www.google-analytics.com",
-      "https://challenges.cloudflare.com", // Pentru Cloudflare
-      "https://ajax.cloudflare.com"
-    ],
-    "script-src-elem": [ // Directivă specifică pentru scripturi <script>
-      "'self'",
-      "'unsafe-inline'",
-      "https://cdn.jsdelivr.net",
-      "https://www.googletagmanager.com",
-      "https://www.google-analytics.com",
-      "https://challenges.cloudflare.com",
-      "https://ajax.cloudflare.com"
-    ],
-    "style-src": [
-      "'self'",
-      "'unsafe-inline'",
-      "https://cdn.jsdelivr.net",
-      "https://fonts.googleapis.com"
-    ],
-    "font-src": [
-      "'self'",
-      "data:",
-      "https://fonts.gstatic.com",
-      "https://cdn.jsdelivr.net"
-    ],
-    "img-src": [
-      "'self'",
-      "data:",
-      "https://images.unsplash.com",
-      "https://www.googletagmanager.com",
-      "https://www.google-analytics.com"
-    ],
-    "connect-src": [
-      "'self'",
-      "https://www.google-analytics.com",
-      "https://region1.google-analytics.com", // Aici era blocat Analytics în log-uri
-      "https://cdn.jsdelivr.net",
-      "https://cloudflare.com"
-    ],
-    "frame-src": [
-      "'self'",
-      "https://challenges.cloudflare.com"
-    ],
-    "upgrade-insecure-requests": []
-  }
-});
+
+function buildCspMiddleware(nonce) {
+  const nonceValue = `'nonce-${nonce}'`;
+  return helmet.contentSecurityPolicy({
+    useDefaults: true,
+    directives: {
+      'default-src': ["'self'"],
+      'script-src': [
+        "'self'",
+        nonceValue,
+        'https://cdn.jsdelivr.net',
+        'https://www.googletagmanager.com',
+        'https://www.google-analytics.com',
+        'https://challenges.cloudflare.com',
+        'https://ajax.cloudflare.com'
+      ],
+      'script-src-elem': [
+        "'self'",
+        nonceValue,
+        'https://cdn.jsdelivr.net',
+        'https://www.googletagmanager.com',
+        'https://www.google-analytics.com',
+        'https://challenges.cloudflare.com',
+        'https://ajax.cloudflare.com'
+      ],
+      'style-src': [
+        "'self'",
+        "'unsafe-inline'",
+        'https://cdn.jsdelivr.net',
+        'https://fonts.googleapis.com'
+      ],
+      'font-src': [
+        "'self'",
+        'data:',
+        'https://fonts.gstatic.com',
+        'https://cdn.jsdelivr.net'
+      ],
+      'img-src': [
+        "'self'",
+        'data:',
+        'https://images.unsplash.com',
+        'https://www.googletagmanager.com',
+        'https://www.google-analytics.com'
+      ],
+      'connect-src': [
+        "'self'",
+        'https://www.google-analytics.com',
+        'https://region1.google-analytics.com',
+        'https://cdn.jsdelivr.net',
+        'https://cloudflare.com'
+      ],
+      'frame-src': [
+        "'self'",
+        'https://challenges.cloudflare.com'
+      ],
+      'upgrade-insecure-requests': []
+    }
+  });
+}
 
 app.use((req, res, next) => baseHelmet(req, res, next));
 app.use((req, res, next) => {
+  res.locals.cspNonce = randomBytes(16).toString('base64');
   if (!getSecurityState().csp) {
     return next();
   }
-  return cspMiddleware(req, res, next);
+
+  const csp = buildCspMiddleware(res.locals.cspNonce);
+  return csp(req, res, next);
 });
 app.use(compression());
 app.use(express.urlencoded({ extended: true }));

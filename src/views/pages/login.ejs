@@ -65,7 +65,7 @@
     </div>
   </div>
 </section>
-<script type="module">
+<script type="module" nonce="<%= cspNonce %>">
   import { startAuthentication } from 'https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@10.0.0/+esm';
 
   document.getElementById('btn-login-passkey').addEventListener('click', async () => {
@@ -108,7 +108,7 @@
   const resetConfirmForm = document.getElementById('reset-confirm-form');
   const resetRequestFeedback = document.getElementById('reset-request-feedback');
   const resetConfirmFeedback = document.getElementById('reset-confirm-feedback');
-  const presetResetToken = '<%= resetToken || "" %>';
+  const presetResetToken = <%- JSON.stringify(resetToken || "") %>;
   const csrfToken = document.querySelector('input[name="_csrf"]').value;
 
   function showResetMessage(element, message, type = 'info') {

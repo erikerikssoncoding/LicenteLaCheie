@@ -797,7 +797,7 @@
     </div>
   </div>
 </section>
-<script>
+<script nonce="<%= cspNonce %>">
   (function () {
     const tabButtons = document.querySelectorAll('[data-tab-target]');
     const tabPanels = document.querySelectorAll('[data-tab-panel]');
@@ -890,7 +890,7 @@
     });
   })();
 </script>
-<script>
+<script nonce="<%= cspNonce %>">
   (function () {
     const countdownElement = document.querySelector('[data-deadline-countdown]');
     if (!countdownElement) {
@@ -931,7 +931,7 @@
     setInterval(updateCountdown, 1000);
   })();
 </script>
-<script>
+<script nonce="<%= cspNonce %>">
   const statusDictionary = <%- JSON.stringify(projectStatusMap) %>;
   (function () {
     const timeline = document.querySelector('[data-project-timeline]');

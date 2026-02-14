@@ -3,7 +3,184 @@ import { encryptObject, decryptObject } from '../utils/encryption.js';
 import { nanoid } from 'nanoid';
 
 const CONTRACT_DOWNLOAD_TTL_MS = 10 * 60 * 1000;
+const MAX_SIGNATURE_DATA_URL_LENGTH = 200000;
+const ALLOWED_SIGNATURE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const SIGNATURE_DATA_URL_PREFIX = /^data:([^;]+);base64,([a-z0-9+/=]+)$/i;
 const contractDownloadTokens = new Map();
+const SANITIZED_TAGS = new Set([
+  'section',
+  'header',
+  'article',
+  'footer',
+  'div',
+  'p',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'ol',
+  'ul',
+  'li',
+  'strong',
+  'em',
+  'span',
+  'pre',
+  'br',
+  'img'
+]);
+const VOID_TAGS = new Set(['br', 'img']);
+
+function sanitizeSignatureData(signatureData) {
+  if (typeof signatureData !== 'string') {
+    return null;
+  }
+  const trimmed = signatureData.trim();
+  if (!trimmed || trimmed.length > MAX_SIGNATURE_DATA_URL_LENGTH) {
+    return null;
+  }
+  const match = trimmed.match(SIGNATURE_DATA_URL_PREFIX);
+  if (!match) {
+    return null;
+  }
+  const mimeType = match[1].toLowerCase();
+  if (!ALLOWED_SIGNATURE_MIME_TYPES.has(mimeType)) {
+    return null;
+  }
+  const payload = match[2];
+  try {
+    const buffer = Buffer.from(payload, 'base64');
+    if (!buffer.length) {
+      return null;
+    }
+    return `data:${mimeType};base64,${payload}`;
+  } catch (error) {
+    return null;
+  }
+}
+
+function sanitizeClassName(value) {
+  if (!value) {
+    return '';
+  }
+  return String(value)
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .filter((token) => /^[a-z0-9_-]+$/i.test(token))
+    .join(' ')
+    .slice(0, 120);
+}
+
+function sanitizeAttributeValue(value, maxLength = 120) {
+  return String(value || '')
+    .replace(/[\u0000-\u001f]/g, '')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .slice(0, maxLength);
+}
+
+function parseTagAttributes(rawAttributes) {
+  const attributes = {};
+  const attrRegex = /([^\s=\/<>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
+  let match = null;
+  while ((match = attrRegex.exec(rawAttributes)) !== null) {
+    const name = String(match[1]).toLowerCase();
+    const value = [match[2], match[3], match[4]].find((item) => item !== undefined && item !== null);
+    if (!name || name.startsWith('on')) {
+      continue;
+    }
+    attributes[name] = value === undefined ? '' : String(value);
+  }
+  return attributes;
+}
+
+function sanitizeAllowedTag(match) {
+  const tag = match[1].toLowerCase();
+  const rawAttributes = match[2] || '';
+
+  if (tag === 'img') {
+    const attrs = parseTagAttributes(rawAttributes);
+    const src = sanitizeSignatureData(attrs.src);
+    if (!src) {
+      return '';
+    }
+    const alt = sanitizeAttributeValue(attrs.alt || 'Semnatura', 100);
+    const className = sanitizeClassName(attrs.class || 'signature-image');
+    const extra = className ? ` class="${className}"` : '';
+    return `<img${extra} src="${src}" alt="${alt}" />`;
+  }
+
+  const className = sanitizeClassName(parseTagAttributes(rawAttributes).class);
+  return className ? `<${tag} class="${className}">` : `<${tag}>`;
+}
+
+function sanitizeContractHtml(value) {
+  const raw = value == null ? '' : String(value);
+  const allowedTags = SANITIZED_TAGS;
+  const allowedTagNames = new Set(Array.from(allowedTags));
+  const tagMatch = /<[^>]*>/g;
+  let result = '';
+  let lastIndex = 0;
+  let openTags = [];
+  let match = null;
+
+  while ((match = tagMatch.exec(raw)) !== null) {
+    const text = raw.slice(lastIndex, match.index);
+    result += escapeHtml(text);
+    lastIndex = tagMatch.lastIndex;
+
+    const token = match[0];
+    if (/^<!|^<\/?script|^<\/?style|^<\s*%/i.test(token)) {
+      continue;
+    }
+
+    const closingMatch = token.match(/^<\/\s*([a-z0-9-]+)\s*>$/i);
+    if (closingMatch) {
+      const tagName = closingMatch[1].toLowerCase();
+      if (!allowedTagNames.has(tagName) || VOID_TAGS.has(tagName)) {
+        continue;
+      }
+      if (openTags.includes(tagName)) {
+        while (openTags.length) {
+          const openTag = openTags.pop();
+          result += `</${openTag}>`;
+          if (openTag === tagName) {
+            break;
+          }
+        }
+      }
+      continue;
+    }
+
+    const openingMatch = token.match(/^<\s*([a-z0-9-]+)([^>]*)\/?\s*>$/i);
+    if (!openingMatch) {
+      continue;
+    }
+    const tagName = openingMatch[1].toLowerCase();
+    if (!allowedTagNames.has(tagName)) {
+      continue;
+    }
+    if (VOID_TAGS.has(tagName)) {
+      result += sanitizeAllowedTag(openingMatch);
+      continue;
+    }
+    result += sanitizeAllowedTag(openingMatch);
+    const hasSelfClose = /\/\s*>$/.test(token);
+    if (!hasSelfClose) {
+      openTags.push(tagName);
+    }
+  }
+
+  result += escapeHtml(raw.slice(lastIndex));
+  openTags.reverse().forEach((tagName) => {
+    result += `</${tagName}>`;
+  });
+
+  return result;
+}
 
 function purgeExpiredTokens() {
   const now = Date.now();
@@ -62,11 +239,13 @@ function buildContractDraft({ offer, clientData, contractNumber, contractDate, c
   const contractEndLabel = deliveryDate || 'data stabilită de comun acord';
   const finalSigningDate = contractDate ? formatDate(contractDate) : today;
 
-  const clientSignatureHtml = clientSignature
-    ? `<img src="${clientSignature}" alt="Semnatura beneficiar" class="signature-image" />`
+  const sanitizedClientSignature = sanitizeSignatureData(clientSignature);
+  const sanitizedAdminSignature = sanitizeSignatureData(adminSignature);
+  const clientSignatureHtml = sanitizedClientSignature
+    ? `<img src="${sanitizedClientSignature}" alt="Semnatura beneficiar" class="signature-image" />`
     : '<span class="signature-placeholder">______________________</span>';
-  const adminSignatureHtml = adminSignature
-    ? `<img src="${adminSignature}" alt="Semnatura prestator" class="signature-image" />`
+  const adminSignatureHtml = sanitizedAdminSignature
+    ? `<img src="${sanitizedAdminSignature}" alt="Semnatura prestator" class="signature-image" />`
     : '<span class="signature-placeholder">______________________</span>';
 
   const contractNumberLabel = contractNumber ? escapeHtml(contractNumber) : 'In curs de alocare';
@@ -233,6 +412,13 @@ export async function generateDraftForContract({ offer, clientData }) {
 }
 
 export async function applyClientSignature({ ticketId, signatureData, offer }) {
+  const safeSignatureData = sanitizeSignatureData(signatureData);
+  if (!safeSignatureData) {
+    const error = new Error('INVALID_SIGNATURE_DATA');
+    error.status = 400;
+    throw error;
+  }
+
   const contract = await getContractDetailsByTicket(ticketId);
   if (!contract) {
     throw new Error('CONTRACT_NOT_FOUND');
@@ -243,19 +429,26 @@ export async function applyClientSignature({ ticketId, signatureData, offer }) {
   const draft = buildContractDraft({
     offer,
     clientData: contract,
-    clientSignature: signatureData
+    clientSignature: safeSignatureData
   });
   await pool.query(
     `UPDATE contract_signatures
         SET client_signature = ?, client_signed_at = CURRENT_TIMESTAMP,
             contract_stage = 'awaiting_admin', contract_draft = ?
       WHERE ticket_id = ?`,
-    [signatureData, draft, ticketId]
+    [safeSignatureData, draft, ticketId]
   );
   return draft;
 }
 
 export async function applyAdminSignature({ ticketId, signatureData, offer }) {
+  const safeSignatureData = sanitizeSignatureData(signatureData);
+  if (!safeSignatureData) {
+    const error = new Error('INVALID_SIGNATURE_DATA');
+    error.status = 400;
+    throw error;
+  }
+
   const contract = await getContractDetailsByTicket(ticketId);
   if (!contract) {
     throw new Error('CONTRACT_NOT_FOUND');
@@ -269,7 +462,7 @@ export async function applyAdminSignature({ ticketId, signatureData, offer }) {
     offer,
     clientData: contract,
     clientSignature: contract.clientSignature,
-    adminSignature: signatureData,
+    adminSignature: safeSignatureData,
     contractNumber,
     contractDate: signedAt
   });
@@ -279,7 +472,7 @@ export async function applyAdminSignature({ ticketId, signatureData, offer }) {
             contract_stage = 'completed', contract_number = ?, contract_date = ?,
             contract_draft = ?
       WHERE ticket_id = ?`,
-    [signatureData, signedAt, contractNumber, signedAt, draft, ticketId]
+    [safeSignatureData, signedAt, contractNumber, signedAt, draft, ticketId]
   );
   return { draft, contractNumber, contractDate: signedAt };
 }
@@ -344,3 +537,4 @@ export function consumeContractDownloadToken({ token, ticketId, userId }) {
   return entry;
 }
 
+export { sanitizeContractHtml };

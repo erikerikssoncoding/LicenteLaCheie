@@ -350,7 +350,7 @@
       <form
         action="/cont/tichete/<%= ticket.id %>/proiect"
         method="post"
-        onsubmit="return confirm('Actiunea va crea un proiect nou. Continui?');"
+        data-confirm-submit="Actiunea va crea un proiect nou. Continui?"
       >
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <button class="btn btn-success" type="submit">Creeaza proiect</button>
@@ -440,7 +440,7 @@
       <div class="contract-preview d-none mt-3" id="<%= contractContentId %>" data-contract-content></div>
       <% } else { %>
       <div class="contract-preview">
-        <%- contractDetails.contractDraft %>
+        <%- contractDetails.contractDraftSafeHtml || '' %>
       </div>
       <% } %>
       <% if (['client', 'admin', 'superadmin'].includes(currentUser.role) && contractStage === 'completed') { %>
@@ -902,8 +902,20 @@
     <% } %>
   </div>
 </section>
-<script>
+<script nonce="<%= cspNonce %>">
   (function () {
+    document.querySelectorAll('[data-confirm-submit]').forEach((form) => {
+      const message = form.getAttribute('data-confirm-submit');
+      if (!message) {
+        return;
+      }
+      form.addEventListener('submit', (event) => {
+        if (!window.confirm(message)) {
+          event.preventDefault();
+        }
+      });
+    });
+
     const tabButtons = document.querySelectorAll('[data-ticket-tab-target]');
     const tabPanels = document.querySelectorAll('[data-ticket-tab-panel]');
     if (!tabButtons.length || !tabPanels.length) {
@@ -939,7 +951,7 @@
     });
   })();
 </script>
-<script>
+<script nonce="<%= cspNonce %>">
   (function () {
     const forms = document.querySelectorAll('[data-signature-form]');
     forms.forEach((form) => {

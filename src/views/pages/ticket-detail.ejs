@@ -109,6 +109,55 @@
     </div>
 
     <% if (['admin', 'superadmin'].includes(currentUser.role)) {
+         const ticketDetailEntries = [];
+         let parsedPhone = null;
+         let parsedEmail = null;
+         const initialMessageLines = String(ticket.message || '')
+           .split('\n')
+           .map((line) => line.trim())
+           .filter((line) => line.length > 0);
+         let pendingKey = null;
+
+         initialMessageLines.forEach((line) => {
+           const separatorIndex = line.indexOf(':');
+           if (separatorIndex > 0) {
+             const key = line.slice(0, separatorIndex).trim();
+             const value = line.slice(separatorIndex + 1).trim();
+             const looksLikeLabel =
+               /[A-Za-zĂÂÎȘȚăâîșț]/u.test(key) && !key.includes('/') && !key.includes('\\');
+             if (looksLikeLabel) {
+               if (value.length) {
+                 ticketDetailEntries.push([key, value]);
+                 const normalizedKey = key.toLowerCase();
+                 if (!parsedPhone && normalizedKey.includes('telefon')) {
+                   parsedPhone = value;
+                 }
+                 if (!parsedEmail && normalizedKey.includes('email')) {
+                   parsedEmail = value;
+                 }
+                 pendingKey = null;
+               } else {
+                 pendingKey = key;
+               }
+               return;
+             }
+           }
+
+           if (pendingKey) {
+             ticketDetailEntries.push([pendingKey, line]);
+             const normalizedKey = pendingKey.toLowerCase();
+             if (!parsedPhone && normalizedKey.includes('telefon')) {
+               parsedPhone = line;
+             }
+             if (!parsedEmail && normalizedKey.includes('email')) {
+               parsedEmail = line;
+             }
+             pendingKey = null;
+           }
+         });
+
+         const clientContactEmail = ticket.author_email || parsedEmail || 'Indisponibil';
+         const clientContactPhone = ticket.author_phone || parsedPhone || 'Indisponibil';
          let extraEntries = [];
          if (ticket.client_extra_data) {
            try {
@@ -123,6 +172,26 @@
            }
          }
     %>
+    <div class="glass-card mb-4">
+      <h2 class="h6 mb-3">Date client si detalii ticket</h2>
+      <dl class="row small mb-0">
+        <dt class="col-sm-5">Nume client</dt>
+        <dd class="col-sm-7 text-break"><%= ticket.author_name || 'Indisponibil' %></dd>
+        <dt class="col-sm-5">Email client</dt>
+        <dd class="col-sm-7 text-break"><%= clientContactEmail %></dd>
+        <dt class="col-sm-5">Telefon client</dt>
+        <dd class="col-sm-7 text-break"><%= clientContactPhone %></dd>
+      </dl>
+      <% if (ticketDetailEntries.length) { %>
+      <hr class="my-3" />
+      <h3 class="h6 mb-2">Detalii completate in ticket</h3>
+      <ul class="list-unstyled small mb-0 text-break">
+        <% ticketDetailEntries.forEach(([key, value]) => { %>
+        <li><strong><%= key %>:</strong> <%= value %></li>
+        <% }); %>
+      </ul>
+      <% } %>
+    </div>
     <div class="glass-card mb-4">
       <h2 class="h6 mb-3">Detalii tehnice despre utilizator</h2>
       <dl class="row small mb-0">

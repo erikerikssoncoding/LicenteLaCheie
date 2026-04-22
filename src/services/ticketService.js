@@ -218,6 +218,7 @@ export async function addReply({ ticketId, userId, message, messageId = null }) 
 export async function getTicketById(ticketId) {
   const [rows] = await pool.query(
     `SELECT t.*, u.full_name AS author_name, u.role AS author_role, p.title AS project_title, p.project_code AS project_code,
+            u.email AS author_email, u.phone AS author_phone,
             p.assigned_admin_id, p.assigned_editor_id, merged.display_code AS merged_into_display_code
      FROM tickets t
      LEFT JOIN users u ON u.id = t.created_by
@@ -236,6 +237,7 @@ export async function getTicketByDisplayCode(displayCode) {
   }
   const [rows] = await pool.query(
     `SELECT t.*, u.full_name AS author_name, u.role AS author_role, p.title AS project_title, p.project_code AS project_code,
+            u.email AS author_email, u.phone AS author_phone,
             p.assigned_admin_id, p.assigned_editor_id, merged.display_code AS merged_into_display_code
        FROM tickets t
        LEFT JOIN users u ON u.id = t.created_by
